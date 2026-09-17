@@ -1,8 +1,8 @@
-# 🌌 Noectra AI — The Spectrum of Intellect
-
 <div align="center">
 
-![Noectra AI Logo](public/icon.png)
+![Noectra AI Official Banner](public/banner.jpg)
+
+# 🌌 Noectra AI — The Spectrum of Intellect
 
 **Next-Generation AI Desktop Research, Document Intelligence & Reading Platform**
 
