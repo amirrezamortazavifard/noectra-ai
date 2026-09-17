@@ -233,6 +233,17 @@ Contributions, issues, and feature requests are welcome!
 
 ---
 
+## 🙏 Acknowledgments & Credits
+
+Noectra AI stands on the shoulders of giants and gratefully incorporates inspirations and architectural foundations from remarkable open-source projects:
+
+- **[Vane](https://github.com/ItzCrazyKns/Vane)** by [@ItzCrazyKns](https://github.com/ItzCrazyKns): For the privacy-first AI answering architecture, multi-provider model orchestration, and desktop windowing patterns.
+- **[Readest](https://github.com/readest/readest)**: For pioneering modern document reading experiences, ergonomic typography, RSVP speed reading concepts, and multi-format reader utilities.
+- **[Tauri](https://tauri.app/)**: For providing the blazingly fast, secure, and lightweight Rust desktop framework.
+- All open-source maintainers whose libraries and tools power this platform.
+
+---
+
 ## 📄 License
 
 Distributed under the **MIT License**. See `LICENSE` for more information.
@@ -242,3 +253,4 @@ Distributed under the **MIT License**. See `LICENSE` for more information.
 <div align="center">
   <sub>Built with ❤️ by <a href="https://github.com/amirrezamortazavifard">Amirreza Mortazavi Fard</a></sub>
 </div>
+
