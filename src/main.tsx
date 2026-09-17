@@ -6,7 +6,7 @@ import App from './App';
 if (typeof (window as any).process === 'undefined') {
   (window as any).process = {
     env: {
-      NEXT_PUBLIC_VERSION: '1.0.0',
+      NEXT_PUBLIC_VERSION: '1.0.1',
       NODE_ENV: 'production',
     },
   };

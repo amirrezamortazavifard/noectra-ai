@@ -1,6 +1,6 @@
 [package]
 name = "noectra-ai"
-version = "1.0.0"
+version = "1.0.1"
 description = "Privacy-focused AI answering engine & research studio powered by Tauri and Rust"
 authors = ["Antigravity"]
 edition = "2021"

@@ -18,7 +18,7 @@ import { toast } from 'sonner';
 import { openExternalLink } from '@/lib/openExternal';
 import { soundService } from '@/lib/sound/soundService';
 
-export const CURRENT_VERSION = '1.0.0';
+export const CURRENT_VERSION = '1.0.1';
 export const GITHUB_REPO_URL = 'https://github.com/amirrezamortazavifard/noectra-ai';
 export const GITHUB_API_LATEST = 'https://api.github.com/repos/amirrezamortazavifard/noectra-ai/releases/latest';
 

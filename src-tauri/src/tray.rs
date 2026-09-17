@@ -68,7 +68,7 @@ pub fn setup_tray(app: &AppHandle) -> Result<TrayState, Box<dyn std::error::Erro
     let title_item = MenuItem::with_id(
         app,
         "title",
-        "🌟 Noectra AI Studio v1.0.0",
+        "🌟 Noectra AI Studio v1.0.1",
         false,
         None::<&str>,
     )?;

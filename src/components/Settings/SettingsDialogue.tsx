@@ -20,7 +20,7 @@ import Models from './Sections/Models/Section';
 import SearchSection from './Sections/Search';
 import Select from '@/components/ui/Select';
 import Personalization from './Sections/Personalization';
-import Updates from './Sections/Updates';
+import Updates, { CURRENT_VERSION } from './Sections/Updates';
 import { openExternalLink } from '@/lib/openExternal';
 
 const sections = [
@@ -179,7 +179,7 @@ const SettingsDialogue = ({
                       className="text-xs font-mono font-medium text-black/70 dark:text-white/70 hover:text-cyan-500 dark:hover:text-cyan-400 transition"
                       title="Click to view update center"
                     >
-                      v1.0.0
+                      v{CURRENT_VERSION}
                     </button>
                     <button
                       onClick={() => setActiveSection('updates')}
