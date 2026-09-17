@@ -18,17 +18,13 @@ jobs:
       matrix:
         include:
           - platform: 'macos-latest'
-            args: '--target aarch64-apple-darwin'
-            target: 'aarch64-apple-darwin'
-          - platform: 'macos-latest'
-            args: '--target x86_64-apple-darwin'
-            target: 'x86_64-apple-darwin'
+            name: 'macOS Apple Silicon (M1/M2/M3/M4)'
+          - platform: 'macos-13'
+            name: 'macOS Intel (x86_64)'
           - platform: 'ubuntu-22.04'
-            args: ''
-            target: ''
+            name: 'Linux (Debian/Ubuntu & AppImage)'
           - platform: 'windows-latest'
-            args: ''
-            target: ''
+            name: 'Windows (MSI & NSIS Setup)'
 
     runs-on: ${{ matrix.platform }}
     steps:
@@ -44,7 +40,6 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
-          targets: ${{ matrix.target }}
 
       - name: Rust Cache
         uses: swatinem/rust-cache@v2
@@ -55,7 +50,7 @@ jobs:
         if: matrix.platform == 'ubuntu-22.04'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf libssl-dev libxdo-dev
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev patchelf libssl-dev libxdo-dev build-essential curl wget
 
       - name: Install npm dependencies
         run: npm ci || npm install
@@ -74,8 +69,8 @@ jobs:
 
             ### 📦 Platform Packages Available:
             - **Windows**: `.msi` installer & `.exe`
-            - **macOS**: `.dmg` disk image (Apple Silicon `aarch64` & Intel `x86_64`)
-            - **Linux**: `.AppImage` (standalone) & `.deb` (Debian/Ubuntu)
+            - **macOS**: `.dmg` disk image (Native Apple Silicon & Intel)
+            - **Linux**: `.AppImage` (standalone portable) & `.deb` (Debian/Ubuntu)
 
             ### ✨ Highlights:
             - 🌐 **In-App Live Web**: Native anti-blocking proxy bypassing `X-Frame-Options`
@@ -83,6 +78,5 @@ jobs:
             - 🤖 **Universal AI Core**: Google Gemini, OpenRouter, and Local LLM support
             - 🔬 **Academic & News Feeds**: Real-time RSS Discover + arXiv research hub
             - 📑 **Deep Document Reader**: PDF and EPUB with TTS and RSVP speed reader
-          releaseDraft: true
+          releaseDraft: false
           prerelease: false
-          args: ${{ matrix.args }}
