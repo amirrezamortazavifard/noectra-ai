@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import ModelProviderIcon from '@/components/ui/ModelProviderIcon';
+import { soundService } from '@/lib/sound/soundService';
 
 interface RecentSession {
   id: string;
@@ -73,17 +74,24 @@ export default function TrayHub() {
     }
   }, []);
 
+  useEffect(() => {
+    soundService.play('pop');
+  }, []);
+
   const handleLaunchSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (!query.trim()) return;
+    soundService.play('dispatch');
     invoke('open_route_cmd', { route: `/?q=${encodeURIComponent(query.trim())}` }).catch(() => {});
   };
 
   const handleOpenWorkspace = () => {
+    soundService.play('pop');
     invoke('open_workspace_cmd').catch(() => {});
   };
 
   const handleOpenRoute = (route: string) => {
+    soundService.play('pop');
     invoke('open_route_cmd', { route }).catch(() => {});
   };
 
@@ -92,10 +100,12 @@ export default function TrayHub() {
   };
 
   const handleDismiss = () => {
+    soundService.play('pop');
     invoke('toggle_tray_hub_cmd').catch(() => {});
   };
 
   const handleToggleAutostart = async () => {
+    soundService.play('pop');
     const targetState = !autostartEnabled;
     try {
       await invoke('set_autostart_status', { enable: targetState });

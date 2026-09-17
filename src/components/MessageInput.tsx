@@ -7,6 +7,7 @@ import ModelSelector from './MessageInputActions/ChatModelSelector';
 import Optimization from './MessageInputActions/Optimization';
 import Sources from './MessageInputActions/Sources';
 import { useChat } from '@/lib/hooks/useChat';
+import { soundService } from '@/lib/sound/soundService';
 
 const MessageInput = () => {
   const { loading, sendMessage } = useChat();
@@ -37,6 +38,7 @@ const MessageInput = () => {
 
   const handleSend = () => {
     if (loading || message.trim().length === 0) return;
+    soundService.play('dispatch');
     sendMessage(message);
     setMessage('');
   };

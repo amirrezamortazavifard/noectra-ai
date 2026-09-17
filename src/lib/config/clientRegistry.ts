@@ -27,3 +27,11 @@ export const getMeasurementUnit = () => {
 
   return value.toLowerCase();
 };
+
+export const getSoundEffectsEnabled = () =>
+  getClientConfig('soundEffectsEnabled', 'true') === 'true';
+
+export const getSoundEffectsVolume = () => {
+  const val = parseFloat(getClientConfig('soundVolume', '0.7'));
+  return isNaN(val) ? 0.7 : val;
+};

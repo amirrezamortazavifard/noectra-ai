@@ -23,6 +23,7 @@ import { toast } from 'sonner';
 import Markdown from 'markdown-to-jsx';
 import { useNavigate } from 'react-router-dom';
 import { searchDocument, formatRagContextForPrompt } from '@/lib/rag/ragEngine';
+import { soundService } from '@/lib/sound/soundService';
 
 interface PdfAiPanelProps {
   isOpen: boolean;
@@ -126,6 +127,7 @@ export const PdfAiPanel: React.FC<PdfAiPanelProps> = ({
     setMessages((prev) => [...prev, userMsg, assistantMsg]);
     setInput('');
     setLoading(true);
+    soundService.play('dispatch');
 
     try {
       const chatModel = localStorage.getItem('chatModelKey');
@@ -229,6 +231,7 @@ export const PdfAiPanel: React.FC<PdfAiPanelProps> = ({
               : msg
           )
         );
+        soundService.play('complete');
       }
     } catch (err: any) {
       console.error('PDF AI Chat error:', err);
@@ -250,6 +253,7 @@ export const PdfAiPanel: React.FC<PdfAiPanelProps> = ({
   };
 
   const handleCopy = (content: string, id: string) => {
+    soundService.play('copy');
     navigator.clipboard.writeText(content);
     setCopiedId(id);
     toast.success('Copied to clipboard');

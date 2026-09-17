@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { toast } from 'sonner';
 import { CURRENT_VERSION, GITHUB_API_LATEST } from '@/components/Settings/Sections/Updates';
+import { soundService } from '@/lib/sound/soundService';
 
 const compareVersions = (current: string, latest: string): boolean => {
   const cleanCurrent = current.replace(/^v/, '').trim();
@@ -36,6 +37,7 @@ export function useAutoUpdateChecker() {
         if (data && data.tag_name) {
           const isNewer = compareVersions(CURRENT_VERSION, data.tag_name);
           if (isNewer) {
+            soundService.play('notification');
             toast.info(`🎉 New version ${data.tag_name} is available!`, {
               description: 'Click to open the Update Center and download the latest version for your system.',
               action: {

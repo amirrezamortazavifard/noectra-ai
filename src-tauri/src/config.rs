@@ -493,6 +493,15 @@ impl ConfigManager {
                     "description": "Display the weather card on the home screen.",
                     "default": true,
                     "scope": "client"
+                },
+                {
+                    "name": "Interface Sound Effects",
+                    "key": "soundEffectsEnabled",
+                    "type": "switch",
+                    "required": false,
+                    "description": "Play organic audio cues for research synthesis, completions, and notifications.",
+                    "default": true,
+                    "scope": "client"
                 }
             ],
             "personalization": [

@@ -6,6 +6,7 @@ import Optimization from './MessageInputActions/Optimization';
 import Attach from './MessageInputActions/Attach';
 import { useChat } from '@/lib/hooks/useChat';
 import ModelSelector from './MessageInputActions/ChatModelSelector';
+import { soundService } from '@/lib/sound/soundService';
 
 const EmptyChatMessageInput = () => {
   const { sendMessage } = useChat();
@@ -43,14 +44,20 @@ const EmptyChatMessageInput = () => {
     <form
       onSubmit={(e) => {
         e.preventDefault();
-        sendMessage(message);
-        setMessage('');
+        if (message.trim().length > 0) {
+          soundService.play('dispatch');
+          sendMessage(message);
+          setMessage('');
+        }
       }}
       onKeyDown={(e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
           e.preventDefault();
-          sendMessage(message);
-          setMessage('');
+          if (message.trim().length > 0) {
+            soundService.play('dispatch');
+            sendMessage(message);
+            setMessage('');
+          }
         }
       }}
       className="w-full"

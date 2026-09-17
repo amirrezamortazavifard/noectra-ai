@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Sparkles, Brain, Compass, Cpu, CheckCircle2 } from 'lucide-react';
+import { soundService } from '@/lib/sound/soundService';
 
 interface SplashScreenProps {
   onAnimationComplete?: () => void;
@@ -44,12 +45,18 @@ export default function SplashScreen({ isReady = false }: SplashScreenProps) {
     };
   }, [isReady]);
 
+  const startupPlayedRef = useRef(false);
+
   useEffect(() => {
-    if (isReady) {
+    if (isReady || progress >= 100) {
       setProgress(100);
       setCurrentStatusIndex(statusMessages.length - 1);
+      if (!startupPlayedRef.current) {
+        startupPlayedRef.current = true;
+        soundService.play('startup');
+      }
     }
-  }, [isReady]);
+  }, [isReady, progress]);
 
   const CurrentIcon = statusMessages[currentStatusIndex].icon;
 

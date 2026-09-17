@@ -19,6 +19,7 @@ import {
   Layers,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { soundService } from '@/lib/sound/soundService';
 
 import {
   PdfDocumentMeta,
@@ -468,6 +469,7 @@ export default function PdfReaderPage() {
   // Jump to citation source handler
   const handleJumpToCitation = async (pageNumber: number, quote?: string) => {
     if (pageNumber >= 1) {
+      soundService.play('page_flip');
       setCurrentPage(pageNumber);
       toast.info(`📌 Navigated to Page ${pageNumber}`);
 
@@ -679,7 +681,10 @@ export default function PdfReaderPage() {
         aiPanelOpen={aiPanelOpen}
         rulerActive={rulerActive}
         ttsActive={ttsActive}
-        onPageChange={(page) => setCurrentPage(page)}
+        onPageChange={(page) => {
+          if (page !== currentPage) soundService.play('page_flip');
+          setCurrentPage(page);
+        }}
         onZoomIn={() => setScale((s) => Math.min(3.0, s + 0.15))}
         onZoomOut={() => setScale((s) => Math.max(0.5, s - 0.15))}
         onResetZoom={() => setScale(1.15)}
@@ -703,7 +708,10 @@ export default function PdfReaderPage() {
             highlights={highlights}
             meta={meta}
             currentPage={currentPage}
-            onNavigateToPage={(p) => setCurrentPage(p)}
+            onNavigateToPage={(p) => {
+              if (p !== currentPage) soundService.play('page_flip');
+              setCurrentPage(p);
+            }}
             onDeleteHighlight={handleDeleteHighlight}
             onClose={() => setSidebarOpen(false)}
           />
@@ -721,7 +729,10 @@ export default function PdfReaderPage() {
                 rotation={rotation}
                 highlights={highlights}
                 onSelectionChange={(sel) => setSelection(sel)}
-                onPageChange={(p) => setCurrentPage(p)}
+                onPageChange={(p) => {
+                  if (p !== currentPage) soundService.play('page_flip');
+                  setCurrentPage(p);
+                }}
               />
             )}
 
@@ -745,6 +756,7 @@ export default function PdfReaderPage() {
               <ComicViewer
                 data={cbzData}
                 onPageChange={(p, t) => {
+                  if (p !== currentPage) soundService.play('page_flip');
                   setCurrentPage(p);
                   setTotalPages(t);
                 }}

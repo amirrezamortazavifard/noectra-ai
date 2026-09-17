@@ -6,6 +6,7 @@ import { useTheme } from 'next-themes';
 import SyntaxHighlighter from 'react-syntax-highlighter';
 import darkTheme from './CodeBlockDarkTheme';
 import lightTheme from './CodeBlockLightTheme';
+import { soundService } from '@/lib/sound/soundService';
 
 const SyntaxHighlighterComponent =
   SyntaxHighlighter as unknown as React.ComponentType<any>;
@@ -36,6 +37,7 @@ const CodeBlock = ({
       <button
         className="absolute top-2 right-2 p-1"
         onClick={() => {
+          soundService.play('copy');
           navigator.clipboard.writeText(children as string);
           setCopied(true);
           setTimeout(() => setCopied(false), 2000);

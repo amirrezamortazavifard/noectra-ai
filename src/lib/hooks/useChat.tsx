@@ -23,6 +23,7 @@ import { getSuggestions } from '../actions';
 import { MinimalProvider } from '../models/types';
 import { getAutoMediaSearch } from '../config/clientRegistry';
 import { applyPatch } from 'rfc6902';
+import { soundService } from '../sound/soundService';
 import { Widget } from '@/components/ChatWindow';
 
 export type Section = {
@@ -632,10 +633,10 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
           }),
         );
 
-        if (
-          (data.block.type === 'source' && data.block.data.length > 0) ||
-          data.block.type === 'text'
-        ) {
+        if (data.block.type === 'source' && data.block.data.length > 0) {
+          soundService.play('tick');
+          setMessageAppeared(true);
+        } else if (data.block.type === 'text') {
           setMessageAppeared(true);
         }
       }
@@ -665,6 +666,7 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
         }
 
         handledMessageEndRef.current.add(messageId);
+        soundService.play('complete');
 
         const currentMsg = messagesRef.current.find(
           (msg) => msg.messageId === messageId,

@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { openExternalLink } from '@/lib/openExternal';
+import { soundService } from '@/lib/sound/soundService';
 
 export const CURRENT_VERSION = '1.0.0';
 export const GITHUB_REPO_URL = 'https://github.com/amirrezamortazavifard/noectra-ai';
@@ -110,10 +111,14 @@ const Updates: React.FC = () => {
 
       if (!silent) {
         if (isNewer) {
+          soundService.play('notification');
           toast.success(`New update found: ${data.tag_name}!`);
         } else {
+          soundService.play('pop');
           toast.info(`You are running the latest version (v${CURRENT_VERSION}).`);
         }
+      } else if (isNewer) {
+        soundService.play('notification');
       }
     } catch (err: any) {
       console.error('Failed to check for updates:', err);
@@ -131,6 +136,7 @@ const Updates: React.FC = () => {
   }, []);
 
   const handleToggleAutoCheck = (e: React.ChangeEvent<HTMLInputElement>) => {
+    soundService.play('pop');
     const val = e.target.checked;
     setAutoCheckEnabled(val);
     localStorage.setItem('noectra_auto_update', val ? 'true' : 'false');

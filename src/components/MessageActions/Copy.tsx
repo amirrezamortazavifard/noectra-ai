@@ -3,6 +3,7 @@ import { Message } from '../ChatWindow';
 import { useState } from 'react';
 import { Section } from '@/lib/hooks/useChat';
 import { SourceBlock } from '@/lib/types';
+import { soundService } from '@/lib/sound/soundService';
 
 const Copy = ({
   section,
@@ -34,6 +35,7 @@ const Copy = ({
         }`;
 
         navigator.clipboard.writeText(contentToCopy);
+        soundService.play('copy');
 
         setCopied(true);
         setTimeout(() => setCopied(false), 1000);

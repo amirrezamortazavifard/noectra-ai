@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { HighlightColor, HIGHLIGHT_COLORS, TextSelectionInfo } from './types';
 import { toast } from 'sonner';
+import { soundService } from '@/lib/sound/soundService';
 
 interface PdfSelectionPopupProps {
   selection: TextSelectionInfo;
@@ -34,6 +35,7 @@ export const PdfSelectionPopup: React.FC<PdfSelectionPopupProps> = ({
   const handleCopy = async (e: React.MouseEvent) => {
     e.stopPropagation();
     try {
+      soundService.play('copy');
       await navigator.clipboard.writeText(selection.text);
       setCopied(true);
       toast.success('Text copied to clipboard');
@@ -45,6 +47,7 @@ export const PdfSelectionPopup: React.FC<PdfSelectionPopupProps> = ({
 
   const handleHighlightClick = (color: HighlightColor, e: React.MouseEvent) => {
     e.stopPropagation();
+    soundService.play('pop');
     setSelectedColor(color);
     onHighlight(color);
   };

@@ -23,6 +23,7 @@ import { openExternalLink } from '@/lib/openExternal';
 import { formatTimeDifference } from '@/lib/utils';
 import { fetchNewsFromBackend } from '@/lib/services/discover/newsApi';
 import { NewsItem } from '@/lib/services/discover/types';
+import { soundService } from '@/lib/sound/soundService';
 import ArticleReaderModal from '@/components/Discover/ArticleReaderModal';
 
 interface RecentChat {
@@ -73,10 +74,12 @@ export const HomePage: React.FC = () => {
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!searchQuery.trim()) return;
+    soundService.play('dispatch');
     navigate(`/chat?q=${encodeURIComponent(searchQuery.trim())}`);
   };
 
   const handlePromptChip = (prompt: string) => {
+    soundService.play('dispatch');
     navigate(`/chat?q=${encodeURIComponent(prompt)}`);
   };
 
