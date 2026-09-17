@@ -6,15 +6,14 @@
 
 **Next-Generation AI Desktop Research, Document Intelligence & Reading Platform**
 
+[![Latest Release](https://img.shields.io/github/v/release/amirrezamortazavifard/noectra-ai?style=for-the-badge&logo=github&color=10B981)](https://github.com/amirrezamortazavifard/noectra-ai/releases)
 [![Tauri v2](https://img.shields.io/badge/Tauri-v2.2-24C8D8?style=for-the-badge&logo=tauri&logoColor=white)](https://tauri.app/)
 [![Rust](https://img.shields.io/badge/Rust-2021_Edition-DEA584?style=for-the-badge&logo=rust&logoColor=white)](https://www.rust-lang.org/)
 [![React](https://img.shields.io/badge/React-18.3-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![Vite](https://img.shields.io/badge/Vite-6.1-646CFF?style=for-the-badge&logo=vite&logoColor=white)](https://vitejs.dev/)
-[![TailwindCSS](https://img.shields.io/badge/Tailwind_CSS-3.4-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 
-[Features](#-key-features) • [Media & Showcase](#-preview--media-showcase) • [Architecture](#-architecture--tech-stack) • [Installation](#-getting-started) • [Configuration](#-configuration)
+[⬇️ Download Releases](https://github.com/amirrezamortazavifard/noectra-ai/releases) • [Features](#-key-features) • [Media & Showcase](#-preview--media-showcase) • [Architecture](#-architecture--tech-stack) • [Installation](#-getting-started)
 
 </div>
 
