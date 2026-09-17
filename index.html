@@ -8,6 +8,20 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <meta name="theme-color" content="#07090e" />
+    <script>
+      (function() {
+        try {
+          var t = localStorage.getItem('theme') || 'dark';
+          if (t === 'light' || (t === 'system' && window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches)) {
+            document.documentElement.classList.remove('dark');
+            document.documentElement.classList.add('light');
+            var meta = document.querySelector('meta[name="theme-color"]');
+            if (meta) meta.setAttribute('content', '#ffffff');
+          }
+        } catch(e) {}
+      })();
+    </script>
   </head>
   <body class="h-full antialiased font-['Montserrat',sans-serif] bg-white dark:bg-[#07090e] text-slate-900 dark:text-white overflow-hidden m-0 p-0">
     <div id="root" class="h-full">

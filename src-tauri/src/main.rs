@@ -95,6 +95,95 @@ fn set_autostart_status(app: tauri::AppHandle, enable: bool) -> Result<(), Strin
     Ok(())
 }
 
+#[cfg(target_os = "windows")]
+fn set_dwm_window_theme(hwnd: isize, is_dark: bool) {
+    use std::ffi::c_void;
+
+    type DwmSetWindowAttributeFn = unsafe extern "system" fn(
+        isize,
+        u32,
+        *const c_void,
+        u32,
+    ) -> i32;
+
+    unsafe {
+        extern "system" {
+            fn LoadLibraryA(lpLibFileName: *const u8) -> *mut c_void;
+            fn GetProcAddress(hModule: *mut c_void, lpProcName: *const u8) -> *mut c_void;
+        }
+
+        let dwmapi = LoadLibraryA(b"dwmapi.dll\0".as_ptr());
+        if !dwmapi.is_null() {
+            let func_ptr = GetProcAddress(dwmapi, b"DwmSetWindowAttribute\0".as_ptr());
+            if !func_ptr.is_null() {
+                let dwm_set_attribute: DwmSetWindowAttributeFn = std::mem::transmute(func_ptr);
+
+                // 20 = DWMWA_USE_IMMERSIVE_DARK_MODE (Windows 10 20H1+ and Windows 11)
+                // 19 = older Windows 10 builds
+                let dark_mode_val: i32 = if is_dark { 1 } else { 0 };
+                let _ = dwm_set_attribute(
+                    hwnd,
+                    20,
+                    &dark_mode_val as *const _ as *const c_void,
+                    std::mem::size_of::<i32>() as u32,
+                );
+                let _ = dwm_set_attribute(
+                    hwnd,
+                    19,
+                    &dark_mode_val as *const _ as *const c_void,
+                    std::mem::size_of::<i32>() as u32,
+                );
+
+                // 35 = DWMWA_CAPTION_COLOR (Windows 11 build 22000+)
+                // COLORREF format is 0x00BBGGRR
+                let caption_color: u32 = if is_dark {
+                    0x000E0907 // #07090e dark background
+                } else {
+                    0x00FFFFFF // #ffffff clean light background
+                };
+                let _ = dwm_set_attribute(
+                    hwnd,
+                    35,
+                    &caption_color as *const _ as *const c_void,
+                    std::mem::size_of::<u32>() as u32,
+                );
+
+                // 36 = DWMWA_TEXT_COLOR (Windows 11 build 22000+)
+                let text_color: u32 = if is_dark {
+                    0x00FFFFFF // Pure white text
+                } else {
+                    0x002A170F // Slate 900 (#0f172a) text
+                };
+                let _ = dwm_set_attribute(
+                    hwnd,
+                    36,
+                    &text_color as *const _ as *const c_void,
+                    std::mem::size_of::<u32>() as u32,
+                );
+            }
+        }
+    }
+}
+
+#[tauri::command]
+fn sync_window_theme(app: tauri::AppHandle, theme: String) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("main") {
+        let is_dark = theme.to_lowercase() == "dark";
+        let t = if is_dark {
+            Some(tauri::Theme::Dark)
+        } else {
+            Some(tauri::Theme::Light)
+        };
+        let _ = window.set_theme(t);
+
+        #[cfg(target_os = "windows")]
+        if let Ok(hwnd) = window.hwnd() {
+            set_dwm_window_theme(hwnd.0 as isize, is_dark);
+        }
+    }
+    Ok(())
+}
+
 #[tokio::main]
 async fn main() {
     let data_dir = get_app_data_dir();
@@ -110,6 +199,14 @@ async fn main() {
         .timeout(std::time::Duration::from_secs(30))
         .build()
         .expect("Failed to build reqwest client");
+
+    let initial_theme = config
+        .get_config()
+        .preferences
+        .get("theme")
+        .and_then(|v| v.as_str())
+        .unwrap_or("dark")
+        .to_string();
 
     let state = AppState {
         db,
@@ -136,7 +233,21 @@ async fn main() {
             MacosLauncher::LaunchAgent,
             Some(vec!["--minimized"]),
         ))
-        .setup(|app| {
+        .setup(move |app| {
+            // Apply initial theme to main window
+            let is_dark = initial_theme.to_lowercase() != "light";
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.set_theme(if is_dark {
+                    Some(tauri::Theme::Dark)
+                } else {
+                    Some(tauri::Theme::Light)
+                });
+                #[cfg(target_os = "windows")]
+                if let Ok(hwnd) = window.hwnd() {
+                    set_dwm_window_theme(hwnd.0 as isize, is_dark);
+                }
+            }
+
             // Setup System Tray
             let tray_state = tray::setup_tray(app.handle())
                 .expect("Failed to initialize system tray");
@@ -179,6 +290,7 @@ async fn main() {
             greet,
             get_autostart_status,
             set_autostart_status,
+            sync_window_theme,
             tray::update_tray_status,
             tray::toggle_tray_hub_cmd,
             tray::open_workspace_cmd,
