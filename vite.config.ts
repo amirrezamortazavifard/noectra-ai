@@ -18,6 +18,9 @@ export default defineConfig({
   server: {
     port: 5173,
     strictPort: true,
+    watch: {
+      ignored: ['**/src-tauri/**'],
+    },
     proxy: {
       '/api': {
         target: 'http://127.0.0.1:3001',
@@ -28,7 +31,7 @@ export default defineConfig({
   envPrefix: ['VITE_', 'TAURI_ENV_*'],
   define: {
     'process.env': {
-      NEXT_PUBLIC_VERSION: JSON.stringify('1.12.2'),
+      NEXT_PUBLIC_VERSION: JSON.stringify('1.0.0'),
     },
   },
 });
