@@ -25,34 +25,44 @@
 
 ---
 
-## 📸 Preview & Media Showcase
+## 📸 Preview & Visual Tour
 
-### 🎥 Demo Video & Walkthrough
-<!-- 
-  TODO: Replace this placeholder with your demo video or animated GIF!
-  Example: [![Watch Video](path/to/thumbnail.png)](https://youtube.com/...)
-  Or embed direct GIF: ![Noectra AI Demo](public/screenshots/demo.gif)
--->
 <div align="center">
-  <p><i>📹 Video Walkthrough & Animated Demo coming soon</i></p>
-  <img src="public/screenshots/p1.png" alt="Noectra AI Demo Placeholder" width="85%" style="border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.5);" />
-</div>
 
+### 🧠 Intelligence Workspace & Core Workflows
+*Unified distraction-free research landing interface featuring the prompt synthesizer and quick workflow dispatchers.*
 <br />
+<img src="public/screenshots/p2.png" alt="Intelligence Workspace & Core Workflows" width="95%" style="border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.15);" />
 
-### 🖼️ Application Screenshots
-<!--
-  TODO: Add your custom screenshots here! 
-  Place images in the `public/screenshots/` directory and update the links below.
--->
+<br /><br />
 
-| Discover Feed & Real-time News | Deep Reader & In-App Anti-Blocking Web |
-| :---: | :---: |
-| <img src="public/screenshots/p1.png" alt="Discover Feed" width="100%" /> | <img src="public/screenshots/p2.png" alt="Deep Reader" width="100%" /> |
+### 🔬 Academic Research & OpenAlex Discovery Hub
+*Direct exploration across 250M+ scientific papers, real-time citation metrics, and multi-discipline academic filtering.*
+<br />
+<img src="public/screenshots/p1.png" alt="Academic Research & OpenAlex Discovery Hub" width="95%" style="border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.15);" />
 
-| Multi-Provider AI Chat | PDF & Academic Research Hub |
-| :---: | :---: |
-| *(Screenshot Placeholder: Multi-Provider Chat)* | *(Screenshot Placeholder: PDF Reader & Annotations)* |
+<br /><br />
+
+### 📑 Universal PDF & Document Intelligence Studio
+*Split-screen document reading lab with interactive vector RAG sidecar assistant, speed reader, and text-to-speech audio narration.*
+<br />
+<img src="public/screenshots/p3.png" alt="Universal PDF & Document Intelligence Studio" width="95%" style="border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.15);" />
+
+<br /><br />
+
+### 💬 AI Research & Synthesis Chat
+*Multi-engine conversational reasoning workspace with live environmental telemetry, breaking news widgets, and model selector.*
+<br />
+<img src="public/screenshots/p4.png" alt="AI Research & Synthesis Chat" width="95%" style="border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.15);" />
+
+<br /><br />
+
+### ⚡ Noectra Core Quick Hub (System Tray Companion)
+*Zero-latency floating companion overlay for instant background queries, engine presets, and quick workspace navigation.*
+<br />
+<img src="public/screenshots/p5.png" alt="Noectra Core Quick Hub" width="95%" style="border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.15);" />
+
+</div>
 
 ---
 
