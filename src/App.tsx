@@ -15,6 +15,7 @@ import { ChatProvider } from '@/lib/hooks/useChat';
 import { UIConfigSections } from '@/lib/config/types';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import TrayHub from '@/components/Tray/TrayHub';
+import { useAutoUpdateChecker } from '@/lib/hooks/useAutoUpdateChecker';
 import '@/app/globals.css';
 
 const defaultFallbackSections: UIConfigSections = {
@@ -59,6 +60,8 @@ function TrayEventListener() {
 }
 
 export default function App() {
+  useAutoUpdateChecker();
+
   const [isTrayHub, setIsTrayHub] = useState<boolean>(() => {
     if (typeof window !== 'undefined') {
       return (

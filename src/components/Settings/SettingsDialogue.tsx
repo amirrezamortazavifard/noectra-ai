@@ -21,6 +21,7 @@ import SearchSection from './Sections/Search';
 import Select from '@/components/ui/Select';
 import Personalization from './Sections/Personalization';
 import Updates from './Sections/Updates';
+import { openExternalLink } from '@/lib/openExternal';
 
 const sections = [
   {
@@ -80,6 +81,17 @@ const SettingsDialogue = ({
   useEffect(() => {
     setSelectedSection(sections.find((s) => s.key === activeSection)!);
   }, [activeSection]);
+
+  useEffect(() => {
+    const handleOpenSettings = (e: any) => {
+      setIsOpen(true);
+      if (e.detail?.section) {
+        setActiveSection(e.detail.section);
+      }
+    };
+    window.addEventListener('open-settings', handleOpenSettings);
+    return () => window.removeEventListener('open-settings', handleOpenSettings);
+  }, [setIsOpen]);
 
   useEffect(() => {
     if (isOpen) {
@@ -181,7 +193,8 @@ const SettingsDialogue = ({
                     href="https://github.com/amirrezamortazavifard/noectra-ai"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-xs text-black/70 dark:text-white/70 flex items-center justify-between group transition duration-200 hover:text-black/90 hover:dark:text-white/90"
+                    onClick={(e) => openExternalLink('https://github.com/amirrezamortazavifard/noectra-ai', e)}
+                    className="text-xs text-black/70 dark:text-white/70 flex items-center justify-between group transition duration-200 hover:text-black/90 hover:dark:text-white/90 cursor-pointer"
                     title="Noectra AI GitHub Repository"
                   >
                     <span className="flex items-center gap-1.5">
@@ -195,7 +208,8 @@ const SettingsDialogue = ({
                     href="https://github.com/amirrezamortazavifard"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-[11px] text-black/50 dark:text-white/50 flex items-center justify-between group transition duration-200 hover:text-black/80 hover:dark:text-white/80"
+                    onClick={(e) => openExternalLink('https://github.com/amirrezamortazavifard', e)}
+                    className="text-[11px] text-black/50 dark:text-white/50 flex items-center justify-between group transition duration-200 hover:text-black/80 hover:dark:text-white/80 cursor-pointer"
                     title="Developer GitHub Profile"
                   >
                     <span className="truncate">Amirreza Fard</span>

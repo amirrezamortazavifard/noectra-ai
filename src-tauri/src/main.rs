@@ -35,11 +35,44 @@ fn get_app_data_dir() -> PathBuf {
         return cwd.join("data");
     }
 
+    #[cfg(target_os = "windows")]
     if let Ok(local_app_data) = std::env::var("LOCALAPPDATA") {
-        PathBuf::from(local_app_data).join("Vane").join("data")
-    } else {
-        PathBuf::from("data")
+        let new_dir = PathBuf::from(&local_app_data).join("Noectra AI").join("data");
+        let legacy_dir = PathBuf::from(&local_app_data).join("Vane").join("data");
+
+        // Seamless migration: If legacy Vane data exists and new directory doesn't, migrate it
+        if legacy_dir.exists() && !new_dir.exists() {
+            let _ = std::fs::create_dir_all(&new_dir);
+            for file_name in ["vane.db", "vane.db-shm", "vane.db-wal", "config.json"] {
+                let old_file = legacy_dir.join(file_name);
+                let new_file = new_dir.join(file_name);
+                if old_file.exists() && !new_file.exists() {
+                    let _ = std::fs::copy(&old_file, &new_file);
+                }
+            }
+        }
+        return new_dir;
     }
+
+    #[cfg(target_os = "macos")]
+    if let Ok(home) = std::env::var("HOME") {
+        return PathBuf::from(home)
+            .join("Library")
+            .join("Application Support")
+            .join("Noectra AI")
+            .join("data");
+    }
+
+    #[cfg(target_os = "linux")]
+    if let Ok(home) = std::env::var("HOME") {
+        return PathBuf::from(home)
+            .join(".local")
+            .join("share")
+            .join("noectra-ai")
+            .join("data");
+    }
+
+    PathBuf::from("data")
 }
 
 #[tauri::command]

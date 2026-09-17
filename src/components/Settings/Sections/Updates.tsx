@@ -15,6 +15,7 @@ import {
   ChevronUp,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { openExternalLink } from '@/lib/openExternal';
 
 export const CURRENT_VERSION = '1.0.0';
 export const GITHUB_REPO_URL = 'https://github.com/amirrezamortazavifard/noectra-ai';
@@ -247,7 +248,8 @@ const Updates: React.FC = () => {
                 href={recommendedAsset.browser_download_url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-semibold text-xs shadow-lg shadow-cyan-500/20 transition duration-200 active:scale-95"
+                onClick={(e) => openExternalLink(recommendedAsset.browser_download_url, e)}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-semibold text-xs shadow-lg shadow-cyan-500/20 transition duration-200 active:scale-95 cursor-pointer"
               >
                 <Download className="w-4 h-4" />
                 <span>Download for {platform === 'windows' ? 'Windows' : platform === 'macos' ? 'macOS' : 'Linux'}</span>
@@ -363,7 +365,8 @@ const Updates: React.FC = () => {
                       href={asset.browser_download_url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-neutral-300 hover:text-white text-xs border border-white/10 transition active:scale-95"
+                      onClick={(e) => openExternalLink(asset.browser_download_url, e)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-neutral-300 hover:text-white text-xs border border-white/10 transition active:scale-95 cursor-pointer"
                     >
                       <Download className="w-3.5 h-3.5" />
                       <span>Download</span>
@@ -386,7 +389,8 @@ const Updates: React.FC = () => {
           href={`${GITHUB_REPO_URL}/releases`}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center gap-1 text-cyan-400 hover:text-cyan-300 font-medium transition"
+          onClick={(e) => openExternalLink(`${GITHUB_REPO_URL}/releases`, e)}
+          className="flex items-center gap-1 text-cyan-400 hover:text-cyan-300 font-medium transition cursor-pointer"
         >
           <span>View all releases on GitHub</span>
           <ArrowUpRight className="w-3.5 h-3.5" />
