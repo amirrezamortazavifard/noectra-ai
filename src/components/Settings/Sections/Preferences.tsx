@@ -48,26 +48,26 @@ const Preferences = ({
 
   return (
     <div className="flex-1 space-y-6 overflow-y-auto px-6 py-6">
-      <div className="rounded-xl border border-white/[0.08] bg-[#0c101a]/70 p-5 backdrop-blur-xl shadow-lg transition-all hover:border-white/[0.12]">
+      <div className="rounded-xl border border-light-200 dark:border-dark-200 bg-light-primary/90 dark:bg-[#0c101a]/70 p-5 backdrop-blur-xl shadow-sm dark:shadow-lg transition-all hover:border-light-300 dark:hover:border-white/[0.12]">
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-start gap-3.5">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.03] text-cyan-400 shadow-inner">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-light-200 dark:border-white/[0.08] bg-light-secondary dark:bg-white/[0.03] text-cyan-600 dark:text-cyan-400 shadow-inner">
               <Power className="h-5 w-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="text-sm font-medium text-white/90">Launch on System Boot</h3>
+                <h3 className="text-sm font-medium text-black dark:text-white/90">Launch on System Boot</h3>
                 <span
                   className={`rounded px-1.5 py-0.5 text-[9px] font-mono border ${
                     autostartEnabled
-                      ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
-                      : 'border-white/[0.06] bg-white/[0.02] text-white/40'
+                      ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300'
+                      : 'border-light-200 dark:border-white/[0.06] bg-light-secondary dark:bg-white/[0.02] text-black/50 dark:text-white/40'
                   }`}
                 >
                   {autostartEnabled ? 'ENABLED' : 'DISABLED'}
                 </span>
               </div>
-              <p className="mt-1 text-xs text-white/50 max-w-md leading-relaxed">
+              <p className="mt-1 text-xs text-black/60 dark:text-white/50 max-w-md leading-relaxed">
                 Automatically initialize Noectra AI silently in the system tray when your system starts, ensuring background neural models are instantly accessible.
               </p>
             </div>
@@ -79,7 +79,7 @@ const Preferences = ({
             onClick={handleToggleAutostart}
             aria-label="Toggle auto-start on boot"
             className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-              autostartEnabled ? 'bg-cyan-500' : 'bg-white/[0.12]'
+              autostartEnabled ? 'bg-cyan-500' : 'bg-black/20 dark:bg-white/[0.12]'
             }`}
           >
             <span

@@ -9,7 +9,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   </head>
-  <body class="h-full antialiased font-['Montserrat',sans-serif] bg-[#07090e] text-white overflow-hidden m-0 p-0">
+  <body class="h-full antialiased font-['Montserrat',sans-serif] bg-white dark:bg-[#07090e] text-slate-900 dark:text-white overflow-hidden m-0 p-0">
     <div id="root" class="h-full">
       <style>
         #preloader {
@@ -23,39 +23,105 @@
           color: white;
           z-index: 9999;
           font-family: 'Montserrat', sans-serif;
+          user-select: none;
         }
-        .preloader-glow {
-          width: 90px;
-          height: 90px;
-          border-radius: 24px;
-          background: radial-gradient(circle, rgba(56,189,248,0.25) 0%, rgba(99,102,241,0.15) 50%, transparent 70%);
+        .preloader-container {
+          position: relative;
+          width: 140px;
+          height: 140px;
           display: flex;
           align-items: center;
           justify-content: center;
-          position: relative;
-          box-shadow: 0 0 40px rgba(56,189,248,0.2);
-          animation: pulseGlow 2s infinite ease-in-out;
+          margin-bottom: 24px;
         }
-        .preloader-ring {
-          width: 70px;
-          height: 70px;
+        .preloader-glow-aura {
+          position: absolute;
+          inset: -20px;
           border-radius: 50%;
-          border: 2px solid rgba(56,189,248,0.2);
-          border-top-color: #38bdf8;
-          animation: spinRing 1.2s infinite linear;
+          background: radial-gradient(circle, rgba(56, 189, 248, 0.25) 0%, rgba(99, 102, 241, 0.15) 50%, transparent 70%);
+          filter: blur(20px);
+          animation: pulseAura 2.5s infinite ease-in-out;
         }
-        @keyframes spinRing {
-          to { transform: rotate(360deg); }
+        .preloader-svg-ring {
+          position: absolute;
+          inset: 0;
+          width: 100%;
+          height: 100%;
+          transform: rotate(-90deg);
         }
-        @keyframes pulseGlow {
-          0%, 100% { transform: scale(1); opacity: 0.8; }
-          50% { transform: scale(1.08); opacity: 1; }
+        .preloader-circle-bg {
+          stroke: rgba(255, 255, 255, 0.08);
+          stroke-width: 3;
+          fill: none;
+        }
+        .preloader-circle-bar {
+          stroke: #38bdf8;
+          stroke-width: 3.5;
+          stroke-linecap: round;
+          fill: none;
+          stroke-dasharray: 380;
+          stroke-dashoffset: 190;
+          animation: rotateBar 1.4s infinite linear;
+          filter: drop-shadow(0 0 6px rgba(56, 189, 248, 0.8));
+        }
+        .preloader-icon-box {
+          position: relative;
+          width: 84px;
+          height: 84px;
+          border-radius: 20px;
+          overflow: hidden;
+          box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 0 20px rgba(56, 189, 248, 0.2);
+          border: 1px solid rgba(255, 255, 255, 0.15);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: #0d111a;
+        }
+        .preloader-icon-img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          display: block;
+        }
+        .preloader-title {
+          font-size: 20px;
+          font-weight: 700;
+          letter-spacing: 0.25em;
+          text-transform: uppercase;
+          background: linear-gradient(135deg, #ffffff 0%, #bae6fd 60%, #c7d2fe 100%);
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          margin-bottom: 6px;
+        }
+        .preloader-tagline {
+          font-size: 11px;
+          font-weight: 300;
+          letter-spacing: 0.2em;
+          text-transform: uppercase;
+          color: rgba(186, 230, 253, 0.6);
+        }
+        @keyframes rotateBar {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+        @keyframes pulseAura {
+          0%, 100% { transform: scale(0.95); opacity: 0.7; }
+          50% { transform: scale(1.1); opacity: 1; }
         }
       </style>
       <div id="preloader">
-        <div class="preloader-glow">
-          <div class="preloader-ring"></div>
+        <div class="preloader-container">
+          <div class="preloader-glow-aura"></div>
+          <svg class="preloader-svg-ring" viewBox="0 0 140 140">
+            <circle class="preloader-circle-bg" cx="70" cy="70" r="60" />
+            <circle class="preloader-circle-bar" cx="70" cy="70" r="60" />
+          </svg>
+          <div class="preloader-icon-box">
+            <img src="/icon.png" alt="Noectra AI" class="preloader-icon-img" />
+          </div>
         </div>
+        <div class="preloader-title">Noectra AI</div>
+        <div class="preloader-tagline">The Spectrum of Intellect</div>
       </div>
     </div>
     <script type="module" src="/src/main.tsx"></script>

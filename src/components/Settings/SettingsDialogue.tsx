@@ -139,7 +139,7 @@ const SettingsDialogue = ({
             </div>
           ) : (
             <div className="flex flex-1 inset-0 h-full overflow-hidden">
-              <div className="hidden lg:flex flex-col justify-between w-[240px] border-r border-white-200 dark:border-dark-200 h-full px-3 pt-3 overflow-y-auto">
+              <div className="hidden lg:flex flex-col justify-between w-[240px] border-r border-light-200 dark:border-dark-200 h-full px-3 pt-3 overflow-y-auto">
                 <div className="flex flex-col">
                   <button
                     onClick={() => setIsOpen(false)}

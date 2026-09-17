@@ -21,13 +21,13 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
           ref={ref}
           disabled={disabled || loading}
           className={cn(
-            'bg-light-secondary dark:bg-dark-secondary px-3 py-2 flex items-center overflow-hidden border border-light-200 dark:border-dark-200 dark:text-white rounded-lg appearance-none w-full pr-10 text-xs lg:text-sm',
+            'bg-light-secondary dark:bg-dark-secondary px-3 py-2 flex items-center overflow-hidden border border-light-200 dark:border-dark-200 text-slate-900 dark:text-white font-medium rounded-lg appearance-none w-full pr-10 text-xs lg:text-sm focus:outline-none focus:ring-1 focus:ring-cyan-500/30',
             className,
           )}
         >
           {options.map(({ label, value, disabled: optionDisabled }) => {
             return (
-              <option key={value} value={value} disabled={optionDisabled}>
+              <option key={value} value={value} disabled={optionDisabled} className="bg-white dark:bg-[#161b22] text-slate-900 dark:text-white">
                 {label}
               </option>
             );

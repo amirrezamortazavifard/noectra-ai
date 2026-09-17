@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Sparkles, Brain, Compass, Cpu } from 'lucide-react';
+import { Sparkles, Brain, Compass, Cpu, CheckCircle2 } from 'lucide-react';
 
 interface SplashScreenProps {
   onAnimationComplete?: () => void;
@@ -16,7 +16,7 @@ const statusMessages = [
 
 export default function SplashScreen({ isReady = false }: SplashScreenProps) {
   const [currentStatusIndex, setCurrentStatusIndex] = useState(0);
-  const [progress, setProgress] = useState(15);
+  const [progress, setProgress] = useState(18);
 
   useEffect(() => {
     const statusInterval = setInterval(() => {
@@ -53,7 +53,14 @@ export default function SplashScreen({ isReady = false }: SplashScreenProps) {
 
   const CurrentIcon = statusMessages[currentStatusIndex].icon;
 
-  // Generate fixed background star coordinates for a celestial aesthetic
+  // Circle Geometry
+  const radius = 64;
+  const circumference = 2 * Math.PI * radius; // ~402.12
+  const currentProgress = Math.min(progress, 100);
+  const strokeDashoffset = circumference - (currentProgress / 100) * circumference;
+  const rotationAngle = (currentProgress / 100) * 360;
+
+  // Fixed ambient star dust coordinates
   const ambientParticles = [
     { top: '15%', left: '20%', size: 3, delay: 0 },
     { top: '25%', left: '75%', size: 4, delay: 0.8 },
@@ -123,126 +130,158 @@ export default function SplashScreen({ isReady = false }: SplashScreenProps) {
         />
       ))}
 
-      {/* Central Visual Showcase: Holographic AI Prism & Orbitals */}
-      <div className="relative flex items-center justify-center mb-10">
-        {/* Deep Aura Glow Behind Core */}
+      {/* Central Visual Showcase: Application Icon with Circular Loading Ring */}
+      <div className="relative flex items-center justify-center mb-8">
+        {/* Ambient Halo Glow */}
         <motion.div
           animate={{
-            scale: [0.95, 1.15, 0.95],
-            opacity: [0.4, 0.7, 0.4],
+            scale: currentProgress === 100 ? [1.1, 1.3, 1.2] : [0.95, 1.12, 0.95],
+            opacity: currentProgress === 100 ? [0.6, 0.9, 0.7] : [0.35, 0.65, 0.35],
           }}
-          transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
-          className="absolute w-44 h-44 rounded-full bg-gradient-to-tr from-cyan-500/30 via-indigo-500/25 to-purple-500/20 blur-3xl"
+          transition={{ duration: 2.8, repeat: Infinity, ease: 'easeInOut' }}
+          className="absolute w-48 h-48 rounded-full bg-gradient-to-tr from-cyan-500/30 via-indigo-500/25 to-purple-500/25 blur-3xl pointer-events-none"
         />
 
-        {/* Outer Orbital Ring 1 (Rotating Clockwise) */}
-        <motion.div
-          animate={{ rotate: 360 }}
-          transition={{ duration: 16, repeat: Infinity, ease: 'linear' }}
-          className="absolute w-36 h-36 rounded-full border border-cyan-500/20 border-t-cyan-400/80 border-r-indigo-400/40"
-        />
+        {/* Circular SVG Loading Line rotating around App Icon */}
+        <div className="relative w-40 h-40 flex items-center justify-center">
+          <svg className="w-full h-full overflow-visible" viewBox="0 0 160 160">
+            <defs>
+              <linearGradient id="splash-progress-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="#38bdf8" />
+                <stop offset="50%" stopColor="#818cf8" />
+                <stop offset="100%" stopColor="#c084fc" />
+              </linearGradient>
+              <filter id="splash-glow" x="-20%" y="-20%" width="140%" height="140%">
+                <feGaussianBlur stdDeviation="3" result="blur" />
+                <feMerge>
+                  <feMergeNode in="blur" />
+                  <feMergeNode in="SourceGraphic" />
+                </feMerge>
+              </filter>
+            </defs>
 
-        {/* Outer Orbital Particle */}
-        <motion.div
-          animate={{ rotate: 360 }}
-          transition={{ duration: 16, repeat: Infinity, ease: 'linear' }}
-          className="absolute w-36 h-36 rounded-full pointer-events-none"
-        >
-          <div className="w-2.5 h-2.5 rounded-full bg-cyan-300 shadow-[0_0_12px_#38bdf8] -top-1 left-1/2 -translate-x-1/2 absolute" />
-        </motion.div>
+            {/* Subtle Circular Background Track */}
+            <circle
+              cx="80"
+              cy="80"
+              r={radius}
+              fill="none"
+              stroke="rgba(255, 255, 255, 0.08)"
+              strokeWidth="3.5"
+            />
 
-        {/* Inner Orbital Ring 2 (Rotating Counter-Clockwise) */}
-        <motion.div
-          animate={{ rotate: -360 }}
-          transition={{ duration: 10, repeat: Infinity, ease: 'linear' }}
-          className="absolute w-28 h-28 rounded-full border border-dashed border-indigo-400/30 border-b-purple-400/70"
-        />
+            {/* Active Rotating / Drawing Progress Circle */}
+            <motion.circle
+              cx="80"
+              cy="80"
+              r={radius}
+              fill="none"
+              stroke="url(#splash-progress-gradient)"
+              strokeWidth={currentProgress === 100 ? 4.5 : 4}
+              strokeLinecap="round"
+              strokeDasharray={circumference}
+              animate={{ strokeDashoffset }}
+              transition={{ ease: 'easeOut', duration: 0.2 }}
+              filter="url(#splash-glow)"
+              style={{
+                transformOrigin: '80px 80px',
+                transform: 'rotate(-90deg)',
+              }}
+            />
+          </svg>
 
-        {/* Center Glass Sphere / Core Shield */}
-        <motion.div
-          initial={{ scale: 0.8, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          transition={{ duration: 0.8, ease: 'easeOut' }}
-          className="relative w-20 h-20 rounded-2xl bg-gradient-to-br from-white/10 via-white/5 to-white/0 backdrop-blur-xl border border-white/15 shadow-[0_8px_32px_0_rgba(0,0,0,0.5)] flex items-center justify-center overflow-hidden group"
-        >
-          {/* Inner Light Sweep Effect */}
-          <motion.div
-            animate={{
-              x: ['-100%', '200%'],
+          {/* Rotating Orbital Spark at Leading Head of Progress Line */}
+          <div
+            className="absolute inset-0 pointer-events-none"
+            style={{
+              transform: `rotate(${rotationAngle - 90}deg)`,
+              transformOrigin: 'center center',
+              transition: 'transform 0.2s ease-out',
             }}
-            transition={{
-              duration: 2.4,
-              repeat: Infinity,
-              ease: 'easeInOut',
-              repeatDelay: 1,
-            }}
-            className="absolute inset-0 w-1/2 h-full bg-gradient-to-r from-transparent via-white/20 to-transparent skew-x-12 pointer-events-none"
-          />
-
-          {/* Central Animated Prism Icon */}
-          <motion.div
-            animate={{
-              scale: [1, 1.08, 1],
-            }}
-            transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-            className="relative flex items-center justify-center"
           >
-            <div className="absolute inset-0 bg-cyan-400/20 rounded-full blur-md" />
-            <Sparkles className="w-9 h-9 text-cyan-300 drop-shadow-[0_0_14px_rgba(56,189,248,0.8)]" />
+            <div
+              className="absolute w-3.5 h-3.5 rounded-full bg-white shadow-[0_0_14px_#38bdf8,0_0_24px_#818cf8]"
+              style={{
+                top: `calc(50% - ${radius}px - 7px)`,
+                left: 'calc(50% - 7px)',
+              }}
+            />
+          </div>
+
+          {/* Center Brand Icon Container */}
+          <motion.div
+            initial={{ scale: 0.85, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ duration: 0.6, ease: 'easeOut' }}
+            className="absolute w-24 h-24 rounded-2xl p-1 bg-gradient-to-br from-white/15 via-white/5 to-white/0 backdrop-blur-xl border border-white/20 shadow-[0_12px_40px_rgba(0,0,0,0.6)] flex items-center justify-center overflow-hidden group"
+          >
+            {/* Inner Light Sweep Effect */}
+            <motion.div
+              animate={{
+                x: ['-120%', '220%'],
+              }}
+              transition={{
+                duration: 2.8,
+                repeat: Infinity,
+                ease: 'easeInOut',
+                repeatDelay: 1.2,
+              }}
+              className="absolute inset-0 w-1/2 h-full bg-gradient-to-r from-transparent via-white/25 to-transparent skew-x-12 pointer-events-none z-10"
+            />
+
+            {/* Real Application Icon */}
+            <img
+              src="/icon.png"
+              alt="Noectra AI"
+              className="w-full h-full object-cover rounded-xl shadow-inner select-none pointer-events-none"
+            />
           </motion.div>
-        </motion.div>
+        </div>
       </div>
 
       {/* Typography: Brand Title & Tagline */}
       <motion.div
-        initial={{ opacity: 0, y: 15 }}
+        initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.7, delay: 0.15 }}
+        transition={{ duration: 0.6, delay: 0.15 }}
         className="flex flex-col items-center text-center space-y-1.5 z-10"
       >
-        <div className="relative">
-          <h1 className="text-2xl font-bold tracking-[0.25em] uppercase bg-clip-text text-transparent bg-gradient-to-r from-white via-cyan-100 to-indigo-200 drop-shadow-[0_2px_12px_rgba(255,255,255,0.15)]">
-            Noectra AI
-          </h1>
-        </div>
-        <p className="text-[11px] font-light tracking-[0.2em] text-cyan-200/60 uppercase">
+        <h1 className="text-2xl font-bold tracking-[0.25em] uppercase bg-clip-text text-transparent bg-gradient-to-r from-white via-cyan-100 to-indigo-200 drop-shadow-[0_2px_12px_rgba(255,255,255,0.15)]">
+          Noectra AI
+        </h1>
+        <p className="text-[11px] font-light tracking-[0.22em] text-cyan-200/60 uppercase">
           The Spectrum of Intellect
         </p>
       </motion.div>
 
-      {/* Modern Progress Bar & Status Stepper */}
+      {/* Progress Status & Percentage Pill */}
       <motion.div
-        initial={{ opacity: 0, y: 15 }}
+        initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.7, delay: 0.3 }}
-        className="w-72 mt-8 flex flex-col items-center space-y-3 z-10"
+        transition={{ duration: 0.6, delay: 0.25 }}
+        className="mt-6 flex flex-col items-center space-y-2 z-10"
       >
-        {/* Progress Track */}
-        <div className="w-full h-1.5 bg-white/5 rounded-full p-[1px] border border-white/10 overflow-hidden relative backdrop-blur-sm">
-          <motion.div
-            className="h-full rounded-full bg-gradient-to-r from-cyan-500 via-sky-400 to-indigo-500 shadow-[0_0_12px_rgba(56,189,248,0.6)]"
-            style={{ width: `${Math.min(progress, 100)}%` }}
-            transition={{ ease: 'easeOut', duration: 0.2 }}
-          />
-        </div>
-
-        {/* Live Status Message & Percentage */}
-        <div className="w-full flex items-center justify-between text-[11px] text-white/50 px-1 font-mono">
-          <motion.div
-            key={currentStatusIndex}
-            initial={{ opacity: 0, x: -6 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.3 }}
-            className="flex items-center gap-1.5 text-cyan-200/70 truncate max-w-[200px]"
-          >
-            <CurrentIcon className="w-3.5 h-3.5 text-cyan-400 animate-pulse flex-shrink-0" />
-            <span className="truncate">{statusMessages[currentStatusIndex].text}</span>
-          </motion.div>
-
-          <span className="text-cyan-400/80 font-semibold tracking-wider flex-shrink-0 ml-2">
-            {Math.min(progress, 100)}%
+        <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/5 border border-white/10 backdrop-blur-md shadow-sm">
+          <CurrentIcon className="w-3.5 h-3.5 text-cyan-400 animate-pulse flex-shrink-0" />
+          <span className="text-xs text-cyan-100/80 font-medium">
+            {statusMessages[currentStatusIndex].text}
+          </span>
+          <span className="text-xs font-mono font-semibold text-cyan-400 pl-1 border-l border-white/10">
+            {currentProgress}%
           </span>
         </div>
+
+        {/* Completion Confirmation Notice */}
+        {currentProgress === 100 && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="flex items-center gap-1 text-[11px] text-emerald-400 font-mono font-medium"
+          >
+            <CheckCircle2 className="w-3.5 h-3.5" />
+            <span>Ready</span>
+          </motion.div>
+        )}
       </motion.div>
     </motion.div>
   );

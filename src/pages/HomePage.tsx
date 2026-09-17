@@ -131,15 +131,15 @@ export const HomePage: React.FC = () => {
       </div>
 
       {/* Hero Search / Prompt Input */}
-      <div className="relative rounded-3xl p-6 sm:p-8 bg-gradient-to-br from-cyan-950/20 via-neutral-900/40 to-indigo-950/20 dark:from-cyan-950/30 dark:via-[#0f131a]/80 dark:to-indigo-950/30 border border-cyan-500/20 shadow-[0_20px_50px_rgba(0,0,0,0.25)] overflow-hidden">
-        <div className="absolute -top-24 -right-24 w-72 h-72 rounded-full bg-cyan-500/10 blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-24 -left-24 w-72 h-72 rounded-full bg-indigo-500/10 blur-3xl pointer-events-none" />
+      <div className="relative rounded-3xl p-6 sm:p-8 bg-gradient-to-br from-white via-sky-50/70 to-indigo-50/50 dark:from-cyan-950/30 dark:via-[#0f131a]/80 dark:to-indigo-950/30 border border-black/[0.08] dark:border-cyan-500/20 shadow-xl shadow-sky-500/5 dark:shadow-[0_20px_50px_rgba(0,0,0,0.25)] overflow-hidden">
+        <div className="absolute -top-24 -right-24 w-72 h-72 rounded-full bg-cyan-500/10 dark:bg-cyan-500/10 blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-24 -left-24 w-72 h-72 rounded-full bg-indigo-500/10 dark:bg-indigo-500/10 blur-3xl pointer-events-none" />
 
         <div className="relative z-10 max-w-3xl">
-          <h2 className="text-xl sm:text-2xl font-medium text-black dark:text-white mb-2">
+          <h2 className="text-xl sm:text-2xl font-semibold text-slate-900 dark:text-white mb-2 tracking-tight">
             Ask Noectra AI or begin deep research
           </h2>
-          <p className="text-xs sm:text-sm text-black/60 dark:text-white/60 mb-5">
+          <p className="text-xs sm:text-sm text-slate-600 dark:text-white/60 mb-5">
             Query across live web sources, scientific databases, or your local documents with reasoned synthesis.
           </p>
 
@@ -147,14 +147,14 @@ export const HomePage: React.FC = () => {
             <div className="relative flex items-center">
               <Search
                 size={18}
-                className="absolute left-4 text-cyan-500 pointer-events-none"
+                className="absolute left-4 text-cyan-600 dark:text-cyan-400 pointer-events-none"
               />
               <input
                 type="text"
                 placeholder="Ask anything, compare theories, or search global knowledge..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-11 pr-28 py-3.5 rounded-2xl bg-white/80 dark:bg-[#161a24]/90 backdrop-blur-md border border-black/[0.1] dark:border-white/[0.12] text-sm text-black dark:text-white placeholder:text-black/40 dark:placeholder:text-white/40 focus:outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 transition-all shadow-inner"
+                className="w-full pl-11 pr-28 py-3.5 rounded-2xl bg-white/95 dark:bg-[#161a24]/90 backdrop-blur-md border border-black/[0.12] dark:border-white/[0.12] text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-white/40 focus:outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 transition-all shadow-sm"
               />
               <button
                 type="submit"
@@ -169,8 +169,8 @@ export const HomePage: React.FC = () => {
 
           {/* Prompt Suggestion Chips */}
           <div className="flex flex-wrap items-center gap-2 mt-4">
-            <span className="text-[11px] font-medium text-black/40 dark:text-white/40 flex items-center gap-1 mr-1">
-              <Sparkles size={11} className="text-cyan-500" />
+            <span className="text-[11px] font-medium text-slate-500 dark:text-white/40 flex items-center gap-1 mr-1">
+              <Sparkles size={11} className="text-cyan-600 dark:text-cyan-400" />
               Try:
             </span>
             {promptSuggestions.map((prompt, i) => (
@@ -178,7 +178,7 @@ export const HomePage: React.FC = () => {
                 key={i}
                 type="button"
                 onClick={() => handlePromptChip(prompt)}
-                className="px-3 py-1 rounded-full text-xs bg-black/[0.04] dark:bg-white/[0.05] hover:bg-black/[0.08] dark:hover:bg-white/[0.1] border border-black/[0.06] dark:border-white/[0.08] text-black/70 dark:text-white/70 hover:text-black dark:hover:text-white transition-all text-left truncate max-w-[280px] sm:max-w-[340px]"
+                className="px-3 py-1 rounded-full text-xs bg-black/[0.04] hover:bg-black/[0.08] dark:bg-white/[0.05] dark:hover:bg-white/[0.1] border border-black/[0.08] dark:border-white/[0.08] text-slate-700 dark:text-white/70 hover:text-slate-900 dark:hover:text-white transition-all text-left truncate max-w-[280px] sm:max-w-[340px]"
               >
                 {prompt}
               </button>
