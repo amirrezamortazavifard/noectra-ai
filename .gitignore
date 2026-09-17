@@ -25,6 +25,13 @@ data/*.db-wal
 .env.*
 !.env.example
 
+# Local Agent Rules & Scratchpad (Local-Only, Not in Git)
+AGENT.md
+AGENTS.md
+CLAUDE.md
+.agents/
+scratch/
+
 # IDE & Editor files
 .vscode/*
 !.vscode/extensions.json
