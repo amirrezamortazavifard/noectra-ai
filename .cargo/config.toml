@@ -1,0 +1,15 @@
+[profile.dev]
+codegen-units = 1
+
+[profile.dev.build-override]
+codegen-units = 1
+
+[profile.release]
+codegen-units = 1
+
+[profile.release.build-override]
+codegen-units = 1
+
+[build]
+target-dir = "C:/Users/Fard/AppData/Local/cargo-vane-target"
+jobs = 2

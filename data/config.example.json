@@ -1,0 +1,59 @@
+{
+  "version": 1,
+  "setupComplete": false,
+  "preferences": {
+    "autoMediaSearch": true,
+    "measureUnit": "Metric",
+    "showWeatherWidget": true,
+    "theme": "dark"
+  },
+  "personalization": {
+    "systemInstructions": ""
+  },
+  "modelProviders": [
+    {
+      "id": "openrouter-default",
+      "name": "OpenRouter",
+      "type": "openrouter",
+      "baseUrl": "https://openrouter.ai/api/v1",
+      "apiKey": "YOUR_OPENROUTER_API_KEY",
+      "config": {
+        "apiKey": "YOUR_OPENROUTER_API_KEY",
+        "baseURL": "https://openrouter.ai/api/v1",
+        "baseUrl": "https://openrouter.ai/api/v1"
+      },
+      "chatModels": [
+        {
+          "key": "nvidia/nemotron-3-ultra-550b-a55b:free",
+          "name": "nvidia/nemotron-3-ultra-550b-a55b:free"
+        }
+      ],
+      "embeddingModels": [],
+      "customModels": []
+    },
+    {
+      "id": "gemini-default",
+      "name": "Google Gemini",
+      "type": "gemini",
+      "baseUrl": "https://generativelanguage.googleapis.com/v1beta/openai",
+      "apiKey": "YOUR_GEMINI_API_KEY",
+      "config": {
+        "apiKey": "YOUR_GEMINI_API_KEY",
+        "baseURL": "https://generativelanguage.googleapis.com/v1beta/openai",
+        "baseUrl": "https://generativelanguage.googleapis.com/v1beta/openai"
+      },
+      "chatModels": [
+        {
+          "key": "gemini-2.5-flash",
+          "name": "Gemini 2.5 Flash"
+        }
+      ],
+      "embeddingModels": [],
+      "customModels": []
+    }
+  ],
+  "search": {
+    "searxngUrl": "https://searx.be",
+    "braveApiKey": null
+  }
+}

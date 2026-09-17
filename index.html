@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" href="/icon.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Noectra AI - The Spectrum of Intellect</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  </head>
+  <body class="h-full antialiased font-['Montserrat',sans-serif] bg-[#07090e] text-white overflow-hidden m-0 p-0">
+    <div id="root" class="h-full">
+      <style>
+        #preloader {
+          position: fixed;
+          inset: 0;
+          background: #07090e;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          color: white;
+          z-index: 9999;
+          font-family: 'Montserrat', sans-serif;
+        }
+        .preloader-glow {
+          width: 90px;
+          height: 90px;
+          border-radius: 24px;
+          background: radial-gradient(circle, rgba(56,189,248,0.25) 0%, rgba(99,102,241,0.15) 50%, transparent 70%);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          position: relative;
+          box-shadow: 0 0 40px rgba(56,189,248,0.2);
+          animation: pulseGlow 2s infinite ease-in-out;
+        }
+        .preloader-ring {
+          width: 70px;
+          height: 70px;
+          border-radius: 50%;
+          border: 2px solid rgba(56,189,248,0.2);
+          border-top-color: #38bdf8;
+          animation: spinRing 1.2s infinite linear;
+        }
+        @keyframes spinRing {
+          to { transform: rotate(360deg); }
+        }
+        @keyframes pulseGlow {
+          0%, 100% { transform: scale(1); opacity: 0.8; }
+          50% { transform: scale(1.08); opacity: 1; }
+        }
+      </style>
+      <div id="preloader">
+        <div class="preloader-glow">
+          <div class="preloader-ring"></div>
+        </div>
+      </div>
+    </div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

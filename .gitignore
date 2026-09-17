@@ -1,0 +1,49 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Production & Build outputs
+dist/
+dist-ssr/
+build/
+*.local
+
+# Tauri / Rust build artifacts
+src-tauri/target/
+target/
+**/*.rs.bk
+Cargo.lock.bak
+
+# Local User Data & Database (Secrets & Private DB)
+data/config.json
+data/*.db
+data/*.db-shm
+data/*.db-wal
+.env
+.env.*
+!.env.example
+
+# IDE & Editor files
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# OS specific files
+.DS_Store
+Thumbs.db
+desktop.ini

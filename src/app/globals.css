@@ -1,0 +1,101 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@font-face {
+  font-family: 'PP Editorial';
+  src: url('/fonts/pp-ed-ul.otf') format('opentype');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+@layer base {
+  .overflow-hidden-scrollable {
+    -ms-overflow-style: none;
+  }
+
+  .overflow-hidden-scrollable::-webkit-scrollbar {
+    display: none;
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #e8edf1 transparent; /* light-200 */
+  }
+
+  *::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background: #e8edf1; /* light-200 */
+    border-radius: 3px;
+    transition: background 0.2s ease;
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background: #d0d7de; /* light-300 */
+  }
+
+  @media (prefers-color-scheme: dark) {
+    * {
+      scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+    }
+
+    *::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.18);
+    }
+
+    *::-webkit-scrollbar-thumb:hover {
+      background: rgba(56, 189, 248, 0.6);
+    }
+  }
+
+  :root.dark *,
+  html.dark *,
+  body.dark * {
+    scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+  }
+
+  :root.dark *::-webkit-scrollbar-thumb,
+  html.dark *::-webkit-scrollbar-thumb,
+  body.dark *::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.18);
+    border-radius: 4px;
+  }
+
+  :root.dark *::-webkit-scrollbar-thumb:hover,
+  html.dark *::-webkit-scrollbar-thumb:hover,
+  body.dark *::-webkit-scrollbar-thumb:hover {
+    background: rgba(56, 189, 248, 0.7);
+  }
+
+
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+@layer utilities {
+  .line-clamp-2 {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow: hidden;
+  }
+}
+
+@media screen and (-webkit-min-device-pixel-ratio: 0) {
+  select,
+  textarea,
+  input {
+    font-size: 16px !important;
+  }
+}

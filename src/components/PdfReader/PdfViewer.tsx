@@ -1,0 +1,232 @@
+import React, { useEffect, useRef, useState } from 'react';
+import * as pdfjsLib from 'pdfjs-dist';
+import 'pdfjs-dist/web/pdf_viewer.css';
+import { Highlight, HighlightColor, HIGHLIGHT_COLORS, TextSelectionInfo } from './types';
+
+interface PdfViewerProps {
+  pdfDoc: pdfjsLib.PDFDocumentProxy | null;
+  currentPage: number;
+  scale: number;
+  rotation: number;
+  highlights: Highlight[];
+  onSelectionChange: (selection: TextSelectionInfo | null) => void;
+  onPageChange: (page: number) => void;
+  onHighlightDelete?: (id: string) => void;
+}
+
+export const PdfViewer: React.FC<PdfViewerProps> = ({
+  pdfDoc,
+  currentPage,
+  scale,
+  rotation,
+  highlights,
+  onSelectionChange,
+  onPageChange,
+  onHighlightDelete,
+}) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const textLayerRef = useRef<HTMLDivElement>(null);
+  const renderTaskRef = useRef<any>(null);
+  const [pageSize, setPageSize] = useState<{ width: number; height: number }>({
+    width: 600,
+    height: 800,
+  });
+  const [isRendering, setIsRendering] = useState(false);
+
+  // Render Page to Canvas + TextLayer
+  useEffect(() => {
+    if (!pdfDoc || !canvasRef.current) return;
+
+    let isCancelled = false;
+
+    const renderPage = async () => {
+      try {
+        setIsRendering(true);
+        if (renderTaskRef.current) {
+          try {
+            renderTaskRef.current.cancel();
+          } catch {
+            // ignore cancel error
+          }
+        }
+
+        const page = await pdfDoc.getPage(currentPage);
+        if (isCancelled) return;
+
+        const viewport = page.getViewport({ scale, rotation });
+        setPageSize({ width: viewport.width, height: viewport.height });
+
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        const outputScale = window.devicePixelRatio || 1;
+        canvas.width = Math.floor(viewport.width * outputScale);
+        canvas.height = Math.floor(viewport.height * outputScale);
+        canvas.style.width = `${Math.floor(viewport.width)}px`;
+        canvas.style.height = `${Math.floor(viewport.height)}px`;
+
+        const transform = outputScale !== 1 ? [outputScale, 0, 0, outputScale, 0, 0] : null;
+
+        const renderContext = {
+          canvasContext: ctx,
+          transform: transform || undefined,
+          viewport: viewport,
+        };
+
+        const renderTask = page.render(renderContext);
+        renderTaskRef.current = renderTask;
+        await renderTask.promise;
+
+        if (isCancelled) return;
+
+        // Render Text Layer
+        if (textLayerRef.current) {
+          textLayerRef.current.innerHTML = '';
+          textLayerRef.current.style.width = `${Math.floor(viewport.width)}px`;
+          textLayerRef.current.style.height = `${Math.floor(viewport.height)}px`;
+          textLayerRef.current.style.setProperty('--scale-factor', `${scale}`);
+
+          const textContent = await page.getTextContent();
+          if (isCancelled) return;
+
+          const textLayer = new pdfjsLib.TextLayer({
+            textContentSource: textContent,
+            container: textLayerRef.current,
+            viewport: viewport,
+          });
+
+          await textLayer.render();
+        }
+      } catch (err: any) {
+        if (err?.name !== 'RenderingCancelledException') {
+          console.error('Error rendering PDF page:', err);
+        }
+      } finally {
+        if (!isCancelled) {
+          setIsRendering(false);
+        }
+      }
+    };
+
+    renderPage();
+
+    return () => {
+      isCancelled = true;
+      if (renderTaskRef.current) {
+        try {
+          renderTaskRef.current.cancel();
+        } catch {
+          // ignore
+        }
+      }
+    };
+  }, [pdfDoc, currentPage, scale, rotation]);
+
+  // Listen to native mouseup for text selections
+  const handleMouseUp = () => {
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed || !sel.rangeCount) {
+      onSelectionChange(null);
+      return;
+    }
+
+    const text = sel.toString().trim();
+    if (!text) {
+      onSelectionChange(null);
+      return;
+    }
+
+    const range = sel.getRangeAt(0);
+    const rect = range.getBoundingClientRect();
+
+    if (rect.width === 0 || rect.height === 0) {
+      onSelectionChange(null);
+      return;
+    }
+
+    onSelectionChange({
+      text,
+      pageNumber: currentPage,
+      clientRect: {
+        top: rect.top,
+        left: rect.left,
+        bottom: rect.bottom,
+        right: rect.right,
+        width: rect.width,
+        height: rect.height,
+      },
+    });
+  };
+
+  const pageHighlights = highlights.filter((h) => h.pageNumber === currentPage);
+
+  return (
+    <div
+      ref={containerRef}
+      className="flex-1 h-full overflow-auto bg-[#e6ebf1] dark:bg-[#080a0f] flex justify-center p-6 custom-scrollbar select-text relative transition-colors"
+      onMouseUp={handleMouseUp}
+    >
+      <div
+        className="relative shadow-xl shadow-black/10 dark:shadow-2xl dark:shadow-black/80 rounded-md bg-white border border-light-200 dark:border-white/10 transition-all"
+        style={{
+          width: `${pageSize.width}px`,
+          height: `${pageSize.height}px`,
+        }}
+      >
+        {/* Canvas for PDF visual rendering */}
+        <canvas ref={canvasRef} className="block rounded-md" />
+
+        {/* Text Layer for text selection */}
+        <div
+          ref={textLayerRef}
+          className="textLayer absolute inset-0 rounded-md select-text"
+          style={{
+            mixBlendMode: 'multiply',
+          }}
+        />
+
+        {/* Highlights Layer */}
+        <div className="absolute inset-0 pointer-events-none rounded-md overflow-hidden">
+          {pageHighlights.map((hl) => {
+            const colorDef = HIGHLIGHT_COLORS[hl.color] || HIGHLIGHT_COLORS.yellow;
+            return (
+              <React.Fragment key={hl.id}>
+                {hl.rects &&
+                  hl.rects.map((r, rIdx) => (
+                    <div
+                      key={`${hl.id}-${rIdx}`}
+                      style={{
+                        position: 'absolute',
+                        left: `${r.x * 100}%`,
+                        top: `${r.y * 100}%`,
+                        width: `${r.width * 100}%`,
+                        height: `${r.height * 100}%`,
+                        backgroundColor: colorDef.bg,
+                        mixBlendMode: 'multiply',
+                        borderBottom: `2px solid ${colorDef.border}`,
+                        borderRadius: '2px',
+                      }}
+                      className="pointer-events-auto cursor-pointer transition-opacity hover:opacity-80"
+                      title={`Highlight: "${hl.text.slice(0, 50)}..."`}
+                    />
+                  ))}
+              </React.Fragment>
+            );
+          })}
+        </div>
+
+        {/* Loading Spinner Indicator */}
+        {isRendering && (
+          <div className="absolute top-4 right-4 z-20 pointer-events-none bg-white/90 dark:bg-black/60 backdrop-blur-md px-2.5 py-1 rounded-full text-[11px] text-black/80 dark:text-white/80 border border-light-200 dark:border-white/10 flex items-center gap-1.5 shadow-lg">
+            <div className="w-2.5 h-2.5 border-2 border-sky-400 border-t-transparent rounded-full animate-spin" />
+            <span>Rendering...</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
