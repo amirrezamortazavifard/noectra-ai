@@ -4,8 +4,10 @@ import {
   BrainCog,
   ChevronLeft,
   ExternalLink,
+  Github,
   Search,
   Sliders,
+  Sparkles,
   ToggleRight,
 } from 'lucide-react';
 import Preferences from './Sections/Preferences';
@@ -18,6 +20,7 @@ import Models from './Sections/Models/Section';
 import SearchSection from './Sections/Search';
 import Select from '@/components/ui/Select';
 import Personalization from './Sections/Personalization';
+import Updates from './Sections/Updates';
 
 const sections = [
   {
@@ -51,6 +54,14 @@ const sections = [
     icon: Search,
     component: SearchSection,
     dataAdd: 'search',
+  },
+  {
+    key: 'updates',
+    name: 'Updates',
+    description: 'Check for new releases, manage auto-updates, and download platform packages.',
+    icon: Sparkles,
+    component: Updates,
+    dataAdd: 'updates',
   },
 ];
 
@@ -149,18 +160,46 @@ const SettingsDialogue = ({
                     ))}
                   </div>
                 </div>
-                <div className="flex flex-col space-y-1 py-[18px] px-2">
-                  <p className="text-xs text-black/70 dark:text-white/70">
-                    Version: 1.12.2
-                  </p>
+                <div className="flex flex-col space-y-2.5 py-4 px-2 border-t border-light-200/50 dark:border-dark-200/50">
+                  <div className="flex items-center justify-between">
+                    <button
+                      onClick={() => setActiveSection('updates')}
+                      className="text-xs font-mono font-medium text-black/70 dark:text-white/70 hover:text-cyan-500 dark:hover:text-cyan-400 transition"
+                      title="Click to view update center"
+                    >
+                      v1.0.0
+                    </button>
+                    <button
+                      onClick={() => setActiveSection('updates')}
+                      className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-medium hover:bg-emerald-500/20 transition active:scale-95"
+                    >
+                      Updates
+                    </button>
+                  </div>
+
                   <a
-                    href="https://github.com/itzcrazykns/vane"
+                    href="https://github.com/amirrezamortazavifard/noectra-ai"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-xs text-black/70 dark:text-white/70 flex flex-row space-x-1 items-center transition duration-200 hover:text-black/90 hover:dark:text-white/90"
+                    className="text-xs text-black/70 dark:text-white/70 flex items-center justify-between group transition duration-200 hover:text-black/90 hover:dark:text-white/90"
+                    title="Noectra AI GitHub Repository"
                   >
-                    <span>GitHub</span>
-                    <ExternalLink size={12} />
+                    <span className="flex items-center gap-1.5">
+                      <Github size={13} />
+                      <span className="truncate">GitHub Repo</span>
+                    </span>
+                    <ExternalLink size={11} className="opacity-50 group-hover:opacity-100" />
+                  </a>
+
+                  <a
+                    href="https://github.com/amirrezamortazavifard"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[11px] text-black/50 dark:text-white/50 flex items-center justify-between group transition duration-200 hover:text-black/80 hover:dark:text-white/80"
+                    title="Developer GitHub Profile"
+                  >
+                    <span className="truncate">Amirreza Fard</span>
+                    <ExternalLink size={10} className="opacity-50 group-hover:opacity-100" />
                   </a>
                 </div>
               </div>
