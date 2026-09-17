@@ -13,7 +13,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 
-[⬇️ Download Releases](https://github.com/amirrezamortazavifard/noectra-ai/releases) • [Features](#-key-features) • [Media & Showcase](#-preview--media-showcase) • [Architecture](#-architecture--tech-stack) • [Installation](#-getting-started)
+[⬇️ Download Releases](https://github.com/amirrezamortazavifard/noectra-ai/releases) • [Visual Tour](#-preview--visual-tour) • [Features](#-key-features) • [Getting Started](#-getting-started)
 
 </div>
 
@@ -97,40 +97,6 @@
 
 ---
 
-## 🏛️ Architecture & Tech Stack
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    React 18 Frontend UI                     │
-│  (TypeScript, TailwindCSS, Framer Motion, Lucide Icons)     │
-└──────────────────────────────┬──────────────────────────────┘
-                               │  Tauri IPC Commands & Events
-┌──────────────────────────────▼──────────────────────────────┐
-│                    Rust Backend (Tauri v2)                  │
-│                                                             │
-│  ┌───────────────────────┐       ┌───────────────────────┐  │
-│  │  Axum Microservice    │       │  Scraper & Parser     │  │
-│  │  - Proxy Server       │       │  - Full-text cleaner  │  │
-│  │  - RSS Aggregator     │       │  - RSS media extractor│  │
-│  └───────────────────────┘       └───────────────────────┘  │
-│  ┌───────────────────────┐       ┌───────────────────────┐  │
-│  │  Local SQLite (rusqlite)│     │  Native Tray & Window │  │
-│  │  - User history/chats │       │  - Multi-window mgmt  │  │
-│  └───────────────────────┘       └───────────────────────┘  │
-└─────────────────────────────────────────────────────────────┘
-```
-
-| Layer | Technologies |
-| :--- | :--- |
-| **Desktop Framework** | [Tauri v2](https://tauri.app/) (Rust 2021 edition) |
-| **Frontend Core** | [React 18](https://react.dev/), [TypeScript](https://www.typescriptlang.org/), [Vite](https://vitejs.dev/) |
-| **Styling & Motion** | [TailwindCSS v3](https://tailwindcss.com/), [Framer Motion](https://www.framer.com/motion/), [Radix UI](https://www.radix-ui.com/) |
-| **Backend & Networking** | [Axum](https://github.com/tokio-rs/axum), [Tokio](https://tokio.rs/), [Reqwest](https://github.com/seanmonstar/reqwest) |
-| **Storage & Database** | Local SQLite (`rusqlite`) with WAL mode |
-| **Document Processing**| `pdfjs-dist`, `epubjs`, custom AST markdown cleaner |
-
----
-
 ## 🚀 Getting Started
 
 ### Prerequisites
@@ -199,35 +165,6 @@ The compiled binaries will be output to `src-tauri/target/release/bundle/`.
 - **100% Local-First:** All chat histories, documents, and preferences are stored in your local SQLite database (`data/vane.db`).
 - **Secret Protection:** API keys and sensitive configuration files are strictly excluded from version control via `.gitignore`.
 - **Zero Telemetry:** No personal data or browsing activity is tracked or sent to third-party tracking servers.
-
----
-
-## 📂 Project Structure
-
-```
-noectra-ai/
-├── public/                # Static assets, fonts, and screenshots
-├── src/                   # React frontend application
-│   ├── app/               # Global styles and tailwind imports
-│   ├── components/        # Reusable UI components & modals
-│   │   ├── Discover/      # News feed, research cards, reader modal
-│   │   ├── PdfReader/     # Document viewer, TTS, and AI panel
-│   │   └── Settings/      # Model configuration and preferences
-│   ├── lib/               # Services, RAG engine, and API clients
-│   └── pages/             # Route pages (Home, Discover, Library, Reader)
-├── src-tauri/             # Rust desktop backend
-│   ├── capabilities/      # Tauri permission capabilities
-│   ├── icons/             # Cross-platform application icons
-│   └── src/
-│       ├── agents/        # AI orchestration agents
-│       ├── api/           # Axum proxy and web scrapers
-│       ├── tools/         # ArXiv, Wikipedia, and search tools
-│       ├── db.rs          # SQLite database schema and queries
-│       └── main.rs        # Tauri entrypoint and IPC handlers
-├── data/                  # Local user data (git-ignored)
-├── .gitignore             # Comprehensive ignore rules
-└── package.json           # Dependencies and project scripts
-```
 
 ---
 
