@@ -68,6 +68,19 @@ impl ConfigModelProvider {
                 }
             }
         }
+
+        // Auto-detect 9Router API key if this provider is 9router or points to port 20128
+        let is_9router = self.provider_type == "9router"
+            || self.id.to_lowercase().contains("9router")
+            || self.name.to_lowercase().contains("9router")
+            || self.get_effective_base_url().map(|u| u.contains("20128")).unwrap_or(false);
+
+        if is_9router {
+            if let Some(key) = crate::models::get_9router_api_key() {
+                return Some(key);
+            }
+        }
+
         None
     }
 

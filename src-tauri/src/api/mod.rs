@@ -266,7 +266,7 @@ async fn test_raw_provider(
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty());
 
-    let api_key = payload.api_key
+    let mut api_key = payload.api_key
         .or_else(|| {
             payload.config.as_ref().and_then(|c| {
                 c.get("apiKey").and_then(|v| v.as_str()).map(|s| s.to_string())
@@ -274,6 +274,14 @@ async fn test_raw_provider(
         })
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty());
+
+    if api_key.is_none() {
+        let is_9router = payload.provider_type == "9router"
+            || base_url.as_deref().map(|u| u.contains("20128")).unwrap_or(false);
+        if is_9router {
+            api_key = crate::models::get_9router_api_key();
+        }
+    }
 
     let model = payload.model
         .map(|m| m.trim().to_string())
@@ -1335,6 +1343,8 @@ async fn get_9router_status(State(state): State<AppState>) -> Json<Value> {
         }
     }
 
+    let detected_key = crate::models::get_9router_api_key();
+
     Json(json!({
         "isRunning": is_running,
         "isInstalled": is_installed,
@@ -1343,7 +1353,8 @@ async fn get_9router_status(State(state): State<AppState>) -> Json<Value> {
         "baseUrl": "http://localhost:20128/v1",
         "dashboardUrl": "http://localhost:20128",
         "modelsCount": models_count,
-        "latencyMs": latency_ms
+        "latencyMs": latency_ms,
+        "apiKey": detected_key
     }))
 }
 
@@ -1461,12 +1472,14 @@ async fn ping_9router_model(
         tool_call_id: None,
     }];
 
+    let api_key = crate::models::get_9router_api_key();
+
     let start = std::time::Instant::now();
     match crate::models::ModelService::complete(
         &state.http_client,
         "9router",
         Some("http://localhost:20128/v1"),
-        None,
+        api_key.as_deref(),
         &model,
         test_messages,
     )

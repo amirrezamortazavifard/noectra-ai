@@ -17,6 +17,7 @@ import {
   RotateCcw,
   Terminal,
   Activity,
+  Key,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
@@ -37,6 +38,7 @@ interface NineRouterStatus {
   dashboardUrl: string;
   modelsCount: number;
   latencyMs?: number;
+  apiKey?: string | null;
 }
 
 const ModelProvider = ({
@@ -75,6 +77,18 @@ const ModelProvider = ({
       if (res.ok) {
         const data = await res.json();
         setNineRouterStatus(data);
+        if (data.apiKey && !modelProvider.config?.apiKey) {
+          setProviders((prev) =>
+            prev.map((p) =>
+              p.id === modelProvider.id
+                ? {
+                    ...p,
+                    config: { ...p.config, apiKey: p.config?.apiKey || data.apiKey },
+                  }
+                : p
+            )
+          );
+        }
       }
     } catch (err) {
       console.error('Failed to fetch 9Router status:', err);
@@ -395,6 +409,15 @@ const ModelProvider = ({
                 <span className="text-[10px] px-2 py-0.5 rounded-full bg-light-200 dark:bg-white/10 text-black/60 dark:text-white/60 font-mono">
                   :20128
                 </span>
+                {nineRouterStatus?.apiKey && (
+                  <span
+                    title={`Auto-detected 9Router API Key: ${nineRouterStatus.apiKey}`}
+                    className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-mono font-medium flex items-center gap-1"
+                  >
+                    <Key size={10} />
+                    Auto-Key: {nineRouterStatus.apiKey.slice(0, 5)}...{nineRouterStatus.apiKey.slice(-4)}
+                  </span>
+                )}
               </div>
 
               {nineRouterStatus?.latencyMs !== undefined &&
