@@ -117,9 +117,9 @@ export default function App() {
       setSetupComplete(false);
       setConfigSections(defaultFallbackSections);
     } finally {
-      // Ensure smooth, pleasant splash duration (~2.5s) for the serene Windows-style sequence to breathe naturally
+      // Ensure smooth, pleasant splash duration (~1.4s) for a calm, responsive startup rhythm
       const elapsed = Date.now() - startTime;
-      const remaining = Math.max(0, 2500 - elapsed);
+      const remaining = Math.max(0, 1400 - elapsed);
       setTimeout(() => {
         setShowSplash(false);
       }, remaining);
