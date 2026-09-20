@@ -11,11 +11,12 @@ import {
   DictionaryLookupResult,
   PageViewMode,
 } from './types';
-import { StickyNote, Loader2 } from 'lucide-react';
+import { StickyNote, Loader2, ScanLine, Crop } from 'lucide-react';
 import { toast } from 'sonner';
 import { soundService } from '@/lib/sound/soundService';
 import { lookupAcademicTerm, TranslationEngine } from '@/lib/services/bilingualService';
 import { InlineDictionaryPopup } from './InlineDictionaryPopup';
+import { OcrPageResponse } from '@/lib/services/ocrService';
 
 interface PdfViewerProps {
   pdfDoc: pdfjsLib.PDFDocumentProxy | null;
@@ -33,6 +34,11 @@ interface PdfViewerProps {
   onSelectNote?: (id: string | null) => void;
   onAskAiAboutExcerpt?: (quote: string, note?: string) => void;
   onSaveDictionaryCard?: (result: DictionaryLookupResult) => void;
+  pageOcrResults?: Record<number, OcrPageResponse>;
+  onTriggerPageOcr?: (pageNumber: number) => void;
+  isOcrLoading?: boolean;
+  areaOcrActive?: boolean;
+  onAreaOcrCrop?: (dataUrl: string, pageNumber: number) => void;
 }
 
 interface PdfPageItemProps {
@@ -45,6 +51,11 @@ interface PdfPageItemProps {
   isVisible: boolean;
   defaultSize: { width: number; height: number };
   onSelectNote?: (id: string | null) => void;
+  ocrResult?: OcrPageResponse;
+  onTriggerPageOcr?: (pageNumber: number) => void;
+  isOcrLoading?: boolean;
+  areaOcrActive?: boolean;
+  onAreaOcrCrop?: (dataUrl: string, pageNumber: number) => void;
 }
 
 // Individual virtualized Page Item for smooth continuous multi-page rendering
@@ -59,12 +70,77 @@ const PdfPageItem: React.FC<PdfPageItemProps> = React.memo(
     isVisible,
     defaultSize,
     onSelectNote,
+    ocrResult,
+    onTriggerPageOcr,
+    isOcrLoading,
+    areaOcrActive,
+    onAreaOcrCrop,
   }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const textLayerRef = useRef<HTMLDivElement>(null);
     const renderTaskRef = useRef<any>(null);
     const [pageSize, setPageSize] = useState<{ width: number; height: number }>(defaultSize);
     const [isRendering, setIsRendering] = useState(false);
+    const [isScannedPage, setIsScannedPage] = useState(false);
+
+    // Area Snipping State
+    const [isSnipping, setIsSnipping] = useState(false);
+    const [snipStart, setSnipStart] = useState<{ x: number; y: number } | null>(null);
+    const [snipCurrent, setSnipCurrent] = useState<{ x: number; y: number } | null>(null);
+
+    const handleSnipMouseDown = (e: React.MouseEvent) => {
+      if (!areaOcrActive) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const rect = e.currentTarget.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      setSnipStart({ x, y });
+      setSnipCurrent({ x, y });
+      setIsSnipping(true);
+    };
+
+    const handleSnipMouseMove = (e: React.MouseEvent) => {
+      if (!isSnipping || !areaOcrActive) return;
+      const rect = e.currentTarget.getBoundingClientRect();
+      const x = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
+      const y = Math.max(0, Math.min(e.clientY - rect.top, rect.height));
+      setSnipCurrent({ x, y });
+    };
+
+    const handleSnipMouseUp = () => {
+      if (!isSnipping || !snipStart || !snipCurrent || !canvasRef.current) {
+        setIsSnipping(false);
+        setSnipStart(null);
+        setSnipCurrent(null);
+        return;
+      }
+
+      const w = Math.abs(snipCurrent.x - snipStart.x);
+      const h = Math.abs(snipCurrent.y - snipStart.y);
+
+      if (w > 20 && h > 20) {
+        const dpr = window.devicePixelRatio || 1;
+        const x = Math.min(snipStart.x, snipCurrent.x) * dpr;
+        const y = Math.min(snipStart.y, snipCurrent.y) * dpr;
+        const cropW = w * dpr;
+        const cropH = h * dpr;
+
+        const cropCanvas = document.createElement('canvas');
+        cropCanvas.width = cropW;
+        cropCanvas.height = cropH;
+        const cropCtx = cropCanvas.getContext('2d');
+        if (cropCtx) {
+          cropCtx.drawImage(canvasRef.current, x, y, cropW, cropH, 0, 0, cropW, cropH);
+          const dataUrl = cropCanvas.toDataURL('image/png');
+          onAreaOcrCrop?.(dataUrl, pageNumber);
+        }
+      }
+
+      setIsSnipping(false);
+      setSnipStart(null);
+      setSnipCurrent(null);
+    };
 
     useEffect(() => {
       setPageSize(defaultSize);
@@ -136,6 +212,12 @@ const PdfPageItem: React.FC<PdfPageItemProps> = React.memo(
             const textContent = await page.getTextContent();
             if (isCancelled) return;
 
+            if (!textContent || textContent.items.length === 0) {
+              setIsScannedPage(true);
+            } else {
+              setIsScannedPage(false);
+            }
+
             const textLayer = new pdfjsLib.TextLayer({
               textContentSource: textContent,
               container: textLayerRef.current,
@@ -194,6 +276,91 @@ const PdfPageItem: React.FC<PdfPageItemProps> = React.memo(
           <>
             {/* Canvas for PDF visual rendering */}
             <canvas ref={canvasRef} className="block rounded-md" />
+
+            {/* Scanned Page Pill Alert */}
+            {isScannedPage && !ocrResult && (
+              <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 px-3 py-1.5 rounded-full bg-light-primary/95 dark:bg-[#11151f]/95 backdrop-blur-md border border-indigo-500/30 shadow-lg flex items-center gap-2 text-xs font-medium text-slate-800 dark:text-white pointer-events-auto animate-in fade-in slide-in-from-top-2">
+                <ScanLine size={13} className="text-indigo-500 animate-pulse" />
+                <span>Scanned page detected</span>
+                {onTriggerPageOcr && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onTriggerPageOcr(pageNumber);
+                    }}
+                    disabled={isOcrLoading}
+                    className="px-2.5 py-0.5 rounded-full bg-indigo-500 hover:bg-indigo-600 text-white text-[11px] font-semibold transition-all shadow-xs"
+                  >
+                    {isOcrLoading ? 'Scanning...' : 'OCR Page'}
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Native OS OCR Interactive Text Layer */}
+            {ocrResult && ocrResult.lines && ocrResult.lines.length > 0 && (
+              <div
+                className="ocr-text-layer absolute inset-0 rounded-md pointer-events-auto overflow-hidden select-text z-10"
+                style={{
+                  width: `${Math.floor(pageSize.width)}px`,
+                  height: `${Math.floor(pageSize.height)}px`,
+                }}
+              >
+                {ocrResult.lines.map((line, lIdx) =>
+                  line.words.map((word, wIdx) => {
+                    const dpr = window.devicePixelRatio || 1;
+                    const left = word.x / dpr;
+                    const top = word.y / dpr;
+                    const width = word.width / dpr;
+                    const height = word.height / dpr;
+                    return (
+                      <span
+                        key={`ocr-word-${pageNumber}-${lIdx}-${wIdx}`}
+                        style={{
+                          position: 'absolute',
+                          left: `${left}px`,
+                          top: `${top}px`,
+                          width: `${Math.max(width, 4)}px`,
+                          height: `${Math.max(height, 8)}px`,
+                          fontSize: `${Math.max(height * 0.85, 8)}px`,
+                          lineHeight: `${Math.max(height, 8)}px`,
+                          color: 'transparent',
+                          userSelect: 'text',
+                          cursor: 'text',
+                          whiteSpace: 'nowrap',
+                        }}
+                        className="hover:bg-indigo-500/10 selection:bg-indigo-500/30 selection:text-slate-900 dark:selection:text-white"
+                      >
+                        {word.text}{' '}
+                      </span>
+                    );
+                  })
+                )}
+              </div>
+            )}
+
+            {/* Area Snipping Overlay */}
+            {areaOcrActive && (
+              <div
+                onMouseDown={handleSnipMouseDown}
+                onMouseMove={handleSnipMouseMove}
+                onMouseUp={handleSnipMouseUp}
+                className="absolute inset-0 z-30 cursor-crosshair select-none bg-indigo-500/5 hover:bg-indigo-500/10 transition-colors"
+              >
+                {isSnipping && snipStart && snipCurrent && (
+                  <div
+                    style={{
+                      left: `${Math.min(snipStart.x, snipCurrent.x)}px`,
+                      top: `${Math.min(snipStart.y, snipCurrent.y)}px`,
+                      width: `${Math.abs(snipCurrent.x - snipStart.x)}px`,
+                      height: `${Math.abs(snipCurrent.y - snipStart.y)}px`,
+                    }}
+                    className="absolute border-2 border-dashed border-indigo-500 bg-indigo-500/25 pointer-events-none rounded"
+                  />
+                )}
+              </div>
+            )}
 
             {/* Text Layer for text selection */}
             <div
@@ -328,6 +495,11 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
   onSelectNote,
   onAskAiAboutExcerpt,
   onSaveDictionaryCard,
+  pageOcrResults,
+  onTriggerPageOcr,
+  isOcrLoading,
+  areaOcrActive,
+  onAreaOcrCrop,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const isProgrammaticScroll = useRef<boolean>(false);
@@ -612,6 +784,11 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
               isVisible={visiblePages.has(pNum)}
               defaultSize={baseSize}
               onSelectNote={onSelectNote}
+              ocrResult={pageOcrResults?.[pNum]}
+              onTriggerPageOcr={onTriggerPageOcr}
+              isOcrLoading={isOcrLoading}
+              areaOcrActive={areaOcrActive}
+              onAreaOcrCrop={onAreaOcrCrop}
             />
           ))}
       </div>

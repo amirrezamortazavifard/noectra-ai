@@ -51,6 +51,9 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/9router/status", get(get_9router_status))
         .route("/api/9router/start", post(start_9router_service))
         .route("/api/9router/ping", post(ping_9router_model))
+        // Native OS OCR
+        .route("/api/ocr/recognize", post(post_ocr_recognize))
+        .route("/api/ocr/status", get(get_ocr_status_handler))
         // Chats
         .route("/api/chats", get(get_chats))
         .route("/api/chats/:id", get(get_chat_by_id).delete(delete_chat_by_id))
@@ -1500,5 +1503,54 @@ async fn ping_9router_model(
             "error": err
         })),
     }
+}
+
+#[derive(Deserialize)]
+struct OcrRecognizePayload {
+    #[serde(rename = "imageBase64")]
+    image_base64: String,
+    #[serde(default)]
+    language: Option<String>,
+}
+
+async fn post_ocr_recognize(
+    Json(payload): Json<OcrRecognizePayload>,
+) -> (StatusCode, Json<Value>) {
+    let image_bytes = match crate::ocr::decode_image_payload(&payload.image_base64) {
+        Ok(bytes) => bytes,
+        Err(e) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(json!({
+                    "success": false,
+                    "error": format!("Invalid image payload: {}", e),
+                    "text": "",
+                    "lines": [],
+                    "wordCount": 0,
+                    "latencyMs": 0
+                })),
+            );
+        }
+    };
+
+    match crate::ocr::recognize_image_bytes(&image_bytes, payload.language.as_deref()).await {
+        Ok(resp) => (StatusCode::OK, Json(serde_json::to_value(resp).unwrap_or(json!({})))),
+        Err(err) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({
+                "success": false,
+                "error": err,
+                "text": "",
+                "lines": [],
+                "wordCount": 0,
+                "latencyMs": 0
+            })),
+        ),
+    }
+}
+
+async fn get_ocr_status_handler() -> Json<Value> {
+    let status = crate::ocr::get_ocr_status();
+    Json(serde_json::to_value(status).unwrap_or(json!({})))
 }
 

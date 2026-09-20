@@ -25,6 +25,8 @@ import {
   GitFork,
   ScrollText,
   Wrench,
+  Loader2,
+  Crop,
 } from 'lucide-react';
 import { PdfDocumentMeta, SplitViewMode, PageViewMode } from './types';
 
@@ -64,6 +66,10 @@ interface PdfToolbarProps {
   onToggleSplit?: (mode: SplitViewMode) => void;
   onTogglePageViewMode?: () => void;
   onOpenMindMap?: () => void;
+  isOcrLoading?: boolean;
+  onTriggerPageOcr?: () => void;
+  onToggleAreaOcr?: () => void;
+  areaOcrActive?: boolean;
 }
 
 export const PdfToolbar: React.FC<PdfToolbarProps> = ({
@@ -100,6 +106,10 @@ export const PdfToolbar: React.FC<PdfToolbarProps> = ({
   onToggleSplit,
   onTogglePageViewMode,
   onOpenMindMap,
+  isOcrLoading = false,
+  onTriggerPageOcr,
+  onToggleAreaOcr,
+  areaOcrActive = false,
 }) => {
   const [pageInput, setPageInput] = useState<string>(currentPage.toString());
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
@@ -300,6 +310,33 @@ export const PdfToolbar: React.FC<PdfToolbarProps> = ({
             <ZoomIn size={15} />
           </button>
         </div>
+
+        {/* Native OS OCR Page Button */}
+        {onTriggerPageOcr && (
+          <>
+            <div className="w-px h-4 bg-light-200 dark:border-white/10 mx-1" />
+            <button
+              type="button"
+              onClick={onTriggerPageOcr}
+              disabled={isOcrLoading}
+              title="Native OS OCR on Current Page (Alt+O)"
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-medium border transition-all ${
+                isOcrLoading
+                  ? 'bg-indigo-500/15 border-indigo-500/30 text-indigo-600 dark:text-indigo-400 animate-pulse'
+                  : 'bg-light-secondary/60 dark:bg-white/5 border-light-200 dark:border-white/10 text-slate-700 dark:text-white/80 hover:bg-indigo-500/10 hover:border-indigo-500/30 hover:text-indigo-600 dark:hover:text-indigo-400'
+              }`}
+            >
+              {isOcrLoading ? (
+                <Loader2 size={13} className="animate-spin text-indigo-500" />
+              ) : (
+                <ScanLine size={13} className="text-indigo-500" />
+              )}
+              <span className="text-[11px] font-medium hidden sm:inline">
+                {isOcrLoading ? 'Scanning...' : 'OCR Page'}
+              </span>
+            </button>
+          </>
+        )}
       </div>
 
       {/* ================= ISLAND 3: CONSOLIDATED TOOLS & OPEN ================= */}
@@ -443,6 +480,30 @@ export const PdfToolbar: React.FC<PdfToolbarProps> = ({
                           <span>Speed Reader</span>
                         </div>
                         <span className="text-[10px] font-mono opacity-60">RSVP</span>
+                      </button>
+                    )}
+
+                    {/* Area Crop OCR Snipper */}
+                    {onToggleAreaOcr && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onToggleAreaOcr();
+                          setToolsOpen(false);
+                        }}
+                        className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-xl text-xs font-medium transition-colors ${
+                          areaOcrActive
+                            ? 'bg-indigo-500/15 text-indigo-600 dark:text-indigo-400'
+                            : 'text-black/80 dark:text-white/80 hover:bg-light-200 dark:hover:bg-white/5'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <Crop size={14} className="text-indigo-500" />
+                          <span>Area Crop OCR</span>
+                        </div>
+                        <span className="text-[10px] font-mono opacity-60">
+                          {areaOcrActive ? 'Active' : 'Snip'}
+                        </span>
                       </button>
                     )}
 

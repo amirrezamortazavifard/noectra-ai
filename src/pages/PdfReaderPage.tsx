@@ -41,6 +41,8 @@ import { CanvasCardsStudio } from '@/components/PdfReader/CanvasCardsStudio';
 import { RightStudioPanel, StudioTab } from '@/components/PdfReader/RightStudioPanel';
 import { SplitViewerPane } from '@/components/PdfReader/SplitViewerPane';
 import { MindMapStudio } from '@/components/PdfReader/MindMapStudio';
+import { ocrService, OcrPageResponse } from '@/lib/services/ocrService';
+import { OcrResultPanel } from '@/components/PdfReader/OcrResultPanel';
 
 // New Advanced Features: Multi-format viewers, TTS, Reading Ruler, Speed Reader, RAG
 import { EpubViewer } from '@/components/DocumentReader/EpubViewer';
@@ -135,6 +137,98 @@ export default function PdfReaderPage() {
         : 'Single Page active: Discrete page flipping'
     );
   };
+
+  // Native OS OCR State (Page-by-Page On Demand)
+  const [pageOcrResults, setPageOcrResults] = useState<Record<number, OcrPageResponse>>({});
+  const [isOcrLoading, setIsOcrLoading] = useState<boolean>(false);
+  const [ocrPanelOpen, setOcrPanelOpen] = useState<boolean>(false);
+  const [activeOcrResult, setActiveOcrResult] = useState<{ result: OcrPageResponse; pageNumber: number } | null>(null);
+  const [areaOcrActive, setAreaOcrActive] = useState<boolean>(false);
+  const [ocrEngineName, setOcrEngineName] = useState<string>('Windows.Media.Ocr');
+
+  useEffect(() => {
+    ocrService.getStatus().then((status) => {
+      if (status.engineName) {
+        setOcrEngineName(status.engineName);
+      }
+    });
+  }, []);
+
+  const handleTriggerPageOcr = async (targetPage?: number) => {
+    const pageToScan = targetPage ?? currentPage;
+    const pageCanvas = document.querySelector(
+      `div[data-page-number="${pageToScan}"] canvas`
+    ) as HTMLCanvasElement | null;
+
+    if (!pageCanvas) {
+      toast.error(`Please scroll to view page ${pageToScan} first to scan.`);
+      return;
+    }
+
+    try {
+      setIsOcrLoading(true);
+      soundService.play('tick');
+      toast.info(`Running Native OS OCR on Page ${pageToScan}...`);
+
+      const dataUrl = pageCanvas.toDataURL('image/png');
+      const result = await ocrService.recognizePageImage(dataUrl);
+
+      setPageOcrResults((prev) => ({ ...prev, [pageToScan]: result }));
+      setActiveOcrResult({ result, pageNumber: pageToScan });
+      setOcrPanelOpen(true);
+
+      soundService.play('complete');
+      toast.success(
+        `OCR complete for Page ${pageToScan}: ${result.wordCount} words (${result.latencyMs}ms)`,
+        {
+          description: 'Text layer is interactive on canvas. View or copy from OCR Panel.',
+        }
+      );
+    } catch (err: any) {
+      soundService.play('pop');
+      toast.error(`OCR failed on page ${pageToScan}`, {
+        description: err.message || 'Error executing native OCR engine.',
+      });
+    } finally {
+      setIsOcrLoading(false);
+    }
+  };
+
+  const handleAreaOcrCrop = async (cropDataUrl: string, pageNumber: number) => {
+    try {
+      setIsOcrLoading(true);
+      setAreaOcrActive(false);
+      soundService.play('tick');
+      toast.info('Analyzing cropped area with Native OS OCR...');
+
+      const result = await ocrService.recognizePageImage(cropDataUrl);
+      setActiveOcrResult({ result, pageNumber });
+      setOcrPanelOpen(true);
+
+      soundService.play('complete');
+      toast.success(
+        `Area OCR: ${result.wordCount} words recognized (${result.latencyMs}ms)`
+      );
+    } catch (err: any) {
+      toast.error('Failed to recognize cropped area', {
+        description: err.message,
+      });
+    } finally {
+      setIsOcrLoading(false);
+    }
+  };
+
+  // Keyboard shortcut: Alt+O to OCR current page
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.altKey && (e.key === 'o' || e.key === 'O')) {
+        e.preventDefault();
+        handleTriggerPageOcr();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [currentPage]);
 
   // Check if document was already indexed for RAG
   useEffect(() => {
@@ -1004,6 +1098,10 @@ export default function PdfReaderPage() {
         onOpenSpeedReader={() => handleOpenSpeedReader()}
         onToggleCanvasCards={() => setCanvasStudioOpen((v) => !v)}
         onOpenFile={() => fileInputRef.current?.click()}
+        isOcrLoading={isOcrLoading}
+        onTriggerPageOcr={() => handleTriggerPageOcr()}
+        onToggleAreaOcr={() => setAreaOcrActive((v) => !v)}
+        areaOcrActive={areaOcrActive}
       />
 
       {/* Main Content Area */}
@@ -1071,6 +1169,11 @@ export default function PdfReaderPage() {
                     }}
                     onSelectionChange={(sel) => setSelection(sel)}
                     onPageChange={handleMainPageChange}
+                    pageOcrResults={pageOcrResults}
+                    onTriggerPageOcr={handleTriggerPageOcr}
+                    isOcrLoading={isOcrLoading}
+                    areaOcrActive={areaOcrActive}
+                    onAreaOcrCrop={handleAreaOcrCrop}
                   />
                 )}
 
@@ -1315,6 +1418,41 @@ export default function PdfReaderPage() {
             setActiveNoteId(highlightId);
             setStudioTab('notes');
           }
+        }}
+      />
+
+      {/* Native OS OCR Slide-Over Result Panel */}
+      <OcrResultPanel
+        isOpen={ocrPanelOpen}
+        onClose={() => setOcrPanelOpen(false)}
+        result={activeOcrResult?.result || null}
+        pageNumber={activeOcrResult?.pageNumber || currentPage}
+        engineName={ocrEngineName}
+        onSendToBilingual={(_text) => {
+          setStudioTab('bilingual');
+          toast.success('Sent OCR text to Bilingual Reader');
+        }}
+        onSaveToNotes={(text) => {
+          const newCard: CanvasCard = {
+            id: crypto.randomUUID(),
+            documentId: meta?.id || 'document',
+            type: 'summary',
+            title: `Page ${activeOcrResult?.pageNumber || currentPage} OCR Note`,
+            content: text,
+            color: 'purple',
+            tags: ['OCR', `p.${activeOcrResult?.pageNumber || currentPage}`],
+            pageNumber: activeOcrResult?.pageNumber || currentPage,
+            timestamp: Date.now(),
+            updatedAt: Date.now(),
+          };
+          setCards((prev) => [newCard, ...prev]);
+          toast.success('Saved OCR text as Research Note');
+        }}
+        onAskAi={(text) => {
+          setInitialAiPrompt(
+            `Here is the OCR-extracted text from page ${activeOcrResult?.pageNumber || currentPage}:\n\n${text}\n\nPlease summarize and explain the key findings.`
+          );
+          setStudioTab('ai');
         }}
       />
     </div>

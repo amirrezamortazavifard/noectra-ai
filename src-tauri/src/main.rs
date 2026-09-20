@@ -6,6 +6,7 @@ mod api;
 mod config;
 mod db;
 mod models;
+mod ocr;
 mod scraper;
 mod searxng;
 mod tools;
