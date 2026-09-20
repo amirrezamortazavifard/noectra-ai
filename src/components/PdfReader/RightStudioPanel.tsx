@@ -27,11 +27,12 @@ import {
   Quote,
   ExternalLink,
   BookOpen,
+  Globe,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { soundService } from '@/lib/sound/soundService';
 import { summarizeNote, extractConcept } from '@/lib/services/aiNoteService';
-import { translatePageContent } from '@/lib/services/bilingualService';
+import { translatePageContent, TranslationEngine } from '@/lib/services/bilingualService';
 import { searchDocument, formatRagContextForPrompt } from '@/lib/rag/ragEngine';
 import Markdown from 'markdown-to-jsx';
 
@@ -125,6 +126,9 @@ export const RightStudioPanel: React.FC<RightStudioPanelProps> = ({
   const [bilingualLoading, setBilingualLoading] = useState(false);
   const [bilingualFontSize, setBilingualFontSize] = useState<number>(13);
   const [copiedAllTrans, setCopiedAllTrans] = useState(false);
+  const [translationEngine, setTranslationEngine] = useState<TranslationEngine>(
+    () => (localStorage.getItem('pdf_translation_engine') as TranslationEngine) || 'ai'
+  );
 
   // Extract paragraphs
   const extractParagraphs = (text: string): string[] => {
@@ -138,7 +142,7 @@ export const RightStudioPanel: React.FC<RightStudioPanelProps> = ({
   useEffect(() => {
     if (!isOpen || activeTab !== 'bilingual' || !pageText) return;
 
-    const cacheKey = `pdf_trans_${meta?.title || meta?.name || 'doc'}_p${currentPage}_${targetLanguage}`;
+    const cacheKey = `pdf_trans_${meta?.title || meta?.name || 'doc'}_p${currentPage}_${targetLanguage}_${translationEngine}`;
     const cached = localStorage.getItem(cacheKey);
     if (cached) {
       try {
@@ -148,16 +152,17 @@ export const RightStudioPanel: React.FC<RightStudioPanelProps> = ({
     }
 
     handleTranslatePage(false);
-  }, [currentPage, targetLanguage, isOpen, activeTab, pageText]);
+  }, [currentPage, targetLanguage, translationEngine, isOpen, activeTab, pageText]);
 
-  const handleTranslatePage = async (force: boolean = false) => {
+  const handleTranslatePage = async (force: boolean = false, engineOverride?: TranslationEngine) => {
+    const activeEngine = engineOverride || translationEngine;
     const paragraphs = extractParagraphs(pageText);
     if (paragraphs.length === 0) {
       setTranslations([]);
       return;
     }
 
-    const cacheKey = `pdf_trans_${meta?.title || meta?.name || 'doc'}_p${currentPage}_${targetLanguage}`;
+    const cacheKey = `pdf_trans_${meta?.title || meta?.name || 'doc'}_p${currentPage}_${targetLanguage}_${activeEngine}`;
     if (!force) {
       const cached = localStorage.getItem(cacheKey);
       if (cached) {
@@ -171,10 +176,17 @@ export const RightStudioPanel: React.FC<RightStudioPanelProps> = ({
     try {
       setBilingualLoading(true);
       soundService.play('dispatch');
-      const results = await translatePageContent(paragraphs, targetLanguage, meta?.title || meta?.name);
+      const results = await translatePageContent(
+        paragraphs,
+        targetLanguage,
+        meta?.title || meta?.name,
+        activeEngine
+      );
       setTranslations(results);
       localStorage.setItem(cacheKey, JSON.stringify(results));
-      toast.success(`Translated Page ${currentPage}`);
+      toast.success(
+        `Translated Page ${currentPage} (${activeEngine === 'google' ? 'Google Translate' : 'AI Model'})`
+      );
     } catch (err: any) {
       toast.error('Failed to translate page');
     } finally {
@@ -642,6 +654,44 @@ export const RightStudioPanel: React.FC<RightStudioPanelProps> = ({
               ))}
             </select>
 
+            {/* Translation Engine Toggle: AI Model vs Google Translate */}
+            <div className="flex items-center bg-light-secondary dark:bg-white/5 border border-light-200 dark:border-white/10 rounded-lg p-0.5 text-[11px]">
+              <button
+                type="button"
+                onClick={() => {
+                  setTranslationEngine('ai');
+                  localStorage.setItem('pdf_translation_engine', 'ai');
+                  handleTranslatePage(true, 'ai');
+                }}
+                title="Translate with active AI Model (Deep context-aware academic quality)"
+                className={`flex items-center gap-1 px-2 py-0.5 rounded-md transition-all ${
+                  translationEngine === 'ai'
+                    ? 'bg-purple-500 text-white font-semibold shadow-xs'
+                    : 'text-black/60 dark:text-white/60 hover:text-black dark:hover:text-white'
+                }`}
+              >
+                <Sparkles size={11} />
+                <span>AI</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setTranslationEngine('google');
+                  localStorage.setItem('pdf_translation_engine', 'google');
+                  handleTranslatePage(true, 'google');
+                }}
+                title="Translate with Google Translate (Instant neural translation)"
+                className={`flex items-center gap-1 px-2 py-0.5 rounded-md transition-all ${
+                  translationEngine === 'google'
+                    ? 'bg-emerald-600 text-white font-semibold shadow-xs'
+                    : 'text-black/60 dark:text-white/60 hover:text-black dark:hover:text-white'
+                }`}
+              >
+                <Globe size={11} />
+                <span>Google</span>
+              </button>
+            </div>
+
             <div className="flex items-center gap-1">
               <div className="flex items-center bg-light-secondary dark:bg-white/5 border border-light-200 dark:border-white/10 rounded-lg p-0.5 text-[11px] font-mono">
                 <button
@@ -692,7 +742,9 @@ export const RightStudioPanel: React.FC<RightStudioPanelProps> = ({
             {bilingualLoading ? (
               <div className="py-20 flex flex-col items-center justify-center text-center space-y-2 text-black/50 dark:text-white/50 select-none">
                 <Loader2 size={28} className="animate-spin text-sky-500" />
-                <p className="text-xs font-medium">Translating Page {currentPage} into {targetLanguage}...</p>
+                <p className="text-xs font-medium">
+                  Translating Page {currentPage} into {targetLanguage} ({translationEngine === 'google' ? 'Google Translate' : 'AI Model'})...
+                </p>
               </div>
             ) : translations.length === 0 ? (
               <div className="py-20 text-center text-black/40 dark:text-white/40 select-none">

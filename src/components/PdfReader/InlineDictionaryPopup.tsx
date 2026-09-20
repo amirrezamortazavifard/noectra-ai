@@ -10,13 +10,16 @@ import {
   Loader2,
   BookOpen,
   StickyNote,
+  Globe,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { soundService } from '@/lib/sound/soundService';
-import { speakTerm } from '@/lib/services/bilingualService';
+import { speakTerm, TranslationEngine } from '@/lib/services/bilingualService';
 
 interface InlineDictionaryPopupProps {
   state: DictionaryPopupState;
+  currentEngine?: TranslationEngine;
+  onSwitchEngine?: (engine: TranslationEngine) => void;
   onClose: () => void;
   onSaveToCards?: (result: DictionaryLookupResult) => void;
   onAddToMarginNote?: (text: string) => void;
@@ -24,6 +27,8 @@ interface InlineDictionaryPopupProps {
 
 export const InlineDictionaryPopup: React.FC<InlineDictionaryPopupProps> = ({
   state,
+  currentEngine = 'ai',
+  onSwitchEngine,
   onClose,
   onSaveToCards,
   onAddToMarginNote,
@@ -105,20 +110,55 @@ export const InlineDictionaryPopup: React.FC<InlineDictionaryPopupProps> = ({
             </button>
           </div>
 
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-1 rounded-md text-black/40 dark:text-white/40 hover:text-black dark:hover:text-white hover:bg-light-200 dark:hover:bg-white/10 transition-colors"
-          >
-            <X size={15} />
-          </button>
+          <div className="flex items-center gap-1.5">
+            {onSwitchEngine && (
+              <div className="flex items-center bg-light-secondary dark:bg-white/5 border border-light-200 dark:border-white/10 rounded-lg p-0.5 text-[10px]">
+                <button
+                  type="button"
+                  onClick={() => onSwitchEngine('ai')}
+                  title="Analyze with AI Model (Academic deep context)"
+                  className={`px-1.5 py-0.5 rounded transition-all flex items-center gap-0.5 ${
+                    currentEngine === 'ai'
+                      ? 'bg-purple-500 text-white font-medium shadow-xs'
+                      : 'text-black/60 dark:text-white/60 hover:text-black dark:hover:text-white'
+                  }`}
+                >
+                  <Sparkles size={10} />
+                  <span>AI</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onSwitchEngine('google')}
+                  title="Translate with Google Translate (Instant neural)"
+                  className={`px-1.5 py-0.5 rounded transition-all flex items-center gap-0.5 ${
+                    currentEngine === 'google'
+                      ? 'bg-emerald-600 text-white font-medium shadow-xs'
+                      : 'text-black/60 dark:text-white/60 hover:text-black dark:hover:text-white'
+                  }`}
+                >
+                  <Globe size={10} />
+                  <span>Google</span>
+                </button>
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-1 rounded-md text-black/40 dark:text-white/40 hover:text-black dark:hover:text-white hover:bg-light-200 dark:hover:bg-white/10 transition-colors"
+            >
+              <X size={15} />
+            </button>
+          </div>
         </div>
 
         {/* Loading State */}
         {state.loading && (
           <div className="py-6 flex flex-col items-center justify-center text-center space-y-2 text-black/50 dark:text-white/50">
             <Loader2 size={24} className="animate-spin text-sky-500" />
-            <p className="text-xs">Analyzing term in scientific context...</p>
+            <p className="text-xs">
+              {currentEngine === 'google' ? 'Fetching Google Translation...' : 'Analyzing term in scientific context with AI...'}
+            </p>
           </div>
         )}
 

@@ -13,7 +13,7 @@ import {
 import { StickyNote } from 'lucide-react';
 import { toast } from 'sonner';
 import { soundService } from '@/lib/sound/soundService';
-import { lookupAcademicTerm } from '@/lib/services/bilingualService';
+import { lookupAcademicTerm, TranslationEngine } from '@/lib/services/bilingualService';
 import { InlineDictionaryPopup } from './InlineDictionaryPopup';
 
 interface PdfViewerProps {
@@ -61,6 +61,9 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
   });
   const [isRendering, setIsRendering] = useState(false);
   const [dictionaryState, setDictionaryState] = useState<DictionaryPopupState | null>(null);
+  const [dictionaryEngine, setDictionaryEngine] = useState<TranslationEngine>(
+    () => (localStorage.getItem('pdf_translation_engine') as TranslationEngine) || 'ai'
+  );
 
   // Render Page to Canvas + TextLayer
   useEffect(() => {
@@ -235,6 +238,8 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
       contextSentence = nodeText.substring(start, end).trim();
     } catch {}
 
+    const engine = (localStorage.getItem('pdf_translation_engine') as TranslationEngine) || dictionaryEngine;
+    setDictionaryEngine(engine);
     setDictionaryState({
       term: text,
       contextSentence,
@@ -249,12 +254,22 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
       loading: true,
     });
 
+    executeLookup(text, contextSentence, engine);
+  };
+
+  const executeLookup = async (
+    text: string,
+    contextSentence: string,
+    engine: TranslationEngine
+  ) => {
+    setDictionaryState((prev) => (prev ? { ...prev, loading: true } : null));
     try {
       const result = await lookupAcademicTerm(
         text,
         contextSentence,
         undefined,
-        targetLanguage || 'Persian'
+        targetLanguage || 'Persian',
+        engine
       );
       setDictionaryState((prev) => (prev ? { ...prev, result, loading: false } : null));
     } catch {
@@ -393,6 +408,14 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
       {dictionaryState && (
         <InlineDictionaryPopup
           state={dictionaryState}
+          currentEngine={dictionaryEngine}
+          onSwitchEngine={(newEngine) => {
+            setDictionaryEngine(newEngine);
+            localStorage.setItem('pdf_translation_engine', newEngine);
+            if (dictionaryState) {
+              executeLookup(dictionaryState.term, dictionaryState.contextSentence, newEngine);
+            }
+          }}
           onClose={() => setDictionaryState(null)}
           onSaveToCards={onSaveDictionaryCard}
           onAddToMarginNote={(noteText) => {
