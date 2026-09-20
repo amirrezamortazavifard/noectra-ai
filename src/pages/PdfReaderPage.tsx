@@ -1216,69 +1216,45 @@ export default function PdfReaderPage() {
           /* Empty / Landing State Inspired by Readest & Modern Research Studios */
           <div className="flex-1 flex flex-col items-center justify-center p-6 text-center bg-gradient-to-b from-light-primary via-light-secondary to-light-200 dark:from-[#0c0f15] dark:via-[#090b10] dark:to-[#06080c] text-black dark:text-white">
             <div className="max-w-md w-full space-y-6 animate-in fade-in zoom-in-95 duration-200">
-              {/* Logo / Badge */}
-              <div className="inline-flex p-4 rounded-3xl bg-gradient-to-tr from-sky-500/20 via-blue-500/10 to-transparent border border-sky-500/30 shadow-xl shadow-sky-500/10">
-                <Layers size={44} className="text-sky-500 dark:text-sky-400" />
+              {/* Minimalist Icon Badge */}
+              <div className="inline-flex p-4 rounded-3xl bg-gradient-to-tr from-sky-500/20 via-indigo-500/10 to-transparent border border-sky-500/30 shadow-xl shadow-sky-500/10">
+                <Layers size={40} className="text-sky-500 dark:text-sky-400" />
               </div>
 
               <div>
                 <h2 className="text-2xl font-bold text-black/90 dark:text-white tracking-tight">
-                  Universal Document & Research Studio
+                  Universal Document Studio
                 </h2>
-                <p className="text-xs text-black/60 dark:text-white/50 mt-1.5 leading-relaxed">
-                  Deep reading studio with vector RAG search, clickable citations, text-to-speech narration,
-                  focus aids, and multi-format support.
-                </p>
               </div>
 
               {/* Upload Dropzone Box */}
               <div
                 onClick={() => fileInputRef.current?.click()}
-                className="group p-8 rounded-2xl border-2 border-dashed border-light-300 dark:border-white/10 hover:border-sky-500/50 bg-light-secondary/60 dark:bg-white/[0.02] hover:bg-sky-500/5 dark:hover:bg-sky-500/[0.04] transition-all cursor-pointer flex flex-col items-center justify-center space-y-3 shadow-sm"
+                className="group p-8 sm:p-10 rounded-2xl border-2 border-dashed border-light-300 dark:border-white/10 hover:border-sky-500/50 bg-light-secondary/60 dark:bg-white/[0.02] hover:bg-sky-500/5 dark:hover:bg-sky-500/[0.04] transition-all cursor-pointer flex flex-col items-center justify-center space-y-4 shadow-sm"
               >
-                <div className="p-3 rounded-full bg-light-200 dark:bg-white/5 group-hover:bg-sky-500/20 text-black/60 dark:text-white/60 group-hover:text-sky-500 dark:group-hover:text-sky-400 transition-colors">
-                  <FolderOpen size={24} />
+                <div className="p-3.5 rounded-2xl bg-light-200 dark:bg-white/5 group-hover:bg-sky-500/20 text-black/60 dark:text-white/60 group-hover:text-sky-500 dark:group-hover:text-sky-400 transition-colors">
+                  <FolderOpen size={28} />
                 </div>
-                <div>
+                <div className="space-y-1">
                   <p className="text-sm font-medium text-black/90 dark:text-white/90 group-hover:text-sky-600 dark:group-hover:text-white">
-                    Choose a document or drag it here
+                    Choose document or drag it here
                   </p>
-                  <p className="text-[11px] text-black/40 dark:text-white/40 mt-1 font-mono">
+                  <p className="text-[11px] text-black/40 dark:text-white/40 font-mono">
                     PDF · EPUB · MOBI · AZW3 · FB2 · CBZ · TXT · MD
                   </p>
                 </div>
-              </div>
 
-              {/* Quick Sample Button */}
-              <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
                 <button
                   type="button"
-                  onClick={handleLoadSamplePdf}
-                  className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 text-white text-xs font-semibold shadow-lg shadow-sky-500/25 transition-all hover:scale-105 active:scale-95"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    fileInputRef.current?.click();
+                  }}
+                  className="mt-1 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-sky-500 hover:bg-sky-600 text-white text-xs font-semibold shadow-md shadow-sky-500/25 transition-all hover:scale-105 active:scale-95"
                 >
-                  <Sparkles size={14} className="text-amber-300 animate-pulse" />
-                  <span>Open Sample Research Paper</span>
+                  <FolderOpen size={14} />
+                  <span>Open Document File</span>
                 </button>
-              </div>
-
-              {/* Key Features Preview */}
-              <div className="grid grid-cols-4 gap-2 pt-4 border-t border-light-200 dark:border-white/5 text-[10px] text-black/60 dark:text-white/50">
-                <div className="flex flex-col items-center p-2 rounded-lg bg-light-secondary/50 dark:bg-white/[0.01]">
-                  <Sparkles size={16} className="text-sky-500 dark:text-sky-400 mb-1" />
-                  <span>RAG Vector Search</span>
-                </div>
-                <div className="flex flex-col items-center p-2 rounded-lg bg-light-secondary/50 dark:bg-white/[0.01]">
-                  <Volume2 size={16} className="text-emerald-500 dark:text-emerald-400 mb-1" />
-                  <span>TTS Narration</span>
-                </div>
-                <div className="flex flex-col items-center p-2 rounded-lg bg-light-secondary/50 dark:bg-white/[0.01]">
-                  <ScanLine size={16} className="text-amber-500 dark:text-amber-400 mb-1" />
-                  <span>Reading Ruler</span>
-                </div>
-                <div className="flex flex-col items-center p-2 rounded-lg bg-light-secondary/50 dark:bg-white/[0.01]">
-                  <Gauge size={16} className="text-rose-500 dark:text-rose-400 mb-1" />
-                  <span>RSVP Speed Read</span>
-                </div>
               </div>
             </div>
           </div>
