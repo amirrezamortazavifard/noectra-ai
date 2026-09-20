@@ -7,6 +7,7 @@ import {
   Languages,
   Volume2,
   Gauge,
+  StickyNote,
 } from 'lucide-react';
 import { HighlightColor, HIGHLIGHT_COLORS, TextSelectionInfo } from './types';
 import { toast } from 'sonner';
@@ -15,6 +16,7 @@ import { soundService } from '@/lib/sound/soundService';
 interface PdfSelectionPopupProps {
   selection: TextSelectionInfo;
   onHighlight: (color: HighlightColor) => void;
+  onAddNote?: (color: HighlightColor) => void;
   onAskAi: (prompt?: string) => void;
   onReadAloud?: (text: string) => void;
   onSpeedRead?: (text: string) => void;
@@ -24,6 +26,7 @@ interface PdfSelectionPopupProps {
 export const PdfSelectionPopup: React.FC<PdfSelectionPopupProps> = ({
   selection,
   onHighlight,
+  onAddNote,
   onAskAi,
   onReadAloud,
   onSpeedRead,
@@ -89,6 +92,23 @@ export const PdfSelectionPopup: React.FC<PdfSelectionPopupProps> = ({
             );
           })}
         </div>
+
+        {/* Add Margin Note Button */}
+        {onAddNote && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              soundService.play('pop');
+              onAddNote(selectedColor);
+            }}
+            title="Highlight & Add Margin Note"
+            className="flex items-center gap-1 px-2 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/20 hover:border-amber-500/40 transition-colors font-medium"
+          >
+            <StickyNote size={13} />
+            <span>Note</span>
+          </button>
+        )}
 
         {/* Copy Button */}
         <button

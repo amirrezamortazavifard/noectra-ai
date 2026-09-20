@@ -17,6 +17,7 @@ import {
   Volume2,
   ScanLine,
   Gauge,
+  LayoutGrid,
 } from 'lucide-react';
 import { PdfDocumentMeta } from './types';
 
@@ -29,6 +30,7 @@ interface PdfToolbarProps {
   aiPanelOpen: boolean;
   rulerActive?: boolean;
   ttsActive?: boolean;
+  cardsCount?: number;
   onPageChange: (page: number) => void;
   onZoomIn: () => void;
   onZoomOut: () => void;
@@ -40,6 +42,7 @@ interface PdfToolbarProps {
   onToggleRuler?: () => void;
   onToggleTts?: () => void;
   onOpenSpeedReader?: () => void;
+  onToggleCanvasCards?: () => void;
   onOpenFile: () => void;
 }
 
@@ -52,6 +55,7 @@ export const PdfToolbar: React.FC<PdfToolbarProps> = ({
   aiPanelOpen,
   rulerActive,
   ttsActive,
+  cardsCount,
   onPageChange,
   onZoomIn,
   onZoomOut,
@@ -63,6 +67,7 @@ export const PdfToolbar: React.FC<PdfToolbarProps> = ({
   onToggleRuler,
   onToggleTts,
   onOpenSpeedReader,
+  onToggleCanvasCards,
   onOpenFile,
 }) => {
   const [pageInput, setPageInput] = useState<string>(currentPage.toString());
@@ -267,6 +272,24 @@ export const PdfToolbar: React.FC<PdfToolbarProps> = ({
 
       {/* Right Section: Open File & AI Assistant Toggle */}
       <div className="flex items-center gap-2">
+        {/* Canvas Cards Studio Button */}
+        {onToggleCanvasCards && (
+          <button
+            type="button"
+            onClick={onToggleCanvasCards}
+            title="Open Research Canvas & Cards Studio"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-500/10 hover:bg-purple-500/20 text-purple-600 dark:text-purple-400 border border-purple-500/25 text-xs font-medium transition-all hover:scale-105"
+          >
+            <LayoutGrid size={15} />
+            <span className="hidden md:inline">Canvas Cards</span>
+            {cardsCount !== undefined && cardsCount > 0 && (
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-purple-500/20 text-purple-600 dark:text-purple-300 font-mono font-semibold">
+                {cardsCount}
+              </span>
+            )}
+          </button>
+        )}
+
         <button
           type="button"
           onClick={onOpenFile}

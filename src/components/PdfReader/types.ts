@@ -14,8 +14,29 @@ export interface Highlight {
   text: string;
   color: HighlightColor;
   rects?: HighlightRect[];
+  anchorY?: number; // percentage from top of page (0 to 100)
   timestamp: number;
   note?: string;
+  tags?: string[];
+  updatedAt?: number;
+}
+
+export type CanvasCardType = 'margin_note' | 'thought' | 'concept' | 'summary' | 'question';
+
+export interface CanvasCard {
+  id: string;
+  documentId: string;
+  pageNumber?: number;
+  highlightId?: string;
+  type: CanvasCardType;
+  title?: string;
+  content: string;
+  quote?: string;
+  color: HighlightColor;
+  tags?: string[];
+  anchorY?: number;
+  timestamp: number;
+  updatedAt?: number;
 }
 
 export interface OutlineItem {
@@ -36,6 +57,8 @@ export interface PdfDocumentMeta {
 export interface TextSelectionInfo {
   text: string;
   pageNumber: number;
+  rects?: HighlightRect[];
+  anchorY?: number;
   clientRect: {
     top: number;
     left: number;

@@ -27,12 +27,14 @@ import {
   Highlight,
   HighlightColor,
   TextSelectionInfo,
+  CanvasCard,
 } from '@/components/PdfReader/types';
 import { PdfToolbar } from '@/components/PdfReader/PdfToolbar';
 import { PdfViewer } from '@/components/PdfReader/PdfViewer';
 import { PdfDocumentSidebar } from '@/components/PdfReader/PdfDocumentSidebar';
 import { PdfAiPanel } from '@/components/PdfReader/PdfAiPanel';
 import { PdfSelectionPopup } from '@/components/PdfReader/PdfSelectionPopup';
+import { CanvasCardsStudio } from '@/components/PdfReader/CanvasCardsStudio';
 
 // New Advanced Features: Multi-format viewers, TTS, Reading Ruler, Speed Reader, RAG
 import { EpubViewer } from '@/components/DocumentReader/EpubViewer';
@@ -85,6 +87,9 @@ export default function PdfReaderPage() {
   const [activeExcerpt, setActiveExcerpt] = useState<string | null>(null);
   const [initialAiPrompt, setInitialAiPrompt] = useState<string | undefined>(undefined);
   const [highlights, setHighlights] = useState<Highlight[]>([]);
+  const [cards, setCards] = useState<CanvasCard[]>([]);
+  const [activeNoteId, setActiveNoteId] = useState<string | null>(null);
+  const [canvasStudioOpen, setCanvasStudioOpen] = useState<boolean>(false);
 
   // Drag and drop & file inputs
   const [isDragging, setIsDragging] = useState<boolean>(false);
@@ -99,7 +104,7 @@ export default function PdfReaderPage() {
     }
   }, [meta?.id]);
 
-  // Load saved highlights and progress when document changes
+  // Load saved highlights, cards and progress when document changes
   useEffect(() => {
     if (meta?.id) {
       // 1. Load highlights
@@ -114,7 +119,19 @@ export default function PdfReaderPage() {
         setHighlights([]);
       }
 
-      // 2. Load last read page and zoom
+      // 2. Load canvas cards
+      const savedCards = localStorage.getItem(`pdf_cards_${meta.id}`);
+      if (savedCards) {
+        try {
+          setCards(JSON.parse(savedCards));
+        } catch {
+          setCards([]);
+        }
+      } else {
+        setCards([]);
+      }
+
+      // 3. Load last read page and zoom
       const savedProg = localStorage.getItem(`pdf_prog_${meta.id}`);
       if (savedProg) {
         try {
@@ -140,6 +157,13 @@ export default function PdfReaderPage() {
     setHighlights(newHighlights);
     if (meta?.id) {
       localStorage.setItem(`pdf_hl_${meta.id}`, JSON.stringify(newHighlights));
+    }
+  };
+
+  const saveCards = (newCards: CanvasCard[]) => {
+    setCards(newCards);
+    if (meta?.id) {
+      localStorage.setItem(`pdf_cards_${meta.id}`, JSON.stringify(newCards));
     }
   };
 
@@ -620,6 +644,8 @@ export default function PdfReaderPage() {
       pageNumber: currentPage,
       text: selection.text,
       color,
+      rects: selection.rects,
+      anchorY: selection.anchorY,
       timestamp: Date.now(),
     };
 
@@ -628,8 +654,40 @@ export default function PdfReaderPage() {
     toast.success('Highlight saved');
   };
 
+  // Add Highlight & Open Margin Note
+  const handleAddNote = (color: HighlightColor) => {
+    if (!selection) return;
+
+    const newId = Date.now().toString();
+    const newHl: Highlight = {
+      id: newId,
+      documentId: meta?.id || 'doc',
+      pageNumber: currentPage,
+      text: selection.text,
+      color,
+      rects: selection.rects,
+      anchorY: selection.anchorY,
+      note: '',
+      timestamp: Date.now(),
+    };
+
+    saveHighlights([...highlights, newHl]);
+    setActiveNoteId(newId);
+    setSelection(null);
+    soundService.play('pop');
+    toast.success('Margin note created in right margin');
+  };
+
+  const handleUpdateNote = (id: string, noteText: string) => {
+    const updated = highlights.map((h) =>
+      h.id === id ? { ...h, note: noteText, updatedAt: Date.now() } : h
+    );
+    saveHighlights(updated);
+  };
+
   const handleDeleteHighlight = (id: string) => {
     saveHighlights(highlights.filter((h) => h.id !== id));
+    if (activeNoteId === id) setActiveNoteId(null);
     toast.success('Highlight removed');
   };
 
@@ -681,6 +739,7 @@ export default function PdfReaderPage() {
         aiPanelOpen={aiPanelOpen}
         rulerActive={rulerActive}
         ttsActive={ttsActive}
+        cardsCount={highlights.filter((h) => Boolean(h.note?.trim())).length + cards.length}
         onPageChange={(page) => {
           if (page !== currentPage) soundService.play('page_flip');
           setCurrentPage(page);
@@ -695,6 +754,7 @@ export default function PdfReaderPage() {
         onToggleRuler={() => setRulerActive((r) => !r)}
         onToggleTts={handleOpenTts}
         onOpenSpeedReader={() => handleOpenSpeedReader()}
+        onToggleCanvasCards={() => setCanvasStudioOpen((v) => !v)}
         onOpenFile={() => fileInputRef.current?.click()}
       />
 
@@ -712,6 +772,7 @@ export default function PdfReaderPage() {
               if (p !== currentPage) soundService.play('page_flip');
               setCurrentPage(p);
             }}
+            onSelectHighlight={(id) => setActiveNoteId(id)}
             onDeleteHighlight={handleDeleteHighlight}
             onClose={() => setSidebarOpen(false)}
           />
@@ -728,6 +789,19 @@ export default function PdfReaderPage() {
                 scale={scale}
                 rotation={rotation}
                 highlights={highlights}
+                activeNoteId={activeNoteId}
+                onSelectNote={(id) => setActiveNoteId(id)}
+                onUpdateNote={handleUpdateNote}
+                onHighlightDelete={handleDeleteHighlight}
+                onAskAiAboutExcerpt={(quote, note) => {
+                  setActiveExcerpt(quote);
+                  setInitialAiPrompt(
+                    note
+                      ? `Please analyze this quote and my research thoughts:\nQuote: "${quote}"\nMy Note: "${note}"`
+                      : undefined
+                  );
+                  setAiPanelOpen(true);
+                }}
                 onSelectionChange={(sel) => setSelection(sel)}
                 onPageChange={(p) => {
                   if (p !== currentPage) soundService.play('page_flip');
@@ -777,6 +851,7 @@ export default function PdfReaderPage() {
               <PdfSelectionPopup
                 selection={selection}
                 onHighlight={handleHighlight}
+                onAddNote={handleAddNote}
                 onAskAi={handleAskAi}
                 onReadAloud={(text) => {
                   setCurrentTtsText(text);
@@ -900,6 +975,23 @@ export default function PdfReaderPage() {
         text={speedReaderText}
         documentTitle={meta?.title || meta?.name}
         onClose={() => setSpeedReaderOpen(false)}
+      />
+
+      {/* Research Canvas & Cards Studio Modal */}
+      <CanvasCardsStudio
+        isOpen={canvasStudioOpen}
+        meta={meta}
+        highlights={highlights}
+        cards={cards}
+        currentPage={currentPage}
+        onClose={() => setCanvasStudioOpen(false)}
+        onNavigateToPage={(page) => {
+          if (page !== currentPage) soundService.play('page_flip');
+          setCurrentPage(page);
+        }}
+        onSaveCards={saveCards}
+        onUpdateHighlightNote={handleUpdateNote}
+        onDeleteHighlight={handleDeleteHighlight}
       />
     </div>
   );
