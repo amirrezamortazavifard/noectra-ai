@@ -1,12 +1,12 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Highlight,
   HighlightColor,
   HIGHLIGHT_COLORS,
   PdfDocumentMeta,
   ParagraphTranslation,
-  AiChatMessage,
 } from './types';
+import { PdfAiPanel } from './PdfAiPanel';
 import {
   StickyNote,
   Languages,
@@ -21,10 +21,6 @@ import {
   MessageSquare,
   ChevronDown,
   ChevronUp,
-  Send,
-  Bot,
-  User,
-  Quote,
   ExternalLink,
   BookOpen,
   Globe,
@@ -33,8 +29,6 @@ import { toast } from 'sonner';
 import { soundService } from '@/lib/sound/soundService';
 import { summarizeNote, extractConcept } from '@/lib/services/aiNoteService';
 import { translatePageContent, TranslationEngine } from '@/lib/services/bilingualService';
-import { searchDocument, formatRagContextForPrompt } from '@/lib/rag/ragEngine';
-import Markdown from 'markdown-to-jsx';
 
 export type StudioTab = 'notes' | 'bilingual' | 'ai';
 
@@ -194,172 +188,7 @@ export const RightStudioPanel: React.FC<RightStudioPanelProps> = ({
     }
   };
 
-  // --- AI Chat State ---
-  const [messages, setMessages] = useState<AiChatMessage[]>([]);
-  const [aiInput, setAiInput] = useState('');
-  const [aiLoading, setAiLoading] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (meta?.id) {
-      const saved = localStorage.getItem(`pdf_chat_${meta.id}`);
-      if (saved) {
-        try {
-          setMessages(JSON.parse(saved));
-        } catch {
-          setMessages([]);
-        }
-      } else {
-        setMessages([]);
-      }
-    }
-  }, [meta?.id]);
-
-  useEffect(() => {
-    if (meta?.id && messages.length > 0 && !aiLoading) {
-      const cleanMessages = messages.map((m) => ({ ...m, isStreaming: false }));
-      localStorage.setItem(`pdf_chat_${meta.id}`, JSON.stringify(cleanMessages));
-    }
-  }, [messages, aiLoading, meta?.id]);
-
-  useEffect(() => {
-    if (activeTab === 'ai') {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [messages, aiLoading, activeTab]);
-
-  useEffect(() => {
-    if (initialPrompt && isOpen && activeTab === 'ai') {
-      handleSendAiMessage(initialPrompt);
-    }
-  }, [initialPrompt]);
-
-  const handleSendAiMessage = async (customPrompt?: string) => {
-    const textToSend = (customPrompt || aiInput).trim();
-    if (!textToSend && !activeExcerpt) return;
-
-    const userMessageContent = textToSend || 'Please explain this selected excerpt from the PDF.';
-    const excerptToUse = activeExcerpt || undefined;
-
-    const userMsg: AiChatMessage = {
-      id: Date.now().toString(),
-      role: 'user',
-      content: userMessageContent,
-      excerpt: excerptToUse,
-      pageNumber: currentPage,
-      timestamp: Date.now(),
-    };
-
-    const assistantMsgId = (Date.now() + 1).toString();
-    const assistantMsg: AiChatMessage = {
-      id: assistantMsgId,
-      role: 'assistant',
-      content: '',
-      isStreaming: true,
-      timestamp: Date.now(),
-    };
-
-    setMessages((prev) => [...prev, userMsg, assistantMsg]);
-    setAiInput('');
-    setAiLoading(true);
-    soundService.play('dispatch');
-
-    try {
-      const chatModel = localStorage.getItem('chatModelKey');
-      const chatModelProvider = localStorage.getItem('chatModelProviderId');
-
-      let fullPrompt = '';
-      if (meta?.title || meta?.name) {
-        fullPrompt += `[Context: Document "${meta.title || meta.name}", Page ${currentPage}]\n\n`;
-      }
-      if (excerptToUse) {
-        fullPrompt += `[Selected Excerpt from Page ${currentPage}]:\n"${excerptToUse}"\n\n`;
-      } else if (meta?.id) {
-        try {
-          const ragResults = await searchDocument(meta.id, userMessageContent, 4);
-          if (ragResults && ragResults.length > 0) {
-            fullPrompt += formatRagContextForPrompt(ragResults);
-          }
-        } catch {}
-      }
-      fullPrompt += `\n[User Question]:\n${userMessageContent}\n\n[Instruction]: Provide clear, grounded answers with citations like [Page X] where appropriate.`;
-
-      const res = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          content: fullPrompt,
-          message: {
-            messageId: userMsg.id,
-            chatId: 'pdf-assistant-session',
-            content: fullPrompt,
-          },
-          chatId: 'pdf-assistant-session',
-          history: messages.map((m) => [m.role, m.content]),
-          chatModel: {
-            providerId: chatModelProvider,
-            key: chatModel,
-          },
-        }),
-      });
-
-      if (!res.ok) throw new Error(`Chat API error: ${res.statusText}`);
-
-      if (res.body) {
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder();
-        let accumulatedContent = '';
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          const chunk = decoder.decode(value, { stream: true });
-          const lines = chunk.split('\n');
-
-          for (const line of lines) {
-            if (!line.trim()) continue;
-            try {
-              const data = JSON.parse(line);
-              if (data.type === 'message' && data.data) {
-                accumulatedContent += data.data;
-                setMessages((prev) =>
-                  prev.map((msg) =>
-                    msg.id === assistantMsgId
-                      ? { ...msg, content: accumulatedContent, isStreaming: true }
-                      : msg
-                  )
-                );
-              }
-            } catch {
-              accumulatedContent += line;
-              setMessages((prev) =>
-                prev.map((msg) =>
-                  msg.id === assistantMsgId
-                    ? { ...msg, content: accumulatedContent, isStreaming: true }
-                    : msg
-                )
-              );
-            }
-          }
-        }
-      }
-    } catch (err: any) {
-      setMessages((prev) =>
-        prev.map((msg) =>
-          msg.id === assistantMsgId
-            ? {
-                ...msg,
-                content: '⚠️ Failed to get AI response. Please check your model settings.',
-                isStreaming: false,
-              }
-            : msg
-        )
-      );
-    } finally {
-      setAiLoading(false);
-      onClearExcerpt();
-    }
-  };
 
   // --- Handlers for Notes ---
   const handleNoteChange = (id: string, text: string) => {
@@ -792,91 +621,20 @@ export const RightStudioPanel: React.FC<RightStudioPanelProps> = ({
       {/* ==================== TAB 3: AI ASSISTANT ==================== */}
       {activeTab === 'ai' && (
         <div className="flex-1 flex flex-col overflow-hidden">
-          {/* Active Excerpt Box if any */}
-          {activeExcerpt && (
-            <div className="p-3 mx-4 mt-3 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-start justify-between gap-2 shrink-0">
-              <div className="flex items-start gap-2 min-w-0">
-                <Quote size={13} className="text-purple-500 shrink-0 mt-0.5" />
-                <p className="text-xs text-black/80 dark:text-purple-200 line-clamp-2 italic">
-                  "{activeExcerpt}"
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={onClearExcerpt}
-                className="p-0.5 rounded text-black/40 dark:text-white/40 hover:text-black dark:hover:text-white shrink-0"
-              >
-                <X size={12} />
-              </button>
-            </div>
-          )}
-
-          {/* Chat Messages */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-3.5 custom-scrollbar select-text">
-            {messages.length === 0 ? (
-              <div className="py-20 text-center text-black/40 dark:text-white/40 space-y-2 select-none">
-                <Sparkles size={32} className="mx-auto text-purple-500/50" />
-                <p className="text-xs font-semibold text-black/70 dark:text-white/70">
-                  AI Document Assistant
-                </p>
-                <p className="text-[11px] max-w-xs mx-auto leading-relaxed">
-                  Ask questions, request summaries, or verify citations across this document.
-                </p>
-              </div>
-            ) : (
-              messages.map((m) => {
-                const isUser = m.role === 'user';
-                return (
-                  <div
-                    key={m.id}
-                    className={`flex gap-2.5 ${isUser ? 'justify-end' : 'justify-start'}`}
-                  >
-                    {!isUser && (
-                      <div className="w-6 h-6 rounded-lg bg-gradient-to-tr from-purple-500 to-indigo-600 flex items-center justify-center text-white shrink-0 mt-0.5">
-                        <Bot size={13} />
-                      </div>
-                    )}
-                    <div
-                      className={`max-w-[85%] rounded-2xl p-3 text-xs leading-relaxed ${
-                        isUser
-                          ? 'bg-gradient-to-r from-sky-500 to-blue-600 text-white rounded-tr-xs'
-                          : 'bg-light-secondary/80 dark:bg-white/[0.04] border border-light-200 dark:border-white/10 text-black/90 dark:text-white rounded-tl-xs'
-                      }`}
-                    >
-                      <div className="prose dark:prose-invert max-w-none text-xs leading-relaxed">
-                        <Markdown>{m.content}</Markdown>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })
-            )}
-            <div ref={messagesEndRef} />
-          </div>
-
-          {/* AI Input Form */}
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              handleSendAiMessage();
-            }}
-            className="p-3 border-t border-light-200 dark:border-white/10 bg-light-primary dark:bg-[#0c0f16] flex items-center gap-2 select-none"
-          >
-            <input
-              type="text"
-              value={aiInput}
-              onChange={(e) => setAiInput(e.target.value)}
-              placeholder="Ask anything about this document..."
-              className="flex-1 px-3 py-2 text-xs rounded-xl bg-light-secondary dark:bg-white/5 border border-light-200 dark:border-white/10 text-black dark:text-white placeholder:text-black/40 dark:placeholder:text-white/30 focus:outline-none focus:border-purple-500"
-            />
-            <button
-              type="submit"
-              disabled={aiLoading || (!aiInput.trim() && !activeExcerpt)}
-              className="p-2 rounded-xl bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-400 hover:to-indigo-500 text-white shadow-md disabled:opacity-40 transition-all hover:scale-105 active:scale-95"
-            >
-              <Send size={14} />
-            </button>
-          </form>
+          <PdfAiPanel
+            isOpen={isOpen && activeTab === 'ai'}
+            meta={meta}
+            currentPage={currentPage}
+            pageText={pageText}
+            activeExcerpt={activeExcerpt}
+            onClearExcerpt={onClearExcerpt}
+            onClose={onClose}
+            initialPrompt={initialPrompt}
+            onJumpToCitation={onJumpToCitation}
+            isIndexed={isIndexed}
+            indexingProgress={indexingProgress}
+            onReindex={onReindex}
+          />
         </div>
       )}
     </aside>

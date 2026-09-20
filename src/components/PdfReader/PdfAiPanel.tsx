@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   Sparkles,
   Send,
@@ -9,29 +9,38 @@ import {
   Bot,
   User,
   Quote,
-  ExternalLink,
   Lightbulb,
   FileText,
   Languages,
   BookOpen,
-  Bookmark,
-  Database,
-  Loader2,
+  Plus,
+  History,
+  Trash2,
+  Download,
+  Brain,
+  Layers,
+  ChevronDown,
+  Search,
+  Volume2,
+  VolumeX,
 } from 'lucide-react';
-import { AiChatMessage, PdfDocumentMeta } from './types';
+import { AiChatMessage, PdfDocumentMeta, PdfChatSession } from './types';
+import { MinimalProvider } from '@/lib/models/types';
 import { toast } from 'sonner';
 import Markdown from 'markdown-to-jsx';
-import { useNavigate } from 'react-router-dom';
 import { searchDocument, formatRagContextForPrompt } from '@/lib/rag/ragEngine';
 import { soundService } from '@/lib/sound/soundService';
+import ThinkBox from '@/components/ThinkBox';
+import ModelProviderIcon from '@/components/ui/ModelProviderIcon';
 
 interface PdfAiPanelProps {
   isOpen: boolean;
   meta: PdfDocumentMeta | null;
   currentPage: number;
+  pageText?: string;
   activeExcerpt: string | null;
   onClearExcerpt: () => void;
-  onClose: () => void;
+  onClose?: () => void;
   initialPrompt?: string;
   onJumpToCitation?: (pageNumber: number, quote?: string) => void;
   isIndexed?: boolean;
@@ -43,6 +52,7 @@ export const PdfAiPanel: React.FC<PdfAiPanelProps> = ({
   isOpen,
   meta,
   currentPage,
+  pageText = '',
   activeExcerpt,
   onClearExcerpt,
   onClose,
@@ -52,58 +62,265 @@ export const PdfAiPanel: React.FC<PdfAiPanelProps> = ({
   indexingProgress,
   onReindex,
 }) => {
-  const navigate = useNavigate();
-  const [messages, setMessages] = useState<AiChatMessage[]>([]);
+  // --- 1. Multi-Session History State ---
+  const [sessions, setSessions] = useState<PdfChatSession[]>([]);
+  const [activeSessionId, setActiveSessionId] = useState<string>('');
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historySearch, setHistorySearch] = useState('');
+
+  // --- 2. Model Selector State ---
+  const [providers, setProviders] = useState<MinimalProvider[]>([]);
+  const [selectedModel, setSelectedModel] = useState<{ providerId: string; key: string }>(() => {
+    return {
+      providerId: localStorage.getItem('chatModelProviderId') || 'google',
+      key: localStorage.getItem('chatModelKey') || 'gemini-2.0-flash',
+    };
+  });
+  const [modelPickerOpen, setModelPickerOpen] = useState(false);
+  const [modelSearch, setModelSearch] = useState('');
+
+  // --- 3. Deep Thinking & Scope State ---
+  const [thinkingEnabled, setThinkingEnabled] = useState<boolean>(() => {
+    return localStorage.getItem('pdf_thinking_enabled') === 'true';
+  });
+  const [scope, setScope] = useState<'page' | 'document'>('page');
+
+  // --- 4. Input & Stream State ---
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [speakingMsgId, setSpeakingMsgId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const modelPickerRef = useRef<HTMLDivElement>(null);
+  const historyRef = useRef<HTMLDivElement>(null);
 
-  // Load saved chat messages for this specific document
+  // Fetch available AI providers dynamically
   useEffect(() => {
-    if (meta?.id) {
-      const saved = localStorage.getItem(`pdf_chat_${meta.id}`);
-      if (saved) {
-        try {
-          setMessages(JSON.parse(saved));
-        } catch {
-          setMessages([]);
+    fetch('/api/providers')
+      .then((res) => res.json())
+      .then((data: { providers: MinimalProvider[] }) => {
+        if (data?.providers) {
+          setProviders(data.providers);
         }
-      } else {
-        setMessages([]);
+      })
+      .catch((err) => console.warn('Could not load AI providers in PdfAiPanel:', err));
+  }, []);
+
+  // Close popovers on click outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (modelPickerRef.current && !modelPickerRef.current.contains(target)) {
+        setModelPickerOpen(false);
       }
-    } else {
-      setMessages([]);
+      if (historyRef.current && !historyRef.current.contains(target)) {
+        setHistoryOpen(false);
+      }
+    };
+    if (modelPickerOpen || historyOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
     }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [modelPickerOpen, historyOpen]);
+
+  // Load and migrate multi-session history for current document
+  useEffect(() => {
+    if (!meta?.id) {
+      setSessions([]);
+      setActiveSessionId('');
+      return;
+    }
+
+    const storageKey = `pdf_sessions_${meta.id}`;
+    const rawSessions = localStorage.getItem(storageKey);
+    let loaded: PdfChatSession[] = [];
+
+    if (rawSessions) {
+      try {
+        loaded = JSON.parse(rawSessions);
+      } catch {
+        loaded = [];
+      }
+    }
+
+    // Auto-migrate legacy single-chat storage if present
+    if (loaded.length === 0) {
+      const legacyRaw = localStorage.getItem(`pdf_chat_${meta.id}`);
+      let legacyMessages: AiChatMessage[] = [];
+      if (legacyRaw) {
+        try {
+          legacyMessages = JSON.parse(legacyRaw);
+        } catch {}
+      }
+      const initialSession: PdfChatSession = {
+        id: `session_${Date.now()}`,
+        documentId: meta.id,
+        title: legacyMessages.length > 0 ? 'Initial Research Chat' : 'Session 1',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        messages: legacyMessages,
+      };
+      loaded = [initialSession];
+      localStorage.setItem(storageKey, JSON.stringify(loaded));
+    }
+
+    setSessions(loaded);
+    setActiveSessionId(loaded[0]?.id || '');
   }, [meta?.id]);
 
-  // Automatically persist messages whenever they update and are not streaming
-  useEffect(() => {
-    if (meta?.id && messages.length > 0 && !loading) {
-      const cleanMessages = messages.map((m) => ({ ...m, isStreaming: false }));
-      localStorage.setItem(`pdf_chat_${meta.id}`, JSON.stringify(cleanMessages));
-    }
-  }, [messages, loading, meta?.id]);
+  // Current active session
+  const activeSession = useMemo(() => {
+    return sessions.find((s) => s.id === activeSessionId) || sessions[0] || null;
+  }, [sessions, activeSessionId]);
 
-  // Auto-scroll when new messages arrive
+  const messages = activeSession?.messages || [];
+
+  // Scroll to bottom when messages update
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, loading]);
 
-  // Handle initialPrompt triggered from selection popup
+  // Handle initialPrompt triggered from text selection popup
   useEffect(() => {
     if (initialPrompt && isOpen) {
       handleSendMessage(initialPrompt);
     }
-  }, [initialPrompt]);
+  }, [initialPrompt, isOpen]);
 
-  if (!isOpen) return null;
+  // Save session messages to state & localStorage
+  const saveSessionMessages = (newMessages: AiChatMessage[]) => {
+    if (!meta?.id || !activeSessionId) return;
 
+    setSessions((prevSessions) => {
+      const updated = prevSessions.map((s) => {
+        if (s.id === activeSessionId) {
+          let title = s.title;
+          if (s.title === 'Session 1' || s.title.startsWith('Session')) {
+            const firstUser = newMessages.find((m) => m.role === 'user');
+            if (firstUser) {
+              title = firstUser.content.slice(0, 30) + (firstUser.content.length > 30 ? '...' : '');
+            }
+          }
+          return {
+            ...s,
+            messages: newMessages.map((m) => ({ ...m, isStreaming: false })),
+            updatedAt: Date.now(),
+            title,
+          };
+        }
+        return s;
+      });
+      localStorage.setItem(`pdf_sessions_${meta.id}`, JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  // Start a new research chat session
+  const handleStartNewChat = () => {
+    if (!meta?.id) return;
+    const newSession: PdfChatSession = {
+      id: `session_${Date.now()}`,
+      documentId: meta.id,
+      title: `Session ${sessions.length + 1}`,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      messages: [],
+      scope,
+      thinkingEnabled,
+    };
+    const updated = [newSession, ...sessions];
+    setSessions(updated);
+    setActiveSessionId(newSession.id);
+    setHistoryOpen(false);
+    localStorage.setItem(`pdf_sessions_${meta.id}`, JSON.stringify(updated));
+    soundService.play('pop');
+    toast.success('Started new research session');
+  };
+
+  // Delete a session
+  const handleDeleteSession = (sessionId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!meta?.id) return;
+    let filtered = sessions.filter((s) => s.id !== sessionId);
+    if (filtered.length === 0) {
+      const fresh: PdfChatSession = {
+        id: `session_${Date.now()}`,
+        documentId: meta.id,
+        title: 'Session 1',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        messages: [],
+      };
+      filtered = [fresh];
+    }
+    setSessions(filtered);
+    if (activeSessionId === sessionId) {
+      setActiveSessionId(filtered[0].id);
+    }
+    localStorage.setItem(`pdf_sessions_${meta.id}`, JSON.stringify(filtered));
+    toast.success('Deleted chat session');
+  };
+
+  // Export session to Markdown
+  const handleExportSession = (session: PdfChatSession, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    const docTitle = meta?.title || meta?.name || 'Document';
+    let md = `# Research Chat: ${docTitle}\n\n`;
+    md += `- **Session:** ${session.title}\n`;
+    md += `- **Created:** ${new Date(session.createdAt).toLocaleString()}\n`;
+    md += `- **Messages:** ${session.messages.length}\n\n---\n\n`;
+
+    for (const msg of session.messages) {
+      if (msg.role === 'user') {
+        md += `### 👤 Question (Page ${msg.pageNumber || '?'})\n\n`;
+        if (msg.excerpt) {
+          md += `> **Referenced Excerpt:**\n> "${msg.excerpt}"\n\n`;
+        }
+        md += `${msg.content}\n\n`;
+      } else {
+        md += `### 🤖 Assistant\n\n`;
+        if (msg.thinking) {
+          md += `<details><summary>Thinking Process</summary>\n\n${msg.thinking}\n\n</details>\n\n`;
+        }
+        md += `${msg.content}\n\n---\n\n`;
+      }
+    }
+
+    const blob = new Blob([md], { type: 'text/markdown;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${(meta?.name || 'document').replace(/\.[^/.]+$/, '')}_${session.title.replace(/[^a-zA-Z0-9]/g, '_')}.md`;
+    link.click();
+    URL.revokeObjectURL(url);
+    toast.success('Exported to Markdown');
+  };
+
+  // Select AI Model
+  const handleSelectModel = (providerId: string, modelKey: string) => {
+    setSelectedModel({ providerId, key: modelKey });
+    localStorage.setItem('chatModelProviderId', providerId);
+    localStorage.setItem('chatModelKey', modelKey);
+    setModelPickerOpen(false);
+    soundService.play('tick');
+    toast.success(`Active Model: ${modelKey}`);
+  };
+
+  // Active Model Name Display
+  const currentModelDisplayName = useMemo(() => {
+    const p = providers.find((prov) => prov.id === selectedModel.providerId);
+    const m = p?.chatModels?.find((mod) => mod.key === selectedModel.key);
+    return m?.name || selectedModel.key;
+  }, [providers, selectedModel]);
+
+  // Send Message Logic with Deep Thinking & Grounding
   const handleSendMessage = async (customPrompt?: string) => {
     const textToSend = (customPrompt || input).trim();
     if (!textToSend && !activeExcerpt) return;
 
-    const userMessageContent = textToSend || 'Please explain this selected excerpt from the PDF.';
+    const userMessageContent = textToSend || 'Please analyze the referenced excerpt from the PDF.';
     const excerptToUse = activeExcerpt || undefined;
 
     const userMsg: AiChatMessage = {
@@ -120,68 +337,78 @@ export const PdfAiPanel: React.FC<PdfAiPanelProps> = ({
       id: assistantMsgId,
       role: 'assistant',
       content: '',
+      thinking: '',
+      thinkingEnded: false,
       isStreaming: true,
+      modelName: currentModelDisplayName,
       timestamp: Date.now(),
     };
 
-    setMessages((prev) => [...prev, userMsg, assistantMsg]);
+    const nextMessages = [...messages, userMsg, assistantMsg];
+    saveSessionMessages(nextMessages);
     setInput('');
     setLoading(true);
     soundService.play('dispatch');
 
     try {
-      const chatModel = localStorage.getItem('chatModelKey');
-      const chatModelProvider = localStorage.getItem('chatModelProviderId');
-
-      // Construct rich context prompt for the AI
+      // 1. Context Construction
       let fullPrompt = '';
       if (meta?.title || meta?.name) {
-        fullPrompt += `[Context: Document "${meta.title || meta.name}", Page ${currentPage}]\n\n`;
+        fullPrompt += `[Context: Document "${meta.title || meta.name}", Page ${currentPage} of ${meta.pageCount || 1}]\n\n`;
       }
+
       if (excerptToUse) {
-        fullPrompt += `[Selected Excerpt from Page ${currentPage}]:\n"${excerptToUse}"\n\n`;
-      } else if (meta?.id) {
-        // Retrieve relevant RAG chunks automatically
+        fullPrompt += `[Focused Selected Excerpt from Page ${currentPage}]:\n"${excerptToUse}"\n\n`;
+      }
+
+      if (scope === 'page' && pageText) {
+        fullPrompt += `[Full Text of Current Page ${currentPage}]:\n${pageText.slice(0, 3000)}\n\n`;
+      } else if (scope === 'document' && meta?.id) {
         try {
-          const ragResults = await searchDocument(meta.id, userMessageContent, 4);
+          const ragResults = await searchDocument(meta.id, userMessageContent, 5);
           if (ragResults && ragResults.length > 0) {
             fullPrompt += formatRagContextForPrompt(ragResults);
           }
         } catch (err) {
-          console.warn('RAG search skipped:', err);
+          console.warn('RAG vector retrieval skipped:', err);
         }
       }
-      fullPrompt += `\n[User Question]:\n${userMessageContent}\n\n[Instruction]: Provide clear, grounded answers. If citing information, add source tags in the format [[Page:X | "quote"]] or [Page X] so the reader can jump directly to it.`;
 
+      // 2. Deep Thinking / Reasoning Instruction
+      if (thinkingEnabled) {
+        fullPrompt += `[Instruction: Perform deep, rigorous chain-of-thought analysis. Enclose your internal reasoning and step-by-step thinking process inside <think>...</think> tags before providing your final response.]\n\n`;
+      }
+
+      fullPrompt += `[User Query]:\n${userMessageContent}\n\n[Instruction]: Provide clear, grounded academic answers. Cite specific pages in the format [Page X] or [[Page:X | "exact quote"]] whenever referencing document claims.`;
+
+      // 3. API Execution
       const res = await fetch('/api/chat', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           content: fullPrompt,
           message: {
             messageId: userMsg.id,
-            chatId: 'pdf-assistant-session',
+            chatId: activeSessionId,
             content: fullPrompt,
           },
-          chatId: 'pdf-assistant-session',
-          history: messages.map((m) => [m.role, m.content]),
+          chatId: activeSessionId,
+          history: messages.slice(-8).map((m) => [m.role, m.content]),
           chatModel: {
-            providerId: chatModelProvider,
-            key: chatModel,
+            providerId: selectedModel.providerId,
+            key: selectedModel.key,
           },
         }),
       });
 
       if (!res.ok) {
-        throw new Error(`Chat API error: ${res.statusText}`);
+        throw new Error(`Chat request failed with status ${res.status}`);
       }
 
       if (res.body) {
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
-        let accumulatedContent = '';
+        let accumulatedRaw = '';
 
         while (true) {
           const { done, value } = await reader.read();
@@ -195,365 +422,644 @@ export const PdfAiPanel: React.FC<PdfAiPanelProps> = ({
             try {
               const data = JSON.parse(line);
               if (data.type === 'message' && data.data) {
-                accumulatedContent += data.data;
-                setMessages((prev) =>
-                  prev.map((msg) =>
-                    msg.id === assistantMsgId
-                      ? { ...msg, content: accumulatedContent, isStreaming: true }
-                      : msg
-                  )
-                );
+                accumulatedRaw += data.data;
               }
             } catch {
-              // Non-JSON raw streaming text
-              accumulatedContent += line;
-              setMessages((prev) =>
-                prev.map((msg) =>
-                  msg.id === assistantMsgId
-                    ? { ...msg, content: accumulatedContent, isStreaming: true }
-                    : msg
-                )
-              );
+              accumulatedRaw += line;
             }
+
+            // Parse <think>...</think> and final answer
+            let thinkText = '';
+            let answerText = accumulatedRaw;
+            let thinkingEnded = false;
+
+            const thinkStart = accumulatedRaw.indexOf('<think>');
+            const thinkEnd = accumulatedRaw.indexOf('</think>');
+
+            if (thinkStart !== -1) {
+              if (thinkEnd !== -1) {
+                thinkText = accumulatedRaw.substring(thinkStart + 7, thinkEnd).trim();
+                answerText = accumulatedRaw.substring(thinkEnd + 8).trim();
+                thinkingEnded = true;
+              } else {
+                thinkText = accumulatedRaw.substring(thinkStart + 7).trim();
+                answerText = '';
+                thinkingEnded = false;
+              }
+            }
+
+            setSessions((prev) =>
+              prev.map((s) => {
+                if (s.id === activeSessionId) {
+                  return {
+                    ...s,
+                    messages: s.messages.map((m) =>
+                      m.id === assistantMsgId
+                        ? {
+                            ...m,
+                            content: answerText,
+                            thinking: thinkText,
+                            thinkingEnded,
+                            isStreaming: true,
+                          }
+                        : m
+                    ),
+                  };
+                }
+                return s;
+              })
+            );
           }
         }
 
-        setMessages((prev) =>
-          prev.map((msg) =>
-            msg.id === assistantMsgId
-              ? {
-                  ...msg,
-                  content:
-                    accumulatedContent ||
-                    'Analyzed the excerpt successfully. Let me know if you need more details!',
-                  isStreaming: false,
-                }
-              : msg
-          )
+        // Finalize streaming
+        let finalThink = '';
+        let finalAnswer = accumulatedRaw;
+        const thinkStart = accumulatedRaw.indexOf('<think>');
+        const thinkEnd = accumulatedRaw.indexOf('</think>');
+        if (thinkStart !== -1) {
+          if (thinkEnd !== -1) {
+            finalThink = accumulatedRaw.substring(thinkStart + 7, thinkEnd).trim();
+            finalAnswer = accumulatedRaw.substring(thinkEnd + 8).trim();
+          } else {
+            finalThink = accumulatedRaw.substring(thinkStart + 7).trim();
+            finalAnswer = 'Completed thinking.';
+          }
+        }
+
+        const finalMessages = (activeSession?.messages || nextMessages).map((m) =>
+          m.id === assistantMsgId
+            ? {
+                ...m,
+                content: finalAnswer || 'Analysis complete.',
+                thinking: finalThink,
+                thinkingEnded: true,
+                isStreaming: false,
+              }
+            : m
         );
+        saveSessionMessages(finalMessages);
         soundService.play('complete');
       }
     } catch (err: any) {
-      console.error('PDF AI Chat error:', err);
-      // Helpful fallback response if offline or no model
-      const fallbackReply = activeExcerpt
-        ? `### Excerpt Analysis (Page ${currentPage})\n\n**Summary:**\nThis excerpt addresses key findings in the document.\n\n**Selected Text:**\n> ${activeExcerpt}\n\n*Note: To enable live streaming AI generation, ensure an AI provider (e.g. Gemini, OpenAI, Ollama, Groq) is active in Settings.*`
-        : 'Please configure your AI model in Settings to chat with your document in real-time.';
-
-      setMessages((prev) =>
-        prev.map((msg) =>
-          msg.id === assistantMsgId
-            ? { ...msg, content: fallbackReply, isStreaming: false }
-            : msg
-        )
+      console.error('PDF AI Copilot error:', err);
+      const fallbackMsg = `Could not reach ${selectedModel.key}. Please check your API key in Settings or ensure the model provider is operational.`;
+      const fallbackMessages = nextMessages.map((m) =>
+        m.id === assistantMsgId
+          ? { ...m, content: fallbackMsg, isStreaming: false }
+          : m
       );
+      saveSessionMessages(fallbackMessages);
     } finally {
       setLoading(false);
     }
   };
 
+  // Copy text helper
   const handleCopy = (content: string, id: string) => {
     soundService.play('copy');
     navigator.clipboard.writeText(content);
     setCopiedId(id);
     toast.success('Copied to clipboard');
-    setTimeout(() => setCopiedId(null), 2000);
+    setTimeout(() => setCopiedId(null), 1800);
   };
 
-  const handleOpenInMainChat = () => {
-    const query = activeExcerpt
-      ? `Regarding document "${meta?.title || meta?.name}" (Page ${currentPage}):\n"${activeExcerpt}"`
-      : `Discussing document "${meta?.title || meta?.name}"`;
-    navigate(`/?q=${encodeURIComponent(query)}`);
+  // Text to Speech (TTS) narration helper
+  const handleToggleSpeak = (text: string, id: string) => {
+    if (speakingMsgId === id) {
+      window.speechSynthesis?.cancel();
+      setSpeakingMsgId(null);
+      return;
+    }
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text.slice(0, 800));
+      utterance.onend = () => setSpeakingMsgId(null);
+      utterance.onerror = () => setSpeakingMsgId(null);
+      setSpeakingMsgId(id);
+      window.speechSynthesis.speak(utterance);
+    } else {
+      toast.error('Text-to-speech not supported in this environment');
+    }
   };
+
+  // Render clickable citation tags: e.g. [Page 4] or [[Page:4 | "quote"]]
+  const renderMessageContent = (content: string) => {
+    const citationRegex = /\[\[Page:(\d+)(?:\s*\|\s*"([^"]*)")?\]\]|\[Page\s+(\d+)\]/gi;
+
+    const parts: React.ReactNode[] = [];
+    let lastIndex = 0;
+    let match: RegExpExecArray | null;
+
+    while ((match = citationRegex.exec(content)) !== null) {
+      if (match.index > lastIndex) {
+        parts.push(
+          <Markdown key={`text-${lastIndex}`}>{content.substring(lastIndex, match.index)}</Markdown>
+        );
+      }
+
+      const pageNum = parseInt(match[1] || match[3], 10);
+      const quote = match[2] || undefined;
+
+      parts.push(
+        <button
+          key={`cite-${match.index}`}
+          type="button"
+          onClick={() => onJumpToCitation?.(pageNum, quote)}
+          title={`Jump to Page ${pageNum}${quote ? ` ("${quote}")` : ''}`}
+          className="inline-flex items-center gap-1 px-1.5 py-0.2 mx-1 my-0.5 rounded-md bg-sky-500/15 hover:bg-sky-500/25 text-sky-600 dark:text-sky-400 font-mono text-[10.5px] font-semibold border border-sky-500/25 transition-all hover:scale-105 active:scale-95"
+        >
+          <span>Page {pageNum}</span>
+        </button>
+      );
+
+      lastIndex = citationRegex.lastIndex;
+    }
+
+    if (lastIndex < content.length) {
+      parts.push(<Markdown key={`text-${lastIndex}`}>{content.substring(lastIndex)}</Markdown>);
+    }
+
+    return parts.length > 0 ? <>{parts}</> : <Markdown>{content}</Markdown>;
+  };
+
+  // Filtered providers for model selector search
+  const filteredProviders = useMemo(() => {
+    if (!modelSearch.trim()) return providers;
+    return providers
+      .map((p) => ({
+        ...p,
+        chatModels: p.chatModels.filter(
+          (m) =>
+            m.name.toLowerCase().includes(modelSearch.toLowerCase()) ||
+            m.key.toLowerCase().includes(modelSearch.toLowerCase()) ||
+            p.name.toLowerCase().includes(modelSearch.toLowerCase())
+        ),
+      }))
+      .filter((p) => p.chatModels.length > 0);
+  }, [providers, modelSearch]);
+
+  // Filtered sessions for history search
+  const filteredSessions = useMemo(() => {
+    if (!historySearch.trim()) return sessions;
+    return sessions.filter(
+      (s) =>
+        s.title.toLowerCase().includes(historySearch.toLowerCase()) ||
+        s.messages.some((m) => m.content.toLowerCase().includes(historySearch.toLowerCase()))
+    );
+  }, [sessions, historySearch]);
 
   const quickPrompts = [
     {
       icon: Lightbulb,
       label: 'Explain simply',
-      prompt: 'Explain the selected excerpt in plain, easy-to-understand language:',
+      prompt: 'Explain the core concepts of this page in simple, straightforward language:',
     },
     {
       icon: FileText,
-      label: 'Summarize key points',
-      prompt: 'Provide a concise bullet-point summary of the core ideas in this excerpt:',
-    },
-    {
-      icon: Languages,
-      label: 'Translate text',
-      prompt: 'Translate the selected excerpt clearly and accurately into English:',
+      label: 'Summarize page',
+      prompt: 'Provide a structured bullet-point summary with key takeaways from this page:',
     },
     {
       icon: BookOpen,
-      label: 'Key takeaways',
-      prompt: 'Extract the most important conclusions, data, or arguments from this passage:',
+      label: 'Methodology',
+      prompt: 'What research methodologies, formulas, or empirical frameworks are utilized here?',
+    },
+    {
+      icon: Languages,
+      label: 'Translate to Persian',
+      prompt: 'Translate the main insights and scientific terms of this page accurately into Persian (فارسی):',
     },
   ];
 
+  if (!isOpen) return null;
+
   return (
-    <aside className="w-88 sm:w-96 h-full border-l border-light-200 dark:border-white/10 bg-light-primary/95 dark:bg-[#0b0e14]/95 backdrop-blur-xl flex flex-col z-20 shadow-2xl transition-all">
-      {/* Header */}
-      <div className="h-14 border-b border-light-200 dark:border-white/10 px-4 flex items-center justify-between bg-light-secondary/60 dark:bg-white/[0.02]">
+    <div className="w-full h-full flex flex-col bg-light-primary dark:bg-[#0c0f16] text-slate-900 dark:text-white select-none overflow-hidden">
+      {/* ================= HEADER TIER 1: BRAND TITLE & SESSION ACTIONS ================= */}
+      <div className="h-12 border-b border-light-200 dark:border-white/10 px-3.5 flex items-center justify-between bg-light-secondary/60 dark:bg-white/[0.02] shrink-0">
         <div className="flex items-center gap-2">
-          <div className="p-1.5 rounded-lg bg-gradient-to-tr from-sky-500 to-blue-600 text-white shadow-md shadow-sky-500/20">
-            <Sparkles size={16} className="animate-pulse" />
+          <div className="p-1.5 rounded-lg bg-gradient-to-tr from-purple-500 to-indigo-600 text-white shadow-xs">
+            <Sparkles size={14} className={loading ? 'animate-pulse' : ''} />
           </div>
           <div>
-            <h2 className="text-xs font-semibold text-black/90 dark:text-white/90 flex items-center gap-1.5">
-              <span>PDF Assistant</span>
-              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-sky-500/10 text-sky-600 dark:text-sky-400 font-mono">
-                AI
-              </span>
-            </h2>
-            <p className="text-[10px] text-black/50 dark:text-white/40 truncate max-w-[170px]">
-              {meta?.name ? `${meta.name} (p.${currentPage})` : `Page ${currentPage}`}
-            </p>
+            <h3 className="text-xs font-semibold text-slate-900 dark:text-white/95 flex items-center gap-1.5">
+              <span>AI Copilot</span>
+              <span
+                className={`w-1.5 h-1.5 rounded-full ${
+                  loading ? 'bg-amber-400 animate-pulse' : 'bg-emerald-400'
+                }`}
+              />
+            </h3>
           </div>
         </div>
 
+        {/* Top Session Actions: History, New Chat, Close */}
         <div className="flex items-center gap-1">
-          {/* RAG Status Badge */}
-          {indexingProgress ? (
-            <div
-              className="flex items-center gap-1 px-2 py-1 rounded-lg bg-sky-500/10 text-sky-400 border border-sky-500/20 text-[10px] font-mono"
-              title={indexingProgress.status}
-            >
-              <Loader2 size={11} className="animate-spin" />
-              <span>{indexingProgress.pct}%</span>
-            </div>
-          ) : (
+          {/* History Popover Trigger */}
+          <div className="relative" ref={historyRef}>
             <button
               type="button"
-              onClick={onReindex}
-              title={isIndexed ? 'RAG Vector Index Active. Click to rebuild' : 'Build RAG Vector Index'}
-              className="flex items-center gap-1 px-2 py-1 rounded-lg bg-light-secondary dark:bg-white/5 border border-light-200 dark:border-white/10 text-[10px] text-black/60 dark:text-white/60 hover:text-black dark:hover:text-white transition-colors"
+              onClick={() => setHistoryOpen((v) => !v)}
+              title="Chat History & Past Sessions"
+              className={`p-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1 ${
+                historyOpen
+                  ? 'bg-purple-500/15 text-purple-600 dark:text-purple-400'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-black dark:hover:text-white hover:bg-light-200 dark:hover:bg-white/5'
+              }`}
             >
-              <Database size={11} className={isIndexed ? 'text-emerald-400' : 'text-amber-400'} />
-              <span className="hidden sm:inline">{isIndexed ? 'RAG Active' : 'Index RAG'}</span>
+              <History size={14} />
+              <span className="text-[11px] font-mono">{sessions.length}</span>
             </button>
-          )}
 
-          {messages.length > 0 && (
+            {/* History Drawer Popover */}
+            {historyOpen && (
+              <div className="absolute right-0 mt-2 w-72 p-2 rounded-2xl bg-light-primary/95 dark:bg-[#121622]/95 backdrop-blur-2xl border border-light-200 dark:border-white/10 shadow-2xl z-50 animate-in fade-in zoom-in-95 space-y-2">
+                <div className="flex items-center justify-between px-1">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                    Document Sessions
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleStartNewChat}
+                    className="flex items-center gap-1 text-[11px] font-medium text-sky-600 dark:text-sky-400 hover:underline"
+                  >
+                    <Plus size={12} />
+                    <span>New Chat</span>
+                  </button>
+                </div>
+
+                {/* Search Sessions */}
+                <div className="relative">
+                  <Search size={12} className="absolute left-2.5 top-2.5 text-slate-400" />
+                  <input
+                    type="text"
+                    value={historySearch}
+                    onChange={(e) => setHistorySearch(e.target.value)}
+                    placeholder="Search past conversations..."
+                    className="w-full pl-7 pr-2 py-1.5 text-xs rounded-xl bg-light-secondary dark:bg-white/5 border border-light-200 dark:border-white/10 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-purple-500"
+                  />
+                </div>
+
+                {/* Sessions List */}
+                <div className="max-h-60 overflow-y-auto space-y-1 custom-scrollbar pr-1">
+                  {filteredSessions.length === 0 ? (
+                    <div className="py-6 text-center text-xs text-slate-400">No sessions found</div>
+                  ) : (
+                    filteredSessions.map((s) => {
+                      const isActive = s.id === activeSessionId;
+                      return (
+                        <div
+                          key={s.id}
+                          onClick={() => {
+                            setActiveSessionId(s.id);
+                            setHistoryOpen(false);
+                            soundService.play('tick');
+                          }}
+                          className={`group w-full text-left p-2 rounded-xl text-xs transition-all cursor-pointer flex items-center justify-between gap-2 ${
+                            isActive
+                              ? 'bg-purple-500/15 border border-purple-500/30 text-purple-600 dark:text-purple-300 font-medium'
+                              : 'hover:bg-light-200 dark:hover:bg-white/5 text-slate-700 dark:text-slate-300'
+                          }`}
+                        >
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-xs font-semibold">{s.title}</p>
+                            <p className="text-[10px] text-slate-400 mt-0.5 font-mono">
+                              {new Date(s.updatedAt).toLocaleDateString()} · {s.messages.length} msgs
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              type="button"
+                              onClick={(e) => handleExportSession(s, e)}
+                              title="Export Markdown"
+                              className="p-1 rounded hover:bg-light-300 dark:hover:bg-white/10 text-slate-400 hover:text-black dark:hover:text-white"
+                            >
+                              <Download size={12} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => handleDeleteSession(s.id, e)}
+                              title="Delete Session"
+                              className="p-1 rounded hover:bg-rose-500/20 text-slate-400 hover:text-rose-500"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* New Chat Button */}
+          <button
+            type="button"
+            onClick={handleStartNewChat}
+            title="Start New Research Chat Session"
+            className="p-1.5 rounded-lg text-slate-600 dark:text-slate-400 hover:text-black dark:hover:text-white hover:bg-light-200 dark:hover:bg-white/5 transition-colors"
+          >
+            <Plus size={14} />
+          </button>
+
+          {/* Close Panel Button */}
+          {onClose && (
             <button
               type="button"
-              onClick={() => {
-                setMessages([]);
-                if (meta?.id) {
-                  localStorage.removeItem(`pdf_chat_${meta.id}`);
-                }
-              }}
-              title="Clear Thread"
-              className="p-1.5 rounded-lg text-black/60 dark:text-white/50 hover:bg-light-200 dark:hover:bg-white/10 transition-colors"
+              onClick={onClose}
+              title="Close Copilot Panel"
+              className="p-1.5 rounded-lg text-slate-600 dark:text-slate-400 hover:text-black dark:hover:text-white hover:bg-light-200 dark:hover:bg-white/5 transition-colors"
             >
-              <RotateCcw size={14} />
+              <X size={14} />
             </button>
           )}
-
-          <button
-            type="button"
-            onClick={handleOpenInMainChat}
-            title="Open in Main Chat"
-            className="p-1.5 rounded-lg text-black/60 dark:text-white/50 hover:bg-light-200 dark:hover:bg-white/10 transition-colors"
-          >
-            <ExternalLink size={14} />
-          </button>
-
-          <button
-            type="button"
-            onClick={onClose}
-            title="Close Assistant"
-            className="p-1.5 rounded-lg text-black/60 dark:text-white/50 hover:bg-light-200 dark:hover:bg-white/10 transition-colors"
-          >
-            <X size={15} />
-          </button>
         </div>
       </div>
 
-      {/* Active Selection Banner */}
-      {activeExcerpt && (
-        <div className="p-2.5 mx-3 mt-3 rounded-xl bg-sky-500/10 border border-sky-500/30 text-xs flex items-start justify-between gap-2 animate-in fade-in slide-in-from-top-2">
-          <div className="min-w-0">
-            <div className="flex items-center gap-1 text-[10px] font-medium text-sky-600 dark:text-sky-400 mb-0.5">
-              <Quote size={11} />
-              <span>Selected excerpt (Page {currentPage})</span>
+      {/* ================= HEADER TIER 2: MODEL SELECTOR, THINKING & SCOPE PILLS ================= */}
+      <div className="px-3 py-2 border-b border-light-200 dark:border-white/10 bg-light-secondary/30 dark:bg-white/[0.01] flex items-center justify-between gap-1.5 shrink-0">
+        {/* Model Selector Popover */}
+        <div className="relative" ref={modelPickerRef}>
+          <button
+            type="button"
+            onClick={() => setModelPickerOpen((v) => !v)}
+            title={`Active Model: ${currentModelDisplayName}`}
+            className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-light-secondary dark:bg-white/5 hover:bg-light-200 dark:hover:bg-white/10 border border-light-200 dark:border-white/10 text-xs font-medium text-slate-800 dark:text-slate-200 transition-all max-w-[155px]"
+          >
+            <ModelProviderIcon provider={selectedModel.providerId} size={13} />
+            <span className="truncate text-[11px] font-semibold">{currentModelDisplayName}</span>
+            <ChevronDown size={11} className="opacity-50 shrink-0" />
+          </button>
+
+          {/* Searchable Model Picker Dropdown */}
+          {modelPickerOpen && (
+            <div className="absolute left-0 mt-1.5 w-72 p-2 rounded-2xl bg-light-primary/95 dark:bg-[#121622]/95 backdrop-blur-2xl border border-light-200 dark:border-white/10 shadow-2xl z-50 animate-in fade-in zoom-in-95 space-y-2">
+              <div className="relative">
+                <Search size={12} className="absolute left-2.5 top-2.5 text-slate-400" />
+                <input
+                  type="text"
+                  value={modelSearch}
+                  onChange={(e) => setModelSearch(e.target.value)}
+                  placeholder="Search model or provider..."
+                  className="w-full pl-7 pr-2 py-1.5 text-xs rounded-xl bg-light-secondary dark:bg-white/5 border border-light-200 dark:border-white/10 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-purple-500"
+                />
+              </div>
+
+              <div className="max-h-64 overflow-y-auto space-y-2 custom-scrollbar pr-1">
+                {filteredProviders.length === 0 ? (
+                  <div className="py-4 text-center text-xs text-slate-400">No models found</div>
+                ) : (
+                  filteredProviders.map((prov) => (
+                    <div key={prov.id} className="space-y-1">
+                      <div className="flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                        <ModelProviderIcon provider={prov.id} size={11} />
+                        <span>{prov.name}</span>
+                      </div>
+                      {prov.chatModels.map((m) => {
+                        const isSelected =
+                          selectedModel.providerId === prov.id && selectedModel.key === m.key;
+                        return (
+                          <button
+                            key={m.key}
+                            type="button"
+                            onClick={() => handleSelectModel(prov.id, m.key)}
+                            className={`w-full text-left px-2.5 py-1.5 rounded-xl text-xs transition-colors flex items-center justify-between ${
+                              isSelected
+                                ? 'bg-purple-500 text-white font-semibold shadow-xs'
+                                : 'text-slate-700 dark:text-slate-300 hover:bg-light-200 dark:hover:bg-white/5'
+                            }`}
+                          >
+                            <span className="truncate">{m.name}</span>
+                            {isSelected && <Check size={12} />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
-            <p className="text-black/80 dark:text-white/80 line-clamp-2 text-[11px] italic">
+          )}
+        </div>
+
+        {/* Right side pills: Thinking Toggle & Scope Toggle */}
+        <div className="flex items-center gap-1">
+          {/* Deep Thinking Mode Toggle Pill (🧠) */}
+          <button
+            type="button"
+            onClick={() => {
+              const next = !thinkingEnabled;
+              setThinkingEnabled(next);
+              localStorage.setItem('pdf_thinking_enabled', String(next));
+              soundService.play('tick');
+              toast(next ? 'Deep Thinking Mode: ON' : 'Deep Thinking Mode: OFF');
+            }}
+            title={
+              thinkingEnabled
+                ? 'Deep Reasoning & Thinking Mode: Active'
+                : 'Enable Deep Step-by-Step Thinking'
+            }
+            className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold transition-all border ${
+              thinkingEnabled
+                ? 'bg-amber-500/15 border-amber-500/30 text-amber-600 dark:text-amber-400 shadow-xs'
+                : 'bg-light-secondary dark:bg-white/5 border-light-200 dark:border-white/10 text-slate-600 dark:text-slate-400 hover:text-black dark:hover:text-white'
+            }`}
+          >
+            <Brain size={12} className={thinkingEnabled ? 'text-amber-500 animate-pulse' : ''} />
+            <span>Think</span>
+          </button>
+
+          {/* Context Scope Pill (Page vs Document) */}
+          <div className="flex items-center bg-light-secondary dark:bg-white/5 border border-light-200 dark:border-white/10 rounded-lg p-0.5 text-[10.5px]">
+            <button
+              type="button"
+              onClick={() => setScope('page')}
+              title={`Context: Focus on Page ${currentPage}`}
+              className={`px-1.5 py-0.5 rounded-md transition-all ${
+                scope === 'page'
+                  ? 'bg-sky-500 text-white font-semibold shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-black dark:hover:text-white'
+              }`}
+            >
+              Page {currentPage}
+            </button>
+            <button
+              type="button"
+              onClick={() => setScope('document')}
+              title="Context: Query entire document via vector embeddings"
+              className={`px-1.5 py-0.5 rounded-md transition-all ${
+                scope === 'document'
+                  ? 'bg-purple-500 text-white font-semibold shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-black dark:hover:text-white'
+              }`}
+            >
+              Doc RAG
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* ================= ACTIVE EXCERPT CHIP ================= */}
+      {activeExcerpt && (
+        <div className="mx-3 mt-2.5 p-2 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-start justify-between gap-2 shrink-0 animate-in fade-in duration-150">
+          <div className="flex items-start gap-1.5 min-w-0">
+            <Quote size={12} className="text-purple-500 shrink-0 mt-0.5" />
+            <p className="text-[11px] text-slate-800 dark:text-purple-200 line-clamp-2 italic">
               "{activeExcerpt}"
             </p>
           </div>
           <button
             type="button"
             onClick={onClearExcerpt}
-            className="p-1 rounded text-black/40 dark:text-white/40 hover:text-black dark:hover:text-white shrink-0"
-            title="Remove selection tag"
+            title="Detach excerpt"
+            className="p-0.5 rounded text-slate-400 hover:text-black dark:hover:text-white shrink-0"
           >
             <X size={12} />
           </button>
         </div>
       )}
 
-      {/* Quick Prompts Chips */}
-      <div className="p-3 border-b border-light-200 dark:border-white/10 overflow-x-auto custom-scrollbar flex items-center gap-1.5">
-        {quickPrompts.map((chip, idx) => (
-          <button
-            key={idx}
-            type="button"
-            onClick={() => handleSendMessage(chip.prompt)}
-            disabled={loading}
-            className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-medium bg-light-secondary dark:bg-white/5 hover:bg-light-200 dark:hover:bg-white/10 border border-light-200 dark:border-white/10 text-black/70 dark:text-white/70 hover:text-black dark:hover:text-white whitespace-nowrap transition-all active:scale-95 disabled:opacity-50"
-          >
-            <chip.icon size={12} className="text-sky-500 dark:text-sky-400" />
-            <span>{chip.label}</span>
-          </button>
-        ))}
-      </div>
-
-      {/* Message List */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
+      {/* ================= CHAT MESSAGES SCROLL VIEW ================= */}
+      <div className="flex-1 overflow-y-auto p-3.5 space-y-3.5 custom-scrollbar select-text">
         {messages.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center text-center text-black/40 dark:text-white/40 px-4">
-            <div className="p-3 rounded-2xl bg-sky-500/10 text-sky-500 dark:text-sky-400 mb-3 border border-sky-500/20">
+          <div className="py-12 flex flex-col items-center justify-center text-center space-y-3 select-none text-slate-400">
+            <div className="p-3 rounded-2xl bg-purple-500/10 border border-purple-500/20 text-purple-500">
               <Sparkles size={24} />
             </div>
-            <h3 className="text-sm font-semibold text-black/80 dark:text-white/80">
-              Ask AI about your PDF
-            </h3>
-            <p className="text-xs mt-1 leading-relaxed max-w-[240px]">
-              Highlight any line or paragraph on the page, then ask for explanations, summaries, or
-              translations.
-            </p>
+            <div>
+              <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                {activeSession?.title || 'Research Dialogue'}
+              </p>
+              <p className="text-[11px] text-slate-400 max-w-xs mt-1 leading-relaxed">
+                Ask targeted questions about Page {currentPage} or the entire publication.
+              </p>
+            </div>
+
+            {/* Quick Prompt Chips */}
+            <div className="grid grid-cols-1 gap-1.5 w-full pt-3">
+              {quickPrompts.map((qp, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => handleSendMessage(qp.prompt)}
+                  className="w-full text-left p-2 rounded-xl bg-light-secondary/60 dark:bg-white/[0.02] border border-light-200 dark:border-white/5 hover:border-purple-500/30 hover:bg-purple-500/5 transition-all text-xs text-slate-700 dark:text-slate-300 flex items-center gap-2 group"
+                >
+                  <qp.icon size={13} className="text-purple-500 shrink-0" />
+                  <span className="truncate">{qp.label}</span>
+                </button>
+              ))}
+            </div>
           </div>
         ) : (
-          messages.map((msg) => (
-            <div
-              key={msg.id}
-              className={`flex flex-col ${
-                msg.role === 'user' ? 'items-end' : 'items-start'
-              } space-y-1`}
-            >
-              <div className="flex items-center gap-1 text-[10px] text-black/40 dark:text-white/40 px-1">
-                {msg.role === 'user' ? (
-                  <>
-                    <span>You</span>
-                    <User size={11} />
-                  </>
-                ) : (
-                  <>
-                    <Bot size={11} className="text-sky-500 dark:text-sky-400" />
-                    <span className="text-sky-600 dark:text-sky-400 font-medium">Assistant</span>
-                  </>
-                )}
-              </div>
-
+          messages.map((m) => {
+            const isUser = m.role === 'user';
+            return (
               <div
-                className={`group relative p-3 rounded-2xl text-xs max-w-[90%] leading-relaxed ${
-                  msg.role === 'user'
-                    ? 'bg-sky-500 text-white rounded-tr-sm shadow-md'
-                    : 'bg-light-secondary dark:bg-white/[0.04] border border-light-200 dark:border-white/10 text-black/90 dark:text-white/90 rounded-tl-sm'
-                }`}
+                key={m.id}
+                className={`flex flex-col gap-1 ${isUser ? 'items-end' : 'items-start'}`}
               >
-                {msg.excerpt && (
-                  <div className="mb-2 p-2 rounded-lg bg-black/5 dark:bg-black/30 border border-light-200 dark:border-white/10 text-[11px] italic opacity-90 text-black/80 dark:text-white/80">
-                    <span className="text-[10px] font-mono not-italic opacity-70 block mb-0.5 text-sky-600 dark:text-sky-400">
-                      Excerpt (p.{msg.pageNumber || currentPage}):
-                    </span>
-                    "{msg.excerpt}"
-                  </div>
-                )}
-
-                {msg.role === 'assistant' ? (
-                  <div className="prose dark:prose-invert max-w-none text-xs leading-relaxed text-black/90 dark:text-white/90">
-                    <Markdown>{msg.content}</Markdown>
-                    {msg.isStreaming && (
-                      <span className="inline-block w-1.5 h-3 ml-1 bg-sky-400 animate-pulse align-middle" />
-                    )}
-
-                    {!msg.isStreaming && (() => {
-                      const citations: Array<{ page: number; quote?: string }> = [];
-                      const regex = /\[\[Page:(\d+)(?:\s*\|\s*"([^"]*)")?\]\]|\[Page\s*(\d+)\]/gi;
-                      let match;
-                      while ((match = regex.exec(msg.content)) !== null) {
-                        const pageNum = parseInt(match[1] || match[3], 10);
-                        if (!isNaN(pageNum) && !citations.some((c) => c.page === pageNum)) {
-                          citations.push({ page: pageNum, quote: match[2] });
-                        }
-                      }
-                      if (citations.length === 0) return null;
-
-                      return (
-                        <div className="mt-2.5 pt-2 border-t border-light-200 dark:border-white/10 flex flex-wrap items-center gap-1.5 select-none not-prose">
-                          <span className="text-[10px] text-black/50 dark:text-white/40">Sources:</span>
-                          {citations.map((c, i) => (
-                            <button
-                              key={i}
-                              type="button"
-                              onClick={() => onJumpToCitation?.(c.page, c.quote)}
-                              title={c.quote ? `Jump to page ${c.page}: "${c.quote}"` : `Jump to page ${c.page}`}
-                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-sky-500/10 hover:bg-sky-500/25 text-sky-600 dark:text-sky-400 border border-sky-500/30 text-[10px] font-mono font-medium transition-all hover:scale-105 active:scale-95"
-                            >
-                              <Bookmark size={10} />
-                              <span>Page {c.page}</span>
-                            </button>
-                          ))}
-                        </div>
-                      );
-                    })()}
-                  </div>
-                ) : (
-                  <p className="whitespace-pre-wrap">{msg.content}</p>
-                )}
-
-                {msg.role === 'assistant' && msg.content && (
-                  <button
-                    type="button"
-                    onClick={() => handleCopy(msg.content, msg.id)}
-                    title="Copy answer"
-                    className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-light-200 dark:hover:bg-white/10 text-black/50 dark:text-white/50 hover:text-black dark:hover:text-white transition-opacity"
+                <div
+                  className={`flex gap-2 max-w-[92%] ${isUser ? 'justify-end' : 'justify-start'}`}
+                >
+                  {!isUser && (
+                    <div className="w-5 h-5 rounded-md bg-gradient-to-tr from-purple-500 to-indigo-600 flex items-center justify-center text-white shrink-0 mt-0.5">
+                      <Bot size={11} />
+                    </div>
+                  )}
+                  <div
+                    className={`rounded-2xl p-3 text-xs leading-relaxed ${
+                      isUser
+                        ? 'bg-gradient-to-r from-sky-500 to-blue-600 text-white rounded-tr-xs shadow-xs'
+                        : 'bg-light-secondary/80 dark:bg-white/[0.04] border border-light-200 dark:border-white/10 text-slate-900 dark:text-slate-100 rounded-tl-xs shadow-xs'
+                    }`}
                   >
-                    {copiedId === msg.id ? (
-                      <Check size={12} className="text-emerald-500" />
-                    ) : (
-                      <Copy size={12} />
+                    {/* Render Collapsible ThinkBox if thinking content exists */}
+                    {!isUser && m.thinking && (
+                      <ThinkBox content={m.thinking} thinkingEnded={m.thinkingEnded ?? true} />
                     )}
-                  </button>
+
+                    {/* Excerpt Reference inside User Bubble */}
+                    {isUser && m.excerpt && (
+                      <div className="mb-2 p-2 rounded-lg bg-white/15 border border-white/20 text-[11px] italic line-clamp-2">
+                        "{m.excerpt}"
+                      </div>
+                    )}
+
+                    {/* Message Body with Interactive Citations */}
+                    <div className="prose dark:prose-invert max-w-none text-xs leading-relaxed break-words">
+                      {isUser ? m.content : renderMessageContent(m.content)}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Assistant Message Actions Toolbar */}
+                {!isUser && !m.isStreaming && (
+                  <div className="flex items-center gap-1 pl-7 text-[10px] text-slate-400">
+                    <button
+                      type="button"
+                      onClick={() => handleCopy(m.content, m.id)}
+                      title="Copy response"
+                      className="p-1 rounded hover:bg-light-200 dark:hover:bg-white/10 transition-colors flex items-center gap-1"
+                    >
+                      {copiedId === m.id ? (
+                        <Check size={11} className="text-emerald-500" />
+                      ) : (
+                        <Copy size={11} />
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleToggleSpeak(m.content, m.id)}
+                      title="Read aloud"
+                      className="p-1 rounded hover:bg-light-200 dark:hover:bg-white/10 transition-colors"
+                    >
+                      {speakingMsgId === m.id ? (
+                        <VolumeX size={11} className="text-purple-500 animate-pulse" />
+                      ) : (
+                        <Volume2 size={11} />
+                      )}
+                    </button>
+                    {m.modelName && (
+                      <span className="font-mono text-[9.5px] opacity-60">· {m.modelName}</span>
+                    )}
+                  </div>
                 )}
               </div>
-            </div>
-          ))
+            );
+          })
         )}
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input Form */}
-      <div className="p-3 border-t border-light-200 dark:border-white/10 bg-light-secondary/60 dark:bg-white/[0.02]">
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            handleSendMessage();
-          }}
-          className="relative flex items-center"
+      {/* ================= INPUT FORM ================= */}
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          handleSendMessage();
+        }}
+        className="p-2.5 border-t border-light-200 dark:border-white/10 bg-light-primary dark:bg-[#0c0f16] flex items-center gap-2 shrink-0 select-none"
+      >
+        <input
+          type="text"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          placeholder={`Ask about Page ${currentPage} or the whole paper...`}
+          className="flex-1 px-3 py-2 text-xs rounded-xl bg-light-secondary dark:bg-white/5 border border-light-200 dark:border-white/10 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-purple-500"
+        />
+        <button
+          type="submit"
+          disabled={loading || (!input.trim() && !activeExcerpt)}
+          title="Send query (Enter)"
+          className="p-2 rounded-xl bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-400 hover:to-indigo-500 text-white shadow-md disabled:opacity-40 transition-all hover:scale-105 active:scale-95 shrink-0"
         >
-          <input
-            type="text"
-            placeholder={
-              activeExcerpt
-                ? 'Ask about selected excerpt...'
-                : 'Ask a question about this document...'
-            }
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            disabled={loading}
-            className="w-full pl-3 pr-10 py-2.5 text-xs rounded-xl bg-light-primary dark:bg-white/5 border border-light-200 dark:border-white/10 text-black dark:text-white placeholder:text-black/40 dark:placeholder:text-white/40 focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
-          />
-          <button
-            type="submit"
-            disabled={loading || (!input.trim() && !activeExcerpt)}
-            className="absolute right-1.5 p-1.5 rounded-lg bg-sky-500 hover:bg-sky-600 disabled:opacity-30 disabled:pointer-events-none text-white transition-all shadow-sm"
-          >
-            <Send size={13} />
-          </button>
-        </form>
-      </div>
-    </aside>
+          <Send size={13} />
+        </button>
+      </form>
+    </div>
   );
 };
+
+export default PdfAiPanel;

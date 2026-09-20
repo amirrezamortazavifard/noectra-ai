@@ -77,6 +77,22 @@ export interface AiChatMessage {
   pageNumber?: number;
   timestamp: number;
   isStreaming?: boolean;
+  thinking?: string;
+  thinkingEnded?: boolean;
+  modelName?: string;
+}
+
+export interface PdfChatSession {
+  id: string;
+  documentId: string;
+  title: string;
+  createdAt: number;
+  updatedAt: number;
+  messages: AiChatMessage[];
+  modelKey?: string;
+  providerId?: string;
+  thinkingEnabled?: boolean;
+  scope?: 'page' | 'document';
 }
 
 export interface ParagraphTranslation {
