@@ -164,3 +164,38 @@ export interface SplitViewState {
   secondaryMeta?: PdfDocumentMeta | null;
 }
 
+export type PageViewMode = 'continuous' | 'single';
+
+export type MindMapNodeType =
+  | 'root'
+  | 'chapter'
+  | 'highlight'
+  | 'note'
+  | 'margin_note'
+  | 'concept'
+  | 'thought'
+  | 'summary'
+  | 'question';
+
+export interface MindMapNode {
+  id: string;
+  label: string;
+  type: MindMapNodeType;
+  pageNumber?: number;
+  color?: HighlightColor;
+  quote?: string;
+  note?: string;
+  tags?: string[];
+  parentId?: string | null;
+  highlightId?: string;
+  x?: number;
+  y?: number;
+}
+
+export interface MindMapLink {
+  id: string;
+  sourceId: string;
+  targetId: string;
+  label?: string;
+}
+

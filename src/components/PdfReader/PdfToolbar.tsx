@@ -22,8 +22,10 @@ import {
   SlidersHorizontal,
   ChevronDown,
   Columns,
+  GitFork,
+  ScrollText,
 } from 'lucide-react';
-import { PdfDocumentMeta, SplitViewMode } from './types';
+import { PdfDocumentMeta, SplitViewMode, PageViewMode } from './types';
 
 export type StudioTab = 'notes' | 'bilingual' | 'ai';
 
@@ -41,6 +43,8 @@ interface PdfToolbarProps {
   cardsCount?: number;
   notesCount?: number;
   splitMode?: SplitViewMode;
+  pageViewMode?: PageViewMode;
+  mindMapNodesCount?: number;
   onPageChange: (page: number) => void;
   onZoomIn: () => void;
   onZoomOut: () => void;
@@ -57,6 +61,8 @@ interface PdfToolbarProps {
   onToggleCanvasCards?: () => void;
   onOpenFile: () => void;
   onToggleSplit?: (mode: SplitViewMode) => void;
+  onTogglePageViewMode?: () => void;
+  onOpenMindMap?: () => void;
 }
 
 export const PdfToolbar: React.FC<PdfToolbarProps> = ({
@@ -73,6 +79,8 @@ export const PdfToolbar: React.FC<PdfToolbarProps> = ({
   cardsCount,
   notesCount,
   splitMode = 'none',
+  pageViewMode = 'continuous',
+  mindMapNodesCount,
   onPageChange,
   onZoomIn,
   onZoomOut,
@@ -89,6 +97,8 @@ export const PdfToolbar: React.FC<PdfToolbarProps> = ({
   onToggleCanvasCards,
   onOpenFile,
   onToggleSplit,
+  onTogglePageViewMode,
+  onOpenMindMap,
 }) => {
   const [pageInput, setPageInput] = useState<string>(currentPage.toString());
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
@@ -369,6 +379,26 @@ export const PdfToolbar: React.FC<PdfToolbarProps> = ({
                 Viewport Optics
               </div>
 
+              {/* Page View Mode Toggle: Continuous Scroll vs. Single Page */}
+              {onTogglePageViewMode && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onTogglePageViewMode();
+                    setFocusToolsOpen(false);
+                  }}
+                  className="w-full flex items-center justify-between px-2.5 py-2 rounded-xl text-xs font-medium text-black/80 dark:text-white/80 hover:bg-light-200 dark:hover:bg-white/5 transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <ScrollText size={14} className={pageViewMode === 'continuous' ? 'text-sky-500' : 'text-slate-400'} />
+                    <span>{pageViewMode === 'continuous' ? 'Continuous Scroll' : 'Single Page'}</span>
+                  </div>
+                  <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-sky-500/10 text-sky-600 dark:text-sky-400">
+                    {pageViewMode === 'continuous' ? 'Active' : 'Single'}
+                  </span>
+                </button>
+              )}
+
               {/* Fit Width */}
               <button
                 type="button"
@@ -518,6 +548,24 @@ export const PdfToolbar: React.FC<PdfToolbarProps> = ({
             {cardsCount !== undefined && cardsCount > 0 && (
               <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-purple-500/20 text-purple-600 dark:text-purple-300 font-mono font-semibold">
                 {cardsCount}
+              </span>
+            )}
+          </button>
+        )}
+
+        {/* Visual Knowledge Graph & Mind Map Button */}
+        {onOpenMindMap && (
+          <button
+            type="button"
+            onClick={onOpenMindMap}
+            title="Open Visual Knowledge Graph & Concept Mind Map (MarginNote style)"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-sky-500/10 hover:bg-sky-500/20 text-sky-600 dark:text-sky-400 border border-sky-500/25 text-xs font-medium transition-all"
+          >
+            <GitFork size={14} />
+            <span className="hidden sm:inline text-[11px]">Mind Map</span>
+            {mindMapNodesCount !== undefined && mindMapNodesCount > 0 && (
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-sky-500/20 text-sky-600 dark:text-sky-300 font-mono font-semibold">
+                {mindMapNodesCount}
               </span>
             )}
           </button>

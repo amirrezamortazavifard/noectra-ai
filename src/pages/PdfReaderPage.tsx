@@ -31,6 +31,7 @@ import {
   DictionaryLookupResult,
   SplitViewMode,
   SplitRatio,
+  PageViewMode,
 } from '@/components/PdfReader/types';
 import { PdfToolbar } from '@/components/PdfReader/PdfToolbar';
 import { PdfViewer } from '@/components/PdfReader/PdfViewer';
@@ -39,6 +40,7 @@ import { PdfSelectionPopup } from '@/components/PdfReader/PdfSelectionPopup';
 import { CanvasCardsStudio } from '@/components/PdfReader/CanvasCardsStudio';
 import { RightStudioPanel, StudioTab } from '@/components/PdfReader/RightStudioPanel';
 import { SplitViewerPane } from '@/components/PdfReader/SplitViewerPane';
+import { MindMapStudio } from '@/components/PdfReader/MindMapStudio';
 
 // New Advanced Features: Multi-format viewers, TTS, Reading Ruler, Speed Reader, RAG
 import { EpubViewer } from '@/components/DocumentReader/EpubViewer';
@@ -116,6 +118,23 @@ export default function PdfReaderPage() {
   const [splitCbzData, setSplitCbzData] = useState<ArrayBuffer | null>(null);
   const [splitMarkdownContent, setSplitMarkdownContent] = useState<string | null>(null);
   const [splitMeta, setSplitMeta] = useState<PdfDocumentMeta | null>(null);
+
+  // Page View Mode (Continuous Scroll vs. Single Page) & Mind Map State
+  const [pageViewMode, setPageViewMode] = useState<PageViewMode>(
+    () => (localStorage.getItem('pdf_page_view_mode') as PageViewMode) || 'continuous'
+  );
+  const [mindMapOpen, setMindMapOpen] = useState<boolean>(false);
+
+  const handleTogglePageViewMode = () => {
+    const nextMode = pageViewMode === 'continuous' ? 'single' : 'continuous';
+    setPageViewMode(nextMode);
+    localStorage.setItem('pdf_page_view_mode', nextMode);
+    toast.success(
+      nextMode === 'continuous'
+        ? 'Continuous Scroll active: Fluid multi-page scrolling'
+        : 'Single Page active: Discrete page flipping'
+    );
+  };
 
   // Check if document was already indexed for RAG
   useEffect(() => {
@@ -967,7 +986,11 @@ export default function PdfReaderPage() {
         rulerActive={rulerActive}
         ttsActive={ttsActive}
         splitMode={splitMode}
+        pageViewMode={pageViewMode}
+        mindMapNodesCount={outline.length + highlights.length + cards.length + 1}
         onToggleSplit={handleToggleSplit}
+        onTogglePageViewMode={handleTogglePageViewMode}
+        onOpenMindMap={() => setMindMapOpen(true)}
         onPageChange={handleMainPageChange}
         onZoomIn={() => setScale((s) => Math.min(3.0, s + 0.15))}
         onZoomOut={() => setScale((s) => Math.max(0.5, s - 0.15))}
@@ -1029,6 +1052,7 @@ export default function PdfReaderPage() {
                     highlights={highlights}
                     activeNoteId={activeNoteId}
                     targetLanguage={targetLanguage}
+                    scrollMode={pageViewMode}
                     onSelectNote={(id) => {
                       setActiveNoteId(id);
                       if (id) setStudioTab('notes');
@@ -1298,6 +1322,24 @@ export default function PdfReaderPage() {
         onSaveCards={saveCards}
         onUpdateHighlightNote={handleUpdateNote}
         onDeleteHighlight={handleDeleteHighlight}
+      />
+
+      {/* Visual Knowledge Graph & Mind Map Studio Modal */}
+      <MindMapStudio
+        isOpen={mindMapOpen}
+        meta={meta}
+        outline={outline}
+        highlights={highlights}
+        cards={cards}
+        currentPage={currentPage}
+        onClose={() => setMindMapOpen(false)}
+        onNavigateToPage={(page, highlightId) => {
+          handleMainPageChange(page);
+          if (highlightId) {
+            setActiveNoteId(highlightId);
+            setStudioTab('notes');
+          }
+        }}
       />
     </div>
   );
