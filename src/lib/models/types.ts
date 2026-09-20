@@ -16,6 +16,8 @@ export type ProviderMetadata = {
 export type MinimalProvider = {
   id: string;
   name: string;
+  type?: string;
+  baseUrl?: string;
   chatModels: Model[];
   embeddingModels: Model[];
 };

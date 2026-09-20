@@ -47,6 +47,10 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/providers/:id", delete(delete_provider).patch(update_provider))
         .route("/api/providers/:id/test", post(test_saved_provider))
         .route("/api/providers/:id/models", get(get_provider_models).post(add_provider_model).delete(delete_provider_model))
+        // 9Router Local AI Gateway
+        .route("/api/9router/status", get(get_9router_status))
+        .route("/api/9router/start", post(start_9router_service))
+        .route("/api/9router/ping", post(ping_9router_model))
         // Chats
         .route("/api/chats", get(get_chats))
         .route("/api/chats/:id", get(get_chat_by_id).delete(delete_chat_by_id))
@@ -157,6 +161,35 @@ async fn get_provider_models(
                     }
                 }
             }
+        } else if p.provider_type == "9router" || (p.provider_type == "custom" && p.base_url.as_deref().unwrap_or("").contains("20128")) {
+            let base = p.base_url.as_deref().unwrap_or("http://localhost:20128/v1");
+            let clean_base = base.trim_end_matches('/');
+            let url = if clean_base.ends_with("/v1") {
+                format!("{}/models", clean_base)
+            } else {
+                format!("{}/v1/models", clean_base)
+            };
+            if let Ok(res) = state.http_client.get(&url).timeout(std::time::Duration::from_millis(1500)).send().await {
+                if let Ok(val) = res.json::<Value>().await {
+                    let models_opt = val["data"].as_array().or_else(|| val["models"].as_array()).or_else(|| val.as_array());
+                    if let Some(models) = models_opt {
+                        let list: Vec<Value> = models
+                            .iter()
+                            .filter_map(|m| {
+                                let key = m["id"].as_str().or_else(|| m["name"].as_str())?;
+                                let name = m["name"].as_str().unwrap_or(key);
+                                Some(json!({
+                                    "key": key,
+                                    "name": name
+                                }))
+                            })
+                            .collect();
+                        if !list.is_empty() {
+                            return Json(json!({ "chatModels": list, "embeddingModels": [] }));
+                        }
+                    }
+                }
+            }
         }
         Json(json!({
             "chatModels": p.chat_models,
@@ -251,6 +284,7 @@ async fn test_raw_provider(
                 "anthropic" => "claude-3-5-haiku-20241022".to_string(),
                 "groq" => "llama-3.3-70b-versatile".to_string(),
                 "ollama" => "llama3.2".to_string(),
+                "9router" => "kr/claude-sonnet-4.5".to_string(),
                 "xai" => "grok-2-latest".to_string(),
                 "mistral" => "mistral-small-latest".to_string(),
                 "minimax" => "MiniMax-M2.5".to_string(),
@@ -1195,3 +1229,263 @@ async fn run_chat_agent(
         "completed",
     );
 }
+
+// ==================== 9Router Lifecycle Handlers ====================
+
+fn check_9router_installed() -> (bool, Option<String>) {
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        let where_res = std::process::Command::new("cmd")
+            .args(["/C", "where", "9router"])
+            .creation_flags(CREATE_NO_WINDOW)
+            .output();
+
+        let is_installed = match where_res {
+            Ok(out) => out.status.success(),
+            Err(_) => false,
+        };
+
+        let version = if is_installed {
+            let ver_res = std::process::Command::new("cmd")
+                .args(["/C", "9router", "--version"])
+                .creation_flags(CREATE_NO_WINDOW)
+                .output();
+            ver_res.ok().and_then(|out| {
+                if out.status.success() {
+                    let s = String::from_utf8_lossy(&out.stdout).trim().to_string();
+                    if !s.is_empty() {
+                        Some(s)
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            })
+        } else {
+            None
+        };
+
+        (is_installed, version)
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let which_res = std::process::Command::new("which")
+            .arg("9router")
+            .output();
+
+        let is_installed = match which_res {
+            Ok(out) => out.status.success(),
+            Err(_) => false,
+        };
+
+        let version = if is_installed {
+            let ver_res = std::process::Command::new("9router")
+                .arg("--version")
+                .output();
+            ver_res.ok().and_then(|out| {
+                if out.status.success() {
+                    let s = String::from_utf8_lossy(&out.stdout).trim().to_string();
+                    if !s.is_empty() {
+                        Some(s)
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            })
+        } else {
+            None
+        };
+
+        (is_installed, version)
+    }
+}
+
+async fn get_9router_status(State(state): State<AppState>) -> Json<Value> {
+    let (is_installed, version) = check_9router_installed();
+
+    let mut is_running = false;
+    let mut models_count = 0;
+    let mut latency_ms: Option<u128> = None;
+
+    let start = std::time::Instant::now();
+    if let Ok(res) = state
+        .http_client
+        .get("http://localhost:20128/v1/models")
+        .timeout(std::time::Duration::from_millis(1500))
+        .send()
+        .await
+    {
+        if res.status().is_success() {
+            is_running = true;
+            latency_ms = Some(start.elapsed().as_millis());
+            if let Ok(val) = res.json::<Value>().await {
+                if let Some(arr) = val["data"]
+                    .as_array()
+                    .or_else(|| val["models"].as_array())
+                    .or_else(|| val.as_array())
+                {
+                    models_count = arr.len();
+                }
+            }
+        }
+    }
+
+    Json(json!({
+        "isRunning": is_running,
+        "isInstalled": is_installed,
+        "version": version.unwrap_or_else(|| "Unknown".to_string()),
+        "port": 20128,
+        "baseUrl": "http://localhost:20128/v1",
+        "dashboardUrl": "http://localhost:20128",
+        "modelsCount": models_count,
+        "latencyMs": latency_ms
+    }))
+}
+
+async fn start_9router_service(State(state): State<AppState>) -> Json<Value> {
+    // 1. Check if already running
+    if let Ok(res) = state
+        .http_client
+        .get("http://localhost:20128/v1/models")
+        .timeout(std::time::Duration::from_millis(1200))
+        .send()
+        .await
+    {
+        if res.status().is_success() {
+            return Json(json!({
+                "success": true,
+                "alreadyRunning": true,
+                "message": "9Router is already running on http://localhost:20128."
+            }));
+        }
+    }
+
+    // 2. Check if installed
+    let (is_installed, _) = check_9router_installed();
+    if !is_installed {
+        return Json(json!({
+            "success": false,
+            "notInstalled": true,
+            "error": "The '9router' command was not found in system PATH. Please install it globally by running 'npm install -g 9router' in your terminal.",
+            "installCommand": "npm install -g 9router"
+        }));
+    }
+
+    // 3. Spawn background process
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        let spawn_res = std::process::Command::new("cmd")
+            .args(["/C", "9router", "--no-browser", "--skip-update"])
+            .creation_flags(CREATE_NO_WINDOW)
+            .spawn();
+
+        if let Err(e) = spawn_res {
+            return Json(json!({
+                "success": false,
+                "error": format!("Failed to spawn 9router process: {}", e)
+            }));
+        }
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        let spawn_res = std::process::Command::new("9router")
+            .args(["--no-browser", "--skip-update"])
+            .spawn();
+
+        if let Err(e) = spawn_res {
+            return Json(json!({
+                "success": false,
+                "error": format!("Failed to spawn 9router process: {}", e)
+            }));
+        }
+    }
+
+    // 4. Poll http://localhost:20128/v1/models for up to 6 seconds
+    let mut started = false;
+    for _ in 0..12 {
+        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+        if let Ok(res) = state
+            .http_client
+            .get("http://localhost:20128/v1/models")
+            .timeout(std::time::Duration::from_millis(800))
+            .send()
+            .await
+        {
+            if res.status().is_success() {
+                started = true;
+                break;
+            }
+        }
+    }
+
+    if started {
+        Json(json!({
+            "success": true,
+            "message": "9Router started successfully and is listening on port 20128."
+        }))
+    } else {
+        Json(json!({
+            "success": false,
+            "error": "9Router process was launched, but port 20128 did not become ready within 6 seconds. Please verify your 9router installation or run '9router' in CMD."
+        }))
+    }
+}
+
+#[derive(Deserialize)]
+struct Ping9RouterPayload {
+    #[serde(default)]
+    model: Option<String>,
+}
+
+async fn ping_9router_model(
+    State(state): State<AppState>,
+    Json(payload): Json<Ping9RouterPayload>,
+) -> Json<Value> {
+    let model = payload
+        .model
+        .filter(|m| !m.trim().is_empty())
+        .unwrap_or_else(|| "kr/claude-sonnet-4.5".to_string());
+
+    let test_messages = vec![ChatMessage {
+        role: "user".to_string(),
+        content: "Ping. Reply with 'pong' only.".to_string(),
+        tool_calls: None,
+        tool_call_id: None,
+    }];
+
+    let start = std::time::Instant::now();
+    match crate::models::ModelService::complete(
+        &state.http_client,
+        "9router",
+        Some("http://localhost:20128/v1"),
+        None,
+        &model,
+        test_messages,
+    )
+    .await
+    {
+        Ok(reply) => {
+            let latency_ms = start.elapsed().as_millis();
+            Json(json!({
+                "success": true,
+                "latencyMs": latency_ms,
+                "model": model,
+                "reply": reply.trim()
+            }))
+        }
+        Err(err) => Json(json!({
+            "success": false,
+            "model": model,
+            "error": err
+        })),
+    }
+}
+

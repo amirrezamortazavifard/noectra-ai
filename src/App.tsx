@@ -30,7 +30,8 @@ const defaultFallbackSections: UIConfigSections = {
     { key: 'gemini', name: 'Google Gemini', fields: [] },
     { key: 'lmstudio', name: 'LM Studio', fields: [] },
     { key: 'openrouter', name: 'OpenRouter', fields: [] },
-    { key: 'custom', name: '9router / Custom (Local OpenAI)', fields: [] },
+    { key: '9router', name: '9Router (Local AI Gateway)', fields: [] },
+    { key: 'custom', name: 'Custom (Local OpenAI)', fields: [] },
   ],
 };
 

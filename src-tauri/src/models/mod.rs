@@ -33,6 +33,7 @@ impl ModelService {
                 // OpenAI, Ollama, Groq, LM Studio (OpenAI-compatible)
                 let default_base = match provider_type {
                     "ollama" => "http://localhost:11434/v1",
+                    "9router" => "http://localhost:20128/v1",
                     "groq" => "https://api.groq.com/openai/v1",
                     "openrouter" => "https://openrouter.ai/api/v1",
                     "xai" => "https://api.x.ai/v1",
@@ -201,6 +202,7 @@ impl ModelService {
             _ => {
                 let default_base = match provider_type {
                     "ollama" => "http://localhost:11434/v1",
+                    "9router" => "http://localhost:20128/v1",
                     "groq" => "https://api.groq.com/openai/v1",
                     "openrouter" => "https://openrouter.ai/api/v1",
                     "xai" => "https://api.x.ai/v1",

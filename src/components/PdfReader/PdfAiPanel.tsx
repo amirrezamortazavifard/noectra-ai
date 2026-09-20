@@ -23,6 +23,9 @@ import {
   Search,
   Volume2,
   VolumeX,
+  AlertTriangle,
+  Play,
+  Loader2,
 } from 'lucide-react';
 import { AiChatMessage, PdfDocumentMeta, PdfChatSession } from './types';
 import { MinimalProvider } from '@/lib/models/types';
@@ -78,6 +81,58 @@ export const PdfAiPanel: React.FC<PdfAiPanelProps> = ({
   });
   const [modelPickerOpen, setModelPickerOpen] = useState(false);
   const [modelSearch, setModelSearch] = useState('');
+
+  // 9Router awareness in PDF reader
+  const selectedProvider = providers.find((p) => p.id === selectedModel.providerId);
+  const is9RouterSelected =
+    selectedProvider?.type === '9router' ||
+    selectedProvider?.name.toLowerCase().includes('9router') ||
+    (selectedProvider?.type === 'custom' &&
+      (selectedProvider?.id.includes('9router') || (selectedProvider as any).baseUrl?.includes('20128')));
+
+  const [nineRouterOnline, setNineRouterOnline] = useState<boolean | null>(null);
+  const [isStarting9Router, setIsStarting9Router] = useState(false);
+
+  const check9RouterStatus = async () => {
+    try {
+      const res = await fetch('/api/9router/status');
+      if (res.ok) {
+        const data = await res.json();
+        setNineRouterOnline(Boolean(data.isRunning));
+      }
+    } catch {
+      setNineRouterOnline(false);
+    }
+  };
+
+  useEffect(() => {
+    if (is9RouterSelected) {
+      check9RouterStatus();
+    }
+  }, [is9RouterSelected]);
+
+  const handleStart9Router = async () => {
+    setIsStarting9Router(true);
+    try {
+      const res = await fetch('/api/9router/start', { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        toast.success(data.message || '9Router started successfully!');
+        setNineRouterOnline(true);
+      } else {
+        toast.error('Failed to start 9Router', {
+          description: data.error || 'Please run "9router" in CMD.',
+          duration: 8000,
+        });
+        setNineRouterOnline(false);
+      }
+    } catch (err: any) {
+      toast.error('Error starting 9Router', { description: err.message });
+      setNineRouterOnline(false);
+    } finally {
+      setIsStarting9Router(false);
+    }
+  };
 
   // --- 3. Deep Thinking & Scope State ---
   const [thinkingEnabled, setThinkingEnabled] = useState<boolean>(() => {
@@ -317,6 +372,17 @@ export const PdfAiPanel: React.FC<PdfAiPanelProps> = ({
 
   // Send Message Logic with Deep Thinking & Grounding
   const handleSendMessage = async (customPrompt?: string) => {
+    if (is9RouterSelected && nineRouterOnline === false) {
+      toast.warning('9Router service is offline', {
+        description: 'Please click "Start 9Router" to launch the gateway before sending prompts.',
+        action: {
+          label: 'Start Now',
+          onClick: () => handleStart9Router(),
+        },
+      });
+      return;
+    }
+
     const textToSend = (customPrompt || input).trim();
     if (!textToSend && !activeExcerpt) return;
 
@@ -1033,6 +1099,29 @@ export const PdfAiPanel: React.FC<PdfAiPanelProps> = ({
         )}
         <div ref={messagesEndRef} />
       </div>
+
+      {/* 9Router Status Warning & Instant Launcher */}
+      {is9RouterSelected && nineRouterOnline === false && (
+        <div className="mx-3 mb-2 p-2 rounded-xl bg-amber-500/10 border border-amber-500/25 flex items-center justify-between gap-2 text-xs select-none">
+          <div className="flex items-center gap-1.5 text-amber-700 dark:text-amber-300 min-w-0">
+            <AlertTriangle size={13} className="shrink-0 text-amber-500" />
+            <span className="text-[11px] truncate">9Router service is offline (:20128)</span>
+          </div>
+          <button
+            type="button"
+            onClick={handleStart9Router}
+            disabled={isStarting9Router}
+            className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-medium text-[10px] shadow-xs flex items-center gap-1 transition-all shrink-0 active:scale-95 disabled:opacity-50"
+          >
+            {isStarting9Router ? (
+              <Loader2 size={11} className="animate-spin" />
+            ) : (
+              <Play size={11} className="fill-current" />
+            )}
+            <span>{isStarting9Router ? 'Starting...' : 'Start 9Router'}</span>
+          </button>
+        </div>
+      )}
 
       {/* ================= INPUT FORM ================= */}
       <form

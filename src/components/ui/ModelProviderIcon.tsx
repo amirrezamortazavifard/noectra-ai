@@ -131,6 +131,27 @@ const MiniMaxIcon = ({ size = 16, className = '' }: { size?: number; className?:
   </svg>
 );
 
+const NineRouterIcon = ({ size = 16, className = '' }: { size?: number; className?: string }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+  >
+    <rect width="20" height="8" x="2" y="14" rx="2" />
+    <path d="M6 18h.01" />
+    <path d="M10 18h.01" />
+    <path d="M15 10v4" />
+    <path d="M17.8 7.2a4 4 0 0 0-5.6 0" />
+    <path d="M20.6 4.4a8 8 0 0 0-11.2 0" />
+  </svg>
+);
+
 export function getProviderMeta(rawKey?: string, modelKey?: string) {
   const key = (rawKey || '').toLowerCase().trim();
   const model = (modelKey || '').toLowerCase().trim();
@@ -178,6 +199,9 @@ export function getProviderMeta(rawKey?: string, modelKey?: string) {
   if (key.includes('minimax')) {
     return { id: 'minimax', name: 'MiniMax', color: '#8b5cf6', bg: 'rgba(139, 92, 246, 0.12)' };
   }
+  if (key.includes('9router')) {
+    return { id: '9router', name: '9Router', color: '#818cf8', bg: 'rgba(129, 140, 248, 0.14)' };
+  }
 
   return { id: 'custom', name: 'Custom AI', color: '#38bdf8', bg: 'rgba(56, 189, 248, 0.12)' };
 }
@@ -221,6 +245,8 @@ export default function ModelProviderIcon({
         return <LMStudioIcon size={size} className={className} />;
       case 'minimax':
         return <MiniMaxIcon size={size} className={className} />;
+      case '9router':
+        return <NineRouterIcon size={size} className={className} />;
       default:
         return <Cpu size={size} className={className} style={{ color: meta.color }} />;
     }
