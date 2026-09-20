@@ -79,6 +79,38 @@ export interface AiChatMessage {
   isStreaming?: boolean;
 }
 
+export interface ParagraphTranslation {
+  id: string;
+  index: number;
+  original: string;
+  translated: string;
+}
+
+export interface DictionaryLookupResult {
+  term: string;
+  phonetic?: string;
+  partOfSpeech?: string;
+  definition: string;
+  translation: string;
+  academicContext?: string;
+  example?: string;
+}
+
+export interface DictionaryPopupState {
+  term: string;
+  contextSentence: string;
+  clientRect: {
+    top: number;
+    left: number;
+    bottom: number;
+    right: number;
+    width: number;
+    height: number;
+  };
+  result?: DictionaryLookupResult;
+  loading: boolean;
+}
+
 export const HIGHLIGHT_COLORS: Record<
   HighlightColor,
   { name: string; bg: string; border: string; preview: string; text: string }

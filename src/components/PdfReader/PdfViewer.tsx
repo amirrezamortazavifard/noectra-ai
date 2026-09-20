@@ -7,6 +7,8 @@ import {
   HIGHLIGHT_COLORS,
   HighlightRect,
   TextSelectionInfo,
+  DictionaryPopupState,
+  DictionaryLookupResult,
 } from './types';
 import {
   StickyNote,
@@ -25,6 +27,8 @@ import {
 import { toast } from 'sonner';
 import { soundService } from '@/lib/sound/soundService';
 import { summarizeNote, extractConcept } from '@/lib/services/aiNoteService';
+import { lookupAcademicTerm } from '@/lib/services/bilingualService';
+import { InlineDictionaryPopup } from './InlineDictionaryPopup';
 
 interface PdfViewerProps {
   pdfDoc: pdfjsLib.PDFDocumentProxy | null;
@@ -33,12 +37,14 @@ interface PdfViewerProps {
   rotation: number;
   highlights: Highlight[];
   activeNoteId?: string | null;
+  targetLanguage?: string;
   onSelectionChange: (selection: TextSelectionInfo | null) => void;
   onPageChange: (page: number) => void;
   onHighlightDelete?: (id: string) => void;
   onUpdateNote?: (id: string, note: string, color?: HighlightColor) => void;
   onSelectNote?: (id: string | null) => void;
   onAskAiAboutExcerpt?: (quote: string, note?: string) => void;
+  onSaveDictionaryCard?: (result: DictionaryLookupResult) => void;
 }
 
 export const PdfViewer: React.FC<PdfViewerProps> = ({
@@ -48,12 +54,14 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
   rotation,
   highlights,
   activeNoteId,
+  targetLanguage = 'Persian',
   onSelectionChange,
   onPageChange,
   onHighlightDelete,
   onUpdateNote,
   onSelectNote,
   onAskAiAboutExcerpt,
+  onSaveDictionaryCard,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const pageContainerRef = useRef<HTMLDivElement>(null);
@@ -69,6 +77,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
   const [editingNoteText, setEditingNoteText] = useState<{ [id: string]: string }>({});
   const [isAiProcessing, setIsAiProcessing] = useState<{ [id: string]: boolean }>({});
   const [expandAllNotes, setExpandAllNotes] = useState(false);
+  const [dictionaryState, setDictionaryState] = useState<DictionaryPopupState | null>(null);
 
   // Sync editing text whenever highlights or active note change
   useEffect(() => {
@@ -232,6 +241,53 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
     });
   };
 
+  // Double-click handler to trigger academic dictionary lookup
+  const handleDoubleClick = async (e: React.MouseEvent) => {
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed || !sel.rangeCount) return;
+
+    const text = sel.toString().trim();
+    if (!text || text.split(/\s+/).length > 4) return;
+
+    const range = sel.getRangeAt(0);
+    const rect = range.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return;
+
+    let contextSentence = text;
+    try {
+      const nodeText = range.startContainer.textContent || '';
+      const start = Math.max(0, range.startOffset - 100);
+      const end = Math.min(nodeText.length, range.endOffset + 100);
+      contextSentence = nodeText.substring(start, end).trim();
+    } catch {}
+
+    setDictionaryState({
+      term: text,
+      contextSentence,
+      clientRect: {
+        top: rect.top,
+        left: rect.left,
+        bottom: rect.bottom,
+        right: rect.right,
+        width: rect.width,
+        height: rect.height,
+      },
+      loading: true,
+    });
+
+    try {
+      const result = await lookupAcademicTerm(
+        text,
+        contextSentence,
+        undefined,
+        targetLanguage || 'Persian'
+      );
+      setDictionaryState((prev) => (prev ? { ...prev, result, loading: false } : null));
+    } catch {
+      setDictionaryState((prev) => (prev ? { ...prev, loading: false } : null));
+    }
+  };
+
   const handleNoteChange = (id: string, text: string) => {
     setEditingNoteText((prev) => ({ ...prev, [id]: text }));
     onUpdateNote?.(id, text);
@@ -287,6 +343,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
       ref={containerRef}
       className="flex-1 h-full overflow-auto bg-[#e8ecf2] dark:bg-[#07090e] p-6 custom-scrollbar select-text transition-colors"
       onMouseUp={handleMouseUp}
+      onDoubleClick={handleDoubleClick}
     >
       <div className="flex items-start justify-center gap-6 relative min-w-fit mx-auto">
         {/* PDF Page Container */}
@@ -567,6 +624,25 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
           )}
         </div>
       </div>
+
+      {/* Inline Smart Academic Dictionary Popup */}
+      {dictionaryState && (
+        <InlineDictionaryPopup
+          state={dictionaryState}
+          onClose={() => setDictionaryState(null)}
+          onSaveToCards={onSaveDictionaryCard}
+          onAddToMarginNote={(noteText) => {
+            if (activeNoteId) {
+              handleNoteChange(
+                activeNoteId,
+                (editingNoteText[activeNoteId] || '') + '\n\n' + noteText
+              );
+            } else {
+              toast.info('Select or create a margin note to attach definition');
+            }
+          }}
+        />
+      )}
     </div>
   );
 };

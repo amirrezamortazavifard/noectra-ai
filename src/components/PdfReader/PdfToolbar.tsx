@@ -18,6 +18,7 @@ import {
   ScanLine,
   Gauge,
   LayoutGrid,
+  Languages,
 } from 'lucide-react';
 import { PdfDocumentMeta } from './types';
 
@@ -30,6 +31,7 @@ interface PdfToolbarProps {
   aiPanelOpen: boolean;
   rulerActive?: boolean;
   ttsActive?: boolean;
+  bilingualActive?: boolean;
   cardsCount?: number;
   onPageChange: (page: number) => void;
   onZoomIn: () => void;
@@ -43,6 +45,7 @@ interface PdfToolbarProps {
   onToggleTts?: () => void;
   onOpenSpeedReader?: () => void;
   onToggleCanvasCards?: () => void;
+  onToggleBilingual?: () => void;
   onOpenFile: () => void;
 }
 
@@ -55,6 +58,7 @@ export const PdfToolbar: React.FC<PdfToolbarProps> = ({
   aiPanelOpen,
   rulerActive,
   ttsActive,
+  bilingualActive,
   cardsCount,
   onPageChange,
   onZoomIn,
@@ -68,6 +72,7 @@ export const PdfToolbar: React.FC<PdfToolbarProps> = ({
   onToggleTts,
   onOpenSpeedReader,
   onToggleCanvasCards,
+  onToggleBilingual,
   onOpenFile,
 }) => {
   const [pageInput, setPageInput] = useState<string>(currentPage.toString());
@@ -272,6 +277,23 @@ export const PdfToolbar: React.FC<PdfToolbarProps> = ({
 
       {/* Right Section: Open File & AI Assistant Toggle */}
       <div className="flex items-center gap-2">
+        {/* Bilingual Mode Toggle Button */}
+        {onToggleBilingual && (
+          <button
+            type="button"
+            onClick={onToggleBilingual}
+            title={bilingualActive ? 'Close Bilingual Parallel Reader' : 'Open Bilingual Parallel Reader (Side-by-Side)'}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-all hover:scale-105 ${
+              bilingualActive
+                ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 shadow-xs'
+                : 'bg-light-secondary dark:bg-white/5 border border-light-200 dark:border-white/10 text-black/70 dark:text-white/70 hover:bg-light-200 dark:hover:bg-white/10'
+            }`}
+          >
+            <Languages size={15} className={bilingualActive ? 'text-emerald-500 animate-pulse' : ''} />
+            <span className="hidden md:inline">Bilingual</span>
+          </button>
+        )}
+
         {/* Canvas Cards Studio Button */}
         {onToggleCanvasCards && (
           <button

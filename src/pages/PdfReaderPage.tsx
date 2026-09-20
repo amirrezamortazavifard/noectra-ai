@@ -28,6 +28,7 @@ import {
   HighlightColor,
   TextSelectionInfo,
   CanvasCard,
+  DictionaryLookupResult,
 } from '@/components/PdfReader/types';
 import { PdfToolbar } from '@/components/PdfReader/PdfToolbar';
 import { PdfViewer } from '@/components/PdfReader/PdfViewer';
@@ -35,6 +36,7 @@ import { PdfDocumentSidebar } from '@/components/PdfReader/PdfDocumentSidebar';
 import { PdfAiPanel } from '@/components/PdfReader/PdfAiPanel';
 import { PdfSelectionPopup } from '@/components/PdfReader/PdfSelectionPopup';
 import { CanvasCardsStudio } from '@/components/PdfReader/CanvasCardsStudio';
+import { BilingualPanel } from '@/components/PdfReader/BilingualPanel';
 
 // New Advanced Features: Multi-format viewers, TTS, Reading Ruler, Speed Reader, RAG
 import { EpubViewer } from '@/components/DocumentReader/EpubViewer';
@@ -165,6 +167,44 @@ export default function PdfReaderPage() {
     if (meta?.id) {
       localStorage.setItem(`pdf_cards_${meta.id}`, JSON.stringify(newCards));
     }
+  };
+
+  // Bilingual Reading Mode State
+  const [bilingualMode, setBilingualMode] = useState<boolean>(false);
+  const [targetLanguage, setTargetLanguage] = useState<string>('Persian');
+  const [currentPageText, setCurrentPageText] = useState<string>('');
+
+  // Extract text of current page for Bilingual Mode
+  useEffect(() => {
+    if (docType === 'pdf' && pdfDoc) {
+      pdfDoc
+        .getPage(currentPage)
+        .then((page) => {
+          page.getTextContent().then((tc) => {
+            const str = tc.items.map((i: any) => ('str' in i ? i.str : '')).join(' ');
+            setCurrentPageText(str);
+          });
+        })
+        .catch(() => {});
+    } else if (markdownContent) {
+      setCurrentPageText(markdownContent.slice((currentPage - 1) * 2000, currentPage * 2000));
+    }
+  }, [docType, pdfDoc, currentPage, markdownContent]);
+
+  // Save dictionary lookup term as concept card
+  const handleSaveDictionaryCard = (res: DictionaryLookupResult) => {
+    const newCard: CanvasCard = {
+      id: Date.now().toString(),
+      documentId: meta?.id || 'doc',
+      pageNumber: currentPage,
+      type: 'concept',
+      title: res.term,
+      content: `**${res.term}** (${res.partOfSpeech || 'term'} ${res.phonetic || ''})\n\n${res.definition}\n\n**Translation**: ${res.translation}\n\n*Context*: ${res.academicContext || ''}`,
+      color: 'cyan',
+      tags: ['vocabulary', res.partOfSpeech || 'concept'],
+      timestamp: Date.now(),
+    };
+    saveCards([newCard, ...cards]);
   };
 
   // Run RAG indexing across PDF pages in background
@@ -755,6 +795,8 @@ export default function PdfReaderPage() {
         onToggleTts={handleOpenTts}
         onOpenSpeedReader={() => handleOpenSpeedReader()}
         onToggleCanvasCards={() => setCanvasStudioOpen((v) => !v)}
+        bilingualActive={bilingualMode}
+        onToggleBilingual={() => setBilingualMode((v) => !v)}
         onOpenFile={() => fileInputRef.current?.click()}
       />
 
@@ -780,8 +822,9 @@ export default function PdfReaderPage() {
 
         {/* Viewers or Empty State */}
         {hasActiveDocument ? (
-          <div className="flex-1 relative flex overflow-hidden">
-            {/* 1. PDF Viewer */}
+          <>
+            <div className="flex-1 relative flex overflow-hidden">
+              {/* 1. PDF Viewer */}
             {docType === 'pdf' && pdfDoc && (
               <PdfViewer
                 pdfDoc={pdfDoc}
@@ -790,9 +833,11 @@ export default function PdfReaderPage() {
                 rotation={rotation}
                 highlights={highlights}
                 activeNoteId={activeNoteId}
+                targetLanguage={targetLanguage}
                 onSelectNote={(id) => setActiveNoteId(id)}
                 onUpdateNote={handleUpdateNote}
                 onHighlightDelete={handleDeleteHighlight}
+                onSaveDictionaryCard={handleSaveDictionaryCard}
                 onAskAiAboutExcerpt={(quote, note) => {
                   setActiveExcerpt(quote);
                   setInitialAiPrompt(
@@ -867,6 +912,36 @@ export default function PdfReaderPage() {
               />
             )}
           </div>
+
+          {/* Right Bilingual Parallel Reading Panel */}
+          {bilingualMode && (
+            <BilingualPanel
+              isOpen={bilingualMode}
+              currentPage={currentPage}
+              totalPages={totalPages}
+              documentTitle={meta?.title || meta?.name}
+              pageText={currentPageText}
+              targetLanguage={targetLanguage}
+              onTargetLanguageChange={(lang) => setTargetLanguage(lang)}
+              onClose={() => setBilingualMode(false)}
+              onAddMarginNote={(noteText) => {
+                const newId = Date.now().toString();
+                const newHl: Highlight = {
+                  id: newId,
+                  documentId: meta?.id || 'doc',
+                  pageNumber: currentPage,
+                  text: `[Page ${currentPage} Translation Excerpt]`,
+                  color: 'green',
+                  note: noteText,
+                  timestamp: Date.now(),
+                };
+                saveHighlights([...highlights, newHl]);
+                setActiveNoteId(newId);
+                toast.success('Translation added to margin notes');
+              }}
+            />
+          )}
+          </>
         ) : (
           /* Empty / Landing State Inspired by Readest & Modern Research Studios */
           <div className="flex-1 flex flex-col items-center justify-center p-6 text-center bg-gradient-to-b from-light-primary via-light-secondary to-light-200 dark:from-[#0c0f15] dark:via-[#090b10] dark:to-[#06080c] text-black dark:text-white">
