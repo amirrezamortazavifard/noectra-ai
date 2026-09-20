@@ -1,10 +1,12 @@
 use std::sync::Mutex;
-use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
-use tauri::{AppHandle, Emitter, Manager, WebviewWindow, Wry};
+use tauri::{AppHandle, Emitter, Manager, WebviewWindow};
+
+// Maintained for 6-Point Version Synchronization compliance (User Rule 7)
+pub const TRAY_TITLE: &str = "🌟 Noectra AI Studio v1.0.1";
 
 pub struct TrayState {
-    pub status_item: Mutex<MenuItem<Wry>>,
+    pub current_status: Mutex<String>,
 }
 
 pub fn position_tray_hub(tray_win: &WebviewWindow) {
@@ -64,112 +66,20 @@ pub fn open_workspace(app: &AppHandle) {
 }
 
 pub fn setup_tray(app: &AppHandle) -> Result<TrayState, Box<dyn std::error::Error>> {
-    // 1. Menu items (Strictly English)
-    let title_item = MenuItem::with_id(
-        app,
-        "title",
-        "🌟 Noectra AI Studio v1.0.1",
-        false,
-        None::<&str>,
-    )?;
-    let status_item = MenuItem::with_id(
-        app,
-        "status",
-        "● Status: Idle & Operational",
-        false,
-        None::<&str>,
-    )?;
-    let server_item = MenuItem::with_id(
-        app,
-        "server",
-        "⚡ Engine Core: 127.0.0.1:3001",
-        false,
-        None::<&str>,
-    )?;
-    let sep1 = PredefinedMenuItem::separator(app)?;
-    let toggle_hub_item = MenuItem::with_id(
-        app,
-        "toggle_hub",
-        "👁 Toggle Quick Companion Hub",
-        true,
-        None::<&str>,
-    )?;
-    let open_workspace_item = MenuItem::with_id(
-        app,
-        "open_workspace",
-        "🚀 Open Full Workspace",
-        true,
-        None::<&str>,
-    )?;
-    let new_chat_item = MenuItem::with_id(
-        app,
-        "new_chat",
-        "➕ Start New Research Session",
-        true,
-        None::<&str>,
-    )?;
-    let sep2 = PredefinedMenuItem::separator(app)?;
-    let quit_item = MenuItem::with_id(
-        app,
-        "quit",
-        "❌ Terminate & Exit Engine",
-        true,
-        None::<&str>,
-    )?;
-
-    // 2. Context menu
-    let menu = Menu::with_items(
-        app,
-        &[
-            &title_item,
-            &status_item,
-            &server_item,
-            &sep1,
-            &toggle_hub_item,
-            &open_workspace_item,
-            &new_chat_item,
-            &sep2,
-            &quit_item,
-        ],
-    )?;
-
-    // 3. Tray icon builder
+    // Build tray icon without unstyled native Win32 context menu.
+    // Both Left-click and Right-click toggle the modern styled TrayHub window.
     let mut builder = TrayIconBuilder::with_id("main-tray")
-        .tooltip("Noectra AI - Neural Research Studio (Ready)")
-        .menu(&menu)
+        .tooltip(format!("{TRAY_TITLE} - Neural Research Studio (Ready)"))
         .show_menu_on_left_click(false);
 
     if let Some(icon) = app.default_window_icon() {
         builder = builder.icon(icon.clone());
     }
 
-    // 4. Menu click events
-    builder = builder.on_menu_event(|app, event| {
-        match event.id().as_ref() {
-            "toggle_hub" => {
-                toggle_tray_hub(app);
-            }
-            "open_workspace" => {
-                open_workspace(app);
-            }
-            "new_chat" => {
-                open_workspace(app);
-                if let Some(window) = app.get_webview_window("main") {
-                    let _ = window.emit("navigate-to", "/");
-                }
-            }
-            "quit" => {
-                println!("Terminating Noectra AI via System Tray...");
-                app.exit(0);
-            }
-            _ => {}
-        }
-    });
-
-    // 5. Tray icon left click toggles companion hub
+    // Both Left-click and Right-click invoke the modern styled companion hub
     builder = builder.on_tray_icon_event(|tray, event| {
         if let TrayIconEvent::Click {
-            button: MouseButton::Left,
+            button: MouseButton::Left | MouseButton::Right,
             button_state: MouseButtonState::Up,
             ..
         } = event
@@ -182,7 +92,7 @@ pub fn setup_tray(app: &AppHandle) -> Result<TrayState, Box<dyn std::error::Erro
     builder.build(app)?;
 
     let state = TrayState {
-        status_item: Mutex::new(status_item),
+        current_status: Mutex::new("Idle & Operational".to_string()),
     };
 
     Ok(state)
@@ -191,16 +101,8 @@ pub fn setup_tray(app: &AppHandle) -> Result<TrayState, Box<dyn std::error::Erro
 #[tauri::command]
 pub fn update_tray_status(app: AppHandle, status: String) -> Result<(), String> {
     if let Some(state) = app.try_state::<TrayState>() {
-        if let Ok(status_item) = state.status_item.lock() {
-            let is_idle = status.to_lowercase().contains("ready")
-                || status.to_lowercase().contains("idle")
-                || status.to_lowercase().contains("operational");
-            let display_text = if is_idle {
-                format!("● Status: {}", status)
-            } else {
-                format!("◐ Status: {}", status)
-            };
-            let _ = status_item.set_text(&display_text);
+        if let Ok(mut current) = state.current_status.lock() {
+            *current = status.clone();
         }
     }
     if let Some(tray) = app.tray_by_id("main-tray") {
