@@ -33,10 +33,9 @@ import {
 import { PdfToolbar } from '@/components/PdfReader/PdfToolbar';
 import { PdfViewer } from '@/components/PdfReader/PdfViewer';
 import { PdfDocumentSidebar } from '@/components/PdfReader/PdfDocumentSidebar';
-import { PdfAiPanel } from '@/components/PdfReader/PdfAiPanel';
 import { PdfSelectionPopup } from '@/components/PdfReader/PdfSelectionPopup';
 import { CanvasCardsStudio } from '@/components/PdfReader/CanvasCardsStudio';
-import { BilingualPanel } from '@/components/PdfReader/BilingualPanel';
+import { RightStudioPanel, StudioTab } from '@/components/PdfReader/RightStudioPanel';
 
 // New Advanced Features: Multi-format viewers, TTS, Reading Ruler, Speed Reader, RAG
 import { EpubViewer } from '@/components/DocumentReader/EpubViewer';
@@ -69,9 +68,9 @@ export default function PdfReaderPage() {
   const [rotation, setRotation] = useState<number>(0);
   const [outline, setOutline] = useState<OutlineItem[]>([]);
 
-  // Panels
-  const [sidebarOpen, setSidebarOpen] = useState<boolean>(true);
-  const [aiPanelOpen, setAiPanelOpen] = useState<boolean>(false);
+  // Panels: Left outline sidebar & Unified Right Studio ('notes' | 'bilingual' | 'ai' | null)
+  const [sidebarOpen, setSidebarOpen] = useState<boolean>(false);
+  const [studioTab, setStudioTab] = useState<StudioTab | null>(null);
 
   // Reading & Focus Aids
   const [rulerActive, setRulerActive] = useState<boolean>(false);
@@ -169,8 +168,7 @@ export default function PdfReaderPage() {
     }
   };
 
-  // Bilingual Reading Mode State
-  const [bilingualMode, setBilingualMode] = useState<boolean>(false);
+  // Bilingual & Linguistic State
   const [targetLanguage, setTargetLanguage] = useState<string>('Persian');
   const [currentPageText, setCurrentPageText] = useState<string>('');
 
@@ -713,9 +711,10 @@ export default function PdfReaderPage() {
 
     saveHighlights([...highlights, newHl]);
     setActiveNoteId(newId);
+    setStudioTab('notes');
     setSelection(null);
     soundService.play('pop');
-    toast.success('Margin note created in right margin');
+    toast.success('Margin note created in Studio');
   };
 
   const handleUpdateNote = (id: string, noteText: string) => {
@@ -738,7 +737,7 @@ export default function PdfReaderPage() {
     if (prompt) {
       setInitialAiPrompt(prompt);
     }
-    setAiPanelOpen(true);
+    setStudioTab('ai');
     setSelection(null);
   };
 
@@ -776,10 +775,11 @@ export default function PdfReaderPage() {
         totalPages={totalPages}
         scale={scale}
         sidebarOpen={sidebarOpen}
-        aiPanelOpen={aiPanelOpen}
+        activeStudioTab={studioTab}
+        notesCount={highlights.filter((h) => h.pageNumber === currentPage).length}
+        cardsCount={highlights.filter((h) => Boolean(h.note?.trim())).length + cards.length}
         rulerActive={rulerActive}
         ttsActive={ttsActive}
-        cardsCount={highlights.filter((h) => Boolean(h.note?.trim())).length + cards.length}
         onPageChange={(page) => {
           if (page !== currentPage) soundService.play('page_flip');
           setCurrentPage(page);
@@ -790,13 +790,11 @@ export default function PdfReaderPage() {
         onFitWidth={() => setScale(1.4)}
         onRotate={() => setRotation((r) => (r + 90) % 360)}
         onToggleSidebar={() => setSidebarOpen((v) => !v)}
-        onToggleAiPanel={() => setAiPanelOpen((v) => !v)}
+        onToggleStudioTab={(tab) => setStudioTab((cur) => (cur === tab ? null : tab))}
         onToggleRuler={() => setRulerActive((r) => !r)}
         onToggleTts={handleOpenTts}
         onOpenSpeedReader={() => handleOpenSpeedReader()}
         onToggleCanvasCards={() => setCanvasStudioOpen((v) => !v)}
-        bilingualActive={bilingualMode}
-        onToggleBilingual={() => setBilingualMode((v) => !v)}
         onOpenFile={() => fileInputRef.current?.click()}
       />
 
@@ -814,7 +812,10 @@ export default function PdfReaderPage() {
               if (p !== currentPage) soundService.play('page_flip');
               setCurrentPage(p);
             }}
-            onSelectHighlight={(id) => setActiveNoteId(id)}
+            onSelectHighlight={(id) => {
+              setActiveNoteId(id);
+              if (id) setStudioTab('notes');
+            }}
             onDeleteHighlight={handleDeleteHighlight}
             onClose={() => setSidebarOpen(false)}
           />
@@ -834,7 +835,10 @@ export default function PdfReaderPage() {
                 highlights={highlights}
                 activeNoteId={activeNoteId}
                 targetLanguage={targetLanguage}
-                onSelectNote={(id) => setActiveNoteId(id)}
+                onSelectNote={(id) => {
+                  setActiveNoteId(id);
+                  if (id) setStudioTab('notes');
+                }}
                 onUpdateNote={handleUpdateNote}
                 onHighlightDelete={handleDeleteHighlight}
                 onSaveDictionaryCard={handleSaveDictionaryCard}
@@ -845,7 +849,7 @@ export default function PdfReaderPage() {
                       ? `Please analyze this quote and my research thoughts:\nQuote: "${quote}"\nMy Note: "${note}"`
                       : undefined
                   );
-                  setAiPanelOpen(true);
+                  setStudioTab('ai');
                 }}
                 onSelectionChange={(sel) => setSelection(sel)}
                 onPageChange={(p) => {
@@ -913,34 +917,40 @@ export default function PdfReaderPage() {
             )}
           </div>
 
-          {/* Right Bilingual Parallel Reading Panel */}
-          {bilingualMode && (
-            <BilingualPanel
-              isOpen={bilingualMode}
+            {/* Unified Right Research Studio (Notes | Bilingual | AI Assistant) */}
+            <RightStudioPanel
+              isOpen={Boolean(studioTab)}
+              activeTab={studioTab || 'notes'}
+              onTabChange={(tab) => setStudioTab(tab)}
+              onClose={() => setStudioTab(null)}
+              meta={meta}
               currentPage={currentPage}
               totalPages={totalPages}
-              documentTitle={meta?.title || meta?.name}
+              highlights={highlights}
+              activeNoteId={activeNoteId}
+              onSelectNote={(id) => setActiveNoteId(id)}
+              onUpdateNote={handleUpdateNote}
+              onHighlightDelete={handleDeleteHighlight}
+              onAskAiAboutExcerpt={(quote, note) => {
+                setActiveExcerpt(quote);
+                setInitialAiPrompt(
+                  note
+                    ? `Please analyze this quote and my research thoughts:\nQuote: "${quote}"\nMy Note: "${note}"`
+                    : undefined
+                );
+                setStudioTab('ai');
+              }}
               pageText={currentPageText}
               targetLanguage={targetLanguage}
               onTargetLanguageChange={(lang) => setTargetLanguage(lang)}
-              onClose={() => setBilingualMode(false)}
-              onAddMarginNote={(noteText) => {
-                const newId = Date.now().toString();
-                const newHl: Highlight = {
-                  id: newId,
-                  documentId: meta?.id || 'doc',
-                  pageNumber: currentPage,
-                  text: `[Page ${currentPage} Translation Excerpt]`,
-                  color: 'green',
-                  note: noteText,
-                  timestamp: Date.now(),
-                };
-                saveHighlights([...highlights, newHl]);
-                setActiveNoteId(newId);
-                toast.success('Translation added to margin notes');
-              }}
+              activeExcerpt={activeExcerpt}
+              onClearExcerpt={() => setActiveExcerpt(null)}
+              initialPrompt={initialAiPrompt}
+              onJumpToCitation={handleJumpToCitation}
+              isIndexed={isIndexed}
+              indexingProgress={indexingProgress}
+              onReindex={handleReindex}
             />
-          )}
           </>
         ) : (
           /* Empty / Landing State Inspired by Readest & Modern Research Studios */
@@ -1013,21 +1023,6 @@ export default function PdfReaderPage() {
             </div>
           </div>
         )}
-
-        {/* Right AI Assistant Panel */}
-        <PdfAiPanel
-          isOpen={aiPanelOpen}
-          meta={meta}
-          currentPage={currentPage}
-          activeExcerpt={activeExcerpt}
-          onClearExcerpt={() => setActiveExcerpt(null)}
-          onClose={() => setAiPanelOpen(false)}
-          initialPrompt={initialAiPrompt}
-          onJumpToCitation={handleJumpToCitation}
-          isIndexed={isIndexed}
-          indexingProgress={indexingProgress}
-          onReindex={handleReindex}
-        />
       </div>
 
       {/* Reading Ruler Overlay */}
