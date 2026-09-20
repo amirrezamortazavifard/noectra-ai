@@ -29,6 +29,8 @@ import {
   TextSelectionInfo,
   CanvasCard,
   DictionaryLookupResult,
+  SplitViewMode,
+  SplitRatio,
 } from '@/components/PdfReader/types';
 import { PdfToolbar } from '@/components/PdfReader/PdfToolbar';
 import { PdfViewer } from '@/components/PdfReader/PdfViewer';
@@ -36,6 +38,7 @@ import { PdfDocumentSidebar } from '@/components/PdfReader/PdfDocumentSidebar';
 import { PdfSelectionPopup } from '@/components/PdfReader/PdfSelectionPopup';
 import { CanvasCardsStudio } from '@/components/PdfReader/CanvasCardsStudio';
 import { RightStudioPanel, StudioTab } from '@/components/PdfReader/RightStudioPanel';
+import { SplitViewerPane } from '@/components/PdfReader/SplitViewerPane';
 
 // New Advanced Features: Multi-format viewers, TTS, Reading Ruler, Speed Reader, RAG
 import { EpubViewer } from '@/components/DocumentReader/EpubViewer';
@@ -95,6 +98,24 @@ export default function PdfReaderPage() {
   // Drag and drop & file inputs
   const [isDragging, setIsDragging] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const splitFileInputRef = useRef<HTMLInputElement>(null);
+
+  // Split-View & Document Comparison State
+  const [splitMode, setSplitMode] = useState<SplitViewMode>('none');
+  const [splitRatio, setSplitRatio] = useState<SplitRatio>('50-50');
+  const [splitSyncScroll, setSplitSyncScroll] = useState<boolean>(false);
+  const [splitCurrentPage, setSplitCurrentPage] = useState<number>(1);
+  const [splitTotalPages, setSplitTotalPages] = useState<number>(1);
+  const [splitScale, setSplitScale] = useState<number>(1.0);
+  const [splitRotation, setSplitRotation] = useState<number>(0);
+
+  // Comparison Document (for 'diff_doc' mode)
+  const [splitDocType, setSplitDocType] = useState<SupportedDocType>('pdf');
+  const [splitPdfDoc, setSplitPdfDoc] = useState<pdfjsLib.PDFDocumentProxy | null>(null);
+  const [splitEpubData, setSplitEpubData] = useState<ArrayBuffer | null>(null);
+  const [splitCbzData, setSplitCbzData] = useState<ArrayBuffer | null>(null);
+  const [splitMarkdownContent, setSplitMarkdownContent] = useState<string | null>(null);
+  const [splitMeta, setSplitMeta] = useState<PdfDocumentMeta | null>(null);
 
   // Check if document was already indexed for RAG
   useEffect(() => {
@@ -528,11 +549,164 @@ export default function PdfReaderPage() {
     if (file) processIncomingFile(file);
   };
 
+  // Synchronized page change handlers for primary and split panes
+  const handleMainPageChange = (newPage: number) => {
+    if (newPage !== currentPage) {
+      soundService.play('page_flip');
+      if (splitMode !== 'none' && splitSyncScroll) {
+        const delta = newPage - currentPage;
+        const rightTotal = splitMode === 'same_doc' ? totalPages : splitTotalPages;
+        setSplitCurrentPage((prev) => Math.min(rightTotal, Math.max(1, prev + delta)));
+      }
+      setCurrentPage(newPage);
+    }
+  };
+
+  const handleSplitPageChange = (newPage: number) => {
+    const rightTotal = splitMode === 'same_doc' ? totalPages : splitTotalPages;
+    if (newPage >= 1 && newPage <= rightTotal && newPage !== splitCurrentPage) {
+      soundService.play('page_flip');
+      if (splitSyncScroll) {
+        const delta = newPage - splitCurrentPage;
+        setCurrentPage((prev) => Math.min(totalPages, Math.max(1, prev + delta)));
+      }
+      setSplitCurrentPage(newPage);
+    }
+  };
+
+  const handleToggleSplit = (mode: SplitViewMode) => {
+    setSplitMode(mode);
+    if (mode === 'same_doc') {
+      // In same document dual-view, default to next page if available
+      setSplitCurrentPage((prev) => (prev === currentPage ? Math.min(totalPages, currentPage + 1) : prev));
+      toast.success('Split View active: Dual-page mode');
+    } else if (mode === 'diff_doc') {
+      toast.info('Split View active: Document Comparison mode');
+      if (!splitPdfDoc && !splitEpubData && !splitCbzData && !splitMarkdownContent) {
+        setTimeout(() => splitFileInputRef.current?.click(), 100);
+      }
+    } else {
+      toast.info('Split View closed');
+    }
+  };
+
+  // Loader for comparison document in 'diff_doc' mode
+  const processIncomingSplitFile = (file: File) => {
+    const fileName = file.name.toLowerCase();
+    const reader = new FileReader();
+
+    if (fileName.endsWith('.pdf')) {
+      reader.onload = async (e) => {
+        const buffer = e.target?.result as ArrayBuffer;
+        if (buffer) {
+          try {
+            toast.loading('Opening comparison PDF...', { id: 'split-load' });
+            const loadingTask = pdfjsLib.getDocument({ data: buffer });
+            const doc = await loadingTask.promise;
+            setSplitDocType('pdf');
+            setSplitPdfDoc(doc);
+            setSplitEpubData(null);
+            setSplitCbzData(null);
+            setSplitMarkdownContent(null);
+            setSplitTotalPages(doc.numPages);
+            setSplitCurrentPage(1);
+
+            let docTitle = file.name;
+            try {
+              const m = await doc.getMetadata();
+              const info = m.info as any;
+              if (info?.Title) docTitle = info.Title;
+            } catch {}
+
+            setSplitMeta({
+              id: `split_${file.name}_${file.size}`,
+              name: file.name,
+              title: docTitle,
+              size: file.size,
+              pageCount: doc.numPages,
+            });
+            toast.success(`Loaded comparison document: ${docTitle}`, { id: 'split-load' });
+          } catch (err) {
+            toast.error('Failed to load comparison PDF', { id: 'split-load' });
+          }
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    } else if (fileName.endsWith('.epub')) {
+      reader.onload = (e) => {
+        const buffer = e.target?.result as ArrayBuffer;
+        if (buffer) {
+          setSplitDocType('epub');
+          setSplitEpubData(buffer);
+          setSplitPdfDoc(null);
+          setSplitCbzData(null);
+          setSplitMarkdownContent(null);
+          setSplitTotalPages(1);
+          setSplitCurrentPage(1);
+          setSplitMeta({
+            id: `split_epub_${file.name}`,
+            name: file.name,
+            title: file.name.replace(/\.epub$/i, ''),
+            size: file.size,
+            pageCount: 1,
+          });
+          toast.success(`Loaded comparison EPUB: ${file.name}`);
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    } else if (fileName.endsWith('.cbz')) {
+      reader.onload = (e) => {
+        const buffer = e.target?.result as ArrayBuffer;
+        if (buffer) {
+          setSplitDocType('cbz');
+          setSplitCbzData(buffer);
+          setSplitPdfDoc(null);
+          setSplitEpubData(null);
+          setSplitMarkdownContent(null);
+          setSplitTotalPages(1);
+          setSplitCurrentPage(1);
+          setSplitMeta({
+            id: `split_cbz_${file.name}`,
+            name: file.name,
+            title: file.name.replace(/\.cbz$/i, ''),
+            size: file.size,
+            pageCount: 1,
+          });
+          toast.success(`Loaded comparison Comic: ${file.name}`);
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    } else if (fileName.endsWith('.txt') || fileName.endsWith('.md')) {
+      reader.onload = (e) => {
+        const text = e.target?.result as string;
+        if (text) {
+          setSplitDocType('markdown');
+          setSplitMarkdownContent(text);
+          setSplitPdfDoc(null);
+          setSplitEpubData(null);
+          setSplitCbzData(null);
+          setSplitTotalPages(1);
+          setSplitCurrentPage(1);
+          setSplitMeta({
+            id: `split_md_${file.name}`,
+            name: file.name,
+            title: file.name,
+            size: file.size,
+            pageCount: 1,
+          });
+          toast.success(`Loaded comparison document: ${file.name}`);
+        }
+      };
+      reader.readAsText(file);
+    } else {
+      toast.error('Unsupported comparison file format. Please choose PDF, EPUB, CBZ, TXT, or MD.');
+    }
+  };
+
   // Jump to citation source handler
   const handleJumpToCitation = async (pageNumber: number, quote?: string) => {
     if (pageNumber >= 1) {
-      soundService.play('page_flip');
-      setCurrentPage(pageNumber);
+      handleMainPageChange(pageNumber);
       toast.info(`📌 Navigated to Page ${pageNumber}`);
 
       // Smooth scroll viewer to center
@@ -759,6 +933,18 @@ export default function PdfReaderPage() {
         onChange={handleFileChange}
       />
 
+      {/* Hidden Comparison File Picker */}
+      <input
+        type="file"
+        ref={splitFileInputRef}
+        accept=".pdf,.epub,.mobi,.azw3,.fb2,.cbz,.txt,.md"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) processIncomingSplitFile(file);
+        }}
+      />
+
       {/* Drag & Drop Visual Overlay */}
       {isDragging && (
         <div className="absolute inset-0 z-50 bg-sky-600/30 backdrop-blur-md border-4 border-dashed border-sky-400 flex flex-col items-center justify-center pointer-events-none animate-in fade-in">
@@ -780,10 +966,9 @@ export default function PdfReaderPage() {
         cardsCount={highlights.filter((h) => Boolean(h.note?.trim())).length + cards.length}
         rulerActive={rulerActive}
         ttsActive={ttsActive}
-        onPageChange={(page) => {
-          if (page !== currentPage) soundService.play('page_flip');
-          setCurrentPage(page);
-        }}
+        splitMode={splitMode}
+        onToggleSplit={handleToggleSplit}
+        onPageChange={handleMainPageChange}
         onZoomIn={() => setScale((s) => Math.min(3.0, s + 0.15))}
         onZoomOut={() => setScale((s) => Math.max(0.5, s - 0.15))}
         onResetZoom={() => setScale(1.15)}
@@ -808,10 +993,7 @@ export default function PdfReaderPage() {
             highlights={highlights}
             meta={meta}
             currentPage={currentPage}
-            onNavigateToPage={(p) => {
-              if (p !== currentPage) soundService.play('page_flip');
-              setCurrentPage(p);
-            }}
+            onNavigateToPage={handleMainPageChange}
             onSelectHighlight={(id) => {
               setActiveNoteId(id);
               if (id) setStudioTab('notes');
@@ -825,97 +1007,151 @@ export default function PdfReaderPage() {
         {hasActiveDocument ? (
           <>
             <div className="flex-1 relative flex overflow-hidden">
-              {/* 1. PDF Viewer */}
-            {docType === 'pdf' && pdfDoc && (
-              <PdfViewer
-                pdfDoc={pdfDoc}
-                currentPage={currentPage}
-                scale={scale}
-                rotation={rotation}
-                highlights={highlights}
-                activeNoteId={activeNoteId}
-                targetLanguage={targetLanguage}
-                onSelectNote={(id) => {
-                  setActiveNoteId(id);
-                  if (id) setStudioTab('notes');
-                }}
-                onUpdateNote={handleUpdateNote}
-                onHighlightDelete={handleDeleteHighlight}
-                onSaveDictionaryCard={handleSaveDictionaryCard}
-                onAskAiAboutExcerpt={(quote, note) => {
-                  setActiveExcerpt(quote);
-                  setInitialAiPrompt(
-                    note
-                      ? `Please analyze this quote and my research thoughts:\nQuote: "${quote}"\nMy Note: "${note}"`
-                      : undefined
-                  );
-                  setStudioTab('ai');
-                }}
-                onSelectionChange={(sel) => setSelection(sel)}
-                onPageChange={(p) => {
-                  if (p !== currentPage) soundService.play('page_flip');
-                  setCurrentPage(p);
-                }}
-              />
-            )}
+              {/* Primary Viewer Pane */}
+              <div
+                className={`h-full relative flex flex-col overflow-hidden transition-all duration-150 ${
+                  splitMode !== 'none'
+                    ? splitRatio === '50-50'
+                      ? 'w-1/2 border-r border-light-200 dark:border-white/10'
+                      : splitRatio === '60-40'
+                      ? 'w-[60%] border-r border-light-200 dark:border-white/10'
+                      : 'w-[40%] border-r border-light-200 dark:border-white/10'
+                    : 'flex-1'
+                }`}
+              >
+                {/* 1. PDF Viewer */}
+                {docType === 'pdf' && pdfDoc && (
+                  <PdfViewer
+                    pdfDoc={pdfDoc}
+                    currentPage={currentPage}
+                    scale={scale}
+                    rotation={rotation}
+                    highlights={highlights}
+                    activeNoteId={activeNoteId}
+                    targetLanguage={targetLanguage}
+                    onSelectNote={(id) => {
+                      setActiveNoteId(id);
+                      if (id) setStudioTab('notes');
+                    }}
+                    onUpdateNote={handleUpdateNote}
+                    onHighlightDelete={handleDeleteHighlight}
+                    onSaveDictionaryCard={handleSaveDictionaryCard}
+                    onAskAiAboutExcerpt={(quote, note) => {
+                      setActiveExcerpt(quote);
+                      setInitialAiPrompt(
+                        note
+                          ? `Please analyze this quote and my research thoughts:\nQuote: "${quote}"\nMy Note: "${note}"`
+                          : undefined
+                      );
+                      setStudioTab('ai');
+                    }}
+                    onSelectionChange={(sel) => setSelection(sel)}
+                    onPageChange={handleMainPageChange}
+                  />
+                )}
 
-            {/* 2. EPUB Viewer */}
-            {docType === 'epub' && epubData && (
-              <EpubViewer
-                data={epubData}
-                onTocLoaded={(toc) => setOutline(toc)}
-                onSelectionChange={(text) => {
-                  setSelection({
-                    text,
-                    pageNumber: 1,
-                    clientRect: { top: 120, left: 180, bottom: 140, right: 300, width: 120, height: 20 },
-                  });
-                }}
-              />
-            )}
+                {/* 2. EPUB Viewer */}
+                {docType === 'epub' && epubData && (
+                  <EpubViewer
+                    data={epubData}
+                    onTocLoaded={(toc) => setOutline(toc)}
+                    onSelectionChange={(text) => {
+                      setSelection({
+                        text,
+                        pageNumber: 1,
+                        clientRect: { top: 120, left: 180, bottom: 140, right: 300, width: 120, height: 20 },
+                      });
+                    }}
+                  />
+                )}
 
-            {/* 3. CBZ Comic Viewer */}
-            {docType === 'cbz' && cbzData && (
-              <ComicViewer
-                data={cbzData}
-                onPageChange={(p, t) => {
-                  if (p !== currentPage) soundService.play('page_flip');
-                  setCurrentPage(p);
-                  setTotalPages(t);
-                }}
-              />
-            )}
+                {/* 3. CBZ Comic Viewer */}
+                {docType === 'cbz' && cbzData && (
+                  <ComicViewer
+                    data={cbzData}
+                    onPageChange={(p, t) => {
+                      handleMainPageChange(p);
+                      setTotalPages(t);
+                    }}
+                  />
+                )}
 
-            {/* 4. Markdown / Text / FB2 / MOBI Viewer */}
-            {docType === 'markdown' && markdownContent && (
-              <MarkdownTextViewer
-                content={markdownContent}
-                onTocLoaded={(toc) => setOutline(toc)}
-                onSelectionChange={(sel) => setSelection(sel)}
-              />
-            )}
+                {/* 4. Markdown / Text / FB2 / MOBI Viewer */}
+                {docType === 'markdown' && markdownContent && (
+                  <MarkdownTextViewer
+                    content={markdownContent}
+                    onTocLoaded={(toc) => setOutline(toc)}
+                    onSelectionChange={(sel) => setSelection(sel)}
+                  />
+                )}
 
-            {/* Floating Selection Popup */}
-            {selection && (
-              <PdfSelectionPopup
-                selection={selection}
-                onHighlight={handleHighlight}
-                onAddNote={handleAddNote}
-                onAskAi={handleAskAi}
-                onReadAloud={(text) => {
-                  setCurrentTtsText(text);
-                  setTtsActive(true);
-                  setSelection(null);
-                }}
-                onSpeedRead={(text) => {
-                  setSpeedReaderText(text);
-                  setSpeedReaderOpen(true);
-                  setSelection(null);
-                }}
-                onDismiss={() => setSelection(null)}
-              />
-            )}
-          </div>
+                {/* Floating Selection Popup */}
+                {selection && (
+                  <PdfSelectionPopup
+                    selection={selection}
+                    onHighlight={handleHighlight}
+                    onAddNote={handleAddNote}
+                    onAskAi={handleAskAi}
+                    onReadAloud={(text) => {
+                      setCurrentTtsText(text);
+                      setTtsActive(true);
+                      setSelection(null);
+                    }}
+                    onSpeedRead={(text) => {
+                      setSpeedReaderText(text);
+                      setSpeedReaderOpen(true);
+                      setSelection(null);
+                    }}
+                    onDismiss={() => setSelection(null)}
+                  />
+                )}
+              </div>
+
+              {/* Secondary Split-View Comparison Pane */}
+              {splitMode !== 'none' && (
+                <div
+                  className={`h-full flex flex-col overflow-hidden transition-all duration-150 ${
+                    splitRatio === '50-50'
+                      ? 'w-1/2'
+                      : splitRatio === '60-40'
+                      ? 'w-[40%]'
+                      : 'w-[60%]'
+                  }`}
+                >
+                  <SplitViewerPane
+                    mode={splitMode}
+                    docType={splitMode === 'same_doc' ? docType : splitDocType}
+                    pdfDoc={splitMode === 'same_doc' ? pdfDoc : splitPdfDoc}
+                    epubData={splitMode === 'same_doc' ? epubData : splitEpubData}
+                    cbzData={splitMode === 'same_doc' ? cbzData : splitCbzData}
+                    markdownContent={splitMode === 'same_doc' ? markdownContent : splitMarkdownContent}
+                    meta={splitMode === 'same_doc' ? meta : splitMeta}
+                    currentPage={splitCurrentPage}
+                    totalPages={splitMode === 'same_doc' ? totalPages : splitTotalPages}
+                    scale={splitScale}
+                    rotation={splitRotation}
+                    syncScroll={splitSyncScroll}
+                    splitRatio={splitRatio}
+                    highlights={highlights}
+                    activeNoteId={activeNoteId}
+                    targetLanguage={targetLanguage}
+                    onPageChange={handleSplitPageChange}
+                    onZoomIn={() => setSplitScale((s) => Math.min(3.0, s + 0.15))}
+                    onZoomOut={() => setSplitScale((s) => Math.max(0.5, s - 0.15))}
+                    onResetZoom={() => setSplitScale(1.0)}
+                    onToggleSync={() => setSplitSyncScroll((v) => !v)}
+                    onChangeRatio={(r) => setSplitRatio(r)}
+                    onOpenComparisonFile={() => splitFileInputRef.current?.click()}
+                    onCloseSplit={() => setSplitMode('none')}
+                    onSelectNote={(id) => {
+                      setActiveNoteId(id);
+                      if (id) setStudioTab('notes');
+                    }}
+                    onSaveDictionaryCard={handleSaveDictionaryCard}
+                  />
+                </div>
+              )}
+            </div>
 
             {/* Unified Right Research Studio (Notes | Bilingual | AI Assistant) */}
             <RightStudioPanel

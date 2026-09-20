@@ -21,8 +21,9 @@ import {
   StickyNote,
   SlidersHorizontal,
   ChevronDown,
+  Columns,
 } from 'lucide-react';
-import { PdfDocumentMeta } from './types';
+import { PdfDocumentMeta, SplitViewMode } from './types';
 
 export type StudioTab = 'notes' | 'bilingual' | 'ai';
 
@@ -39,6 +40,7 @@ interface PdfToolbarProps {
   ttsActive?: boolean;
   cardsCount?: number;
   notesCount?: number;
+  splitMode?: SplitViewMode;
   onPageChange: (page: number) => void;
   onZoomIn: () => void;
   onZoomOut: () => void;
@@ -54,6 +56,7 @@ interface PdfToolbarProps {
   onOpenSpeedReader?: () => void;
   onToggleCanvasCards?: () => void;
   onOpenFile: () => void;
+  onToggleSplit?: (mode: SplitViewMode) => void;
 }
 
 export const PdfToolbar: React.FC<PdfToolbarProps> = ({
@@ -69,6 +72,7 @@ export const PdfToolbar: React.FC<PdfToolbarProps> = ({
   ttsActive,
   cardsCount,
   notesCount,
+  splitMode = 'none',
   onPageChange,
   onZoomIn,
   onZoomOut,
@@ -84,26 +88,33 @@ export const PdfToolbar: React.FC<PdfToolbarProps> = ({
   onOpenSpeedReader,
   onToggleCanvasCards,
   onOpenFile,
+  onToggleSplit,
 }) => {
   const [pageInput, setPageInput] = useState<string>(currentPage.toString());
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [focusToolsOpen, setFocusToolsOpen] = useState<boolean>(false);
   const focusToolsRef = useRef<HTMLDivElement>(null);
+  const [splitMenuOpen, setSplitMenuOpen] = useState<boolean>(false);
+  const splitMenuRef = useRef<HTMLDivElement>(null);
 
-  // Close focus tools dropdown when clicked outside
+  // Close focus tools & split menu dropdowns when clicked outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (focusToolsRef.current && !focusToolsRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      if (focusToolsRef.current && !focusToolsRef.current.contains(target)) {
         setFocusToolsOpen(false);
       }
+      if (splitMenuRef.current && !splitMenuRef.current.contains(target)) {
+        setSplitMenuOpen(false);
+      }
     };
-    if (focusToolsOpen) {
+    if (focusToolsOpen || splitMenuOpen) {
       document.addEventListener('mousedown', handleClickOutside);
     }
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [focusToolsOpen]);
+  }, [focusToolsOpen, splitMenuOpen]);
 
   useEffect(() => {
     setPageInput(currentPage.toString());
@@ -399,6 +410,100 @@ export const PdfToolbar: React.FC<PdfToolbarProps> = ({
             </div>
           )}
         </div>
+
+        {/* Split-View Document Comparison Dropdown */}
+        {onToggleSplit && (
+          <div className="relative" ref={splitMenuRef}>
+            <button
+              type="button"
+              onClick={() => setSplitMenuOpen((v) => !v)}
+              title="Split View & Document Comparison"
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium border transition-all ${
+                splitMode !== 'none'
+                  ? 'bg-sky-500/15 border-sky-500/30 text-sky-600 dark:text-sky-400 shadow-xs'
+                  : 'bg-light-secondary dark:bg-white/5 border-light-200 dark:border-white/10 text-black/70 dark:text-white/70 hover:bg-light-200 dark:hover:bg-white/10'
+              }`}
+            >
+              <Columns size={14} />
+              <span className="hidden lg:inline text-[11px]">
+                {splitMode !== 'none' ? 'Split Active' : 'Split View'}
+              </span>
+              {splitMode !== 'none' && (
+                <span className="w-2 h-2 rounded-full bg-sky-500 animate-pulse" />
+              )}
+              <ChevronDown size={12} className={`transition-transform ${splitMenuOpen ? 'rotate-180' : ''}`} />
+            </button>
+
+            {/* Split Menu Dropdown */}
+            {splitMenuOpen && (
+              <div className="absolute right-0 mt-2 w-64 p-1.5 rounded-2xl bg-light-primary/95 dark:bg-[#11151f]/95 backdrop-blur-2xl border border-light-200 dark:border-white/10 shadow-2xl z-50 animate-in fade-in zoom-in-95 space-y-1">
+                <div className="px-2.5 py-1 text-[10px] font-semibold text-black/40 dark:text-white/40 uppercase tracking-wider">
+                  Split & Comparison
+                </div>
+
+                {/* Option 1: Dual View of Same Document */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    onToggleSplit('same_doc');
+                    setSplitMenuOpen(false);
+                  }}
+                  className={`w-full text-left px-2.5 py-2 rounded-xl text-xs font-medium transition-colors ${
+                    splitMode === 'same_doc'
+                      ? 'bg-sky-500/15 text-sky-600 dark:text-sky-400'
+                      : 'text-black/80 dark:text-white/80 hover:bg-light-200 dark:hover:bg-white/5'
+                  }`}
+                >
+                  <div className="font-semibold flex items-center justify-between">
+                    <span>Dual Page (Same Doc)</span>
+                    {splitMode === 'same_doc' && <span className="text-[10px] font-mono">Active</span>}
+                  </div>
+                  <p className="text-[10px] text-black/50 dark:text-white/40 mt-0.5 leading-snug">
+                    Compare results with appendix or figures side-by-side.
+                  </p>
+                </button>
+
+                {/* Option 2: Compare with Another Document */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    onToggleSplit('diff_doc');
+                    setSplitMenuOpen(false);
+                  }}
+                  className={`w-full text-left px-2.5 py-2 rounded-xl text-xs font-medium transition-colors ${
+                    splitMode === 'diff_doc'
+                      ? 'bg-purple-500/15 text-purple-600 dark:text-purple-400'
+                      : 'text-black/80 dark:text-white/80 hover:bg-light-200 dark:hover:bg-white/5'
+                  }`}
+                >
+                  <div className="font-semibold flex items-center justify-between">
+                    <span>Compare Another File</span>
+                    {splitMode === 'diff_doc' && <span className="text-[10px] font-mono">Active</span>}
+                  </div>
+                  <p className="text-[10px] text-black/50 dark:text-white/40 mt-0.5 leading-snug">
+                    Open a second PDF, EPUB, or draft side-by-side.
+                  </p>
+                </button>
+
+                {splitMode !== 'none' && (
+                  <>
+                    <div className="border-t border-light-200 dark:border-white/10 my-1" />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onToggleSplit('none');
+                        setSplitMenuOpen(false);
+                      }}
+                      className="w-full text-left px-2.5 py-1.5 rounded-xl text-xs font-medium text-rose-500 hover:bg-rose-500/10 transition-colors"
+                    >
+                      Exit Split View
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Canvas Cards Studio Modal Button */}
         {onToggleCanvasCards && (

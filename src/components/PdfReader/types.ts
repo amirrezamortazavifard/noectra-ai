@@ -151,3 +151,16 @@ export const HIGHLIGHT_COLORS: Record<
     text: 'text-purple-300',
   },
 };
+
+export type SplitViewMode = 'none' | 'same_doc' | 'diff_doc';
+export type SplitRatio = '50-50' | '60-40' | '40-60';
+
+export interface SplitViewState {
+  mode: SplitViewMode;
+  splitPage: number;
+  splitScale: number;
+  syncScroll: boolean;
+  splitRatio: SplitRatio;
+  secondaryMeta?: PdfDocumentMeta | null;
+}
+
