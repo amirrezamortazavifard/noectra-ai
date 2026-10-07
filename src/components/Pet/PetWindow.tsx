@@ -1,12 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
 import { listen } from '@tauri-apps/api/event';
 
 export default function PetWindow() {
   const [mood, setMood] = useState<'idle' | 'happy' | 'thinking' | 'sleeping'>('idle');
+  const [isMini, setIsMini] = useState(false);
 
   useEffect(() => {
-    // Listen for pet mood changes from the main window via Tauri events
     let unlisten: (() => void) | undefined;
     listen<{ mood: 'idle' | 'happy' | 'thinking' | 'sleeping' }>('pet-state-update', (event) => {
       if (event.payload?.mood) {
@@ -21,40 +20,44 @@ export default function PetWindow() {
     };
   }, []);
 
-  const getEmoji = () => {
+  const getSvgPath = () => {
+    if (isMini) {
+       switch (mood) {
+          case 'happy': return '/pets/clawd/assets/clawd-mini-happy.svg';
+          case 'thinking': return '/pets/clawd/assets/clawd-mini-typing.svg';
+          case 'sleeping': return '/pets/clawd/assets/clawd-mini-sleep.svg';
+          default: return '/pets/clawd/assets/clawd-mini-idle.svg';
+       }
+    }
+
     switch (mood) {
-      case 'happy': return '😸';
-      case 'thinking': return '🤔';
-      case 'sleeping': return '💤';
-      default: return '🐾';
+      case 'happy': return '/pets/clawd/assets/clawd-happy.svg';
+      case 'thinking': return '/pets/clawd/assets/clawd-working-thinking.svg';
+      case 'sleeping': return '/pets/clawd/assets/clawd-sleeping.svg';
+      default: return '/pets/clawd/assets/clawd-idle-living.svg';
     }
   };
 
-  const getAnimation = () => {
-    switch (mood) {
-      case 'happy': return { y: [0, -10, 0], rotate: [0, 10, -10, 0] };
-      case 'thinking': return { scale: [1, 1.1, 1], rotate: [0, 5, -5, 0] };
-      case 'sleeping': return { scale: [1, 0.95, 1], opacity: [1, 0.7, 1] };
-      default: return { y: [0, -5, 0] };
-    }
-  };
+  const handleDoubleClick = () => setIsMini(!isMini);
+  const petSize = isMini ? 80 : 180;
 
   return (
     <div 
       data-tauri-drag-region 
-      className="w-full h-full flex items-center justify-center cursor-grab active:cursor-grabbing"
+      className="w-screen h-screen flex items-center justify-center cursor-grab active:cursor-grabbing bg-transparent"
+      onDoubleClick={handleDoubleClick}
     >
-      <motion.div
-        animate={getAnimation()}
-        transition={{
-          duration: mood === 'idle' ? 2 : 1,
-          repeat: Infinity,
-          ease: "easeInOut"
-        }}
-        className="w-[120px] h-[120px] rounded-full bg-light-primary/80 dark:bg-dark-primary/80 backdrop-blur-md border-2 border-sky-500 shadow-[0_0_15px_rgba(14,165,233,0.5)] flex items-center justify-center text-6xl shadow-sky-500/50 pointer-events-none select-none"
+      <div 
+        className="flex items-center justify-center pointer-events-none transition-all duration-300"
+        style={{ width: `${petSize}px`, height: `${petSize}px` }}
       >
-        {getEmoji()}
-      </motion.div>
+        <object
+            data={getSvgPath()}
+            type="image/svg+xml"
+            style={{ width: `${petSize}px`, height: `${petSize}px`, pointerEvents: 'none' }}
+            aria-label="Noectra Pet"
+        />
+      </div>
     </div>
   );
 }

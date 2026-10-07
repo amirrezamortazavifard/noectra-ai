@@ -298,6 +298,12 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
         }).catch(() => {});
       })
       .catch(() => {});
+
+    import('@tauri-apps/api/event')
+      .then(({ emit }) => {
+        emit('pet-state-update', { mood: loading ? 'thinking' : 'idle' }).catch(() => {});
+      })
+      .catch(() => {});
   }, [loading]);
 
   const [researchEnded, setResearchEnded] = useState(false);

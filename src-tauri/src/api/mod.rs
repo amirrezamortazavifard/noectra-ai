@@ -1011,12 +1011,11 @@ async fn run_chat_agent(
     let mut response_blocks: Vec<Value> = Vec::new();
 
     // Check if web search is enabled / requested
-    // Default to enabled if sources list is empty or contains "web", "academic", or "discussions"
-    let web_search_enabled = body.sources.is_empty()
-        || body
-            .sources
-            .iter()
-            .any(|s| s == "web" || s == "academic" || s == "discussions");
+    // Only search if the sources array explicitly contains web-related sources.
+    let web_search_enabled = body
+        .sources
+        .iter()
+        .any(|s| s == "web" || s == "academic" || s == "discussions");
 
     let mut gathered_sources: Vec<ChunkSource> = Vec::new();
 
