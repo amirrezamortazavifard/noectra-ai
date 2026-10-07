@@ -1199,37 +1199,7 @@ async fn run_chat_agent(
         }
     }
 
-    // 4. Follow-up suggestions
-    if let Some(ref prov) = provider {
-        let base_url = prov.get_effective_base_url();
-        let api_key = prov.get_effective_api_key();
-        let suggestions = crate::agents::suggestions::generate_suggestions(
-            &state.http_client,
-            &prov.provider_type,
-            base_url.as_deref(),
-            api_key.as_deref(),
-            &body.chat_model.key,
-            &current_messages,
-        )
-        .await;
-
-        if !suggestions.is_empty() {
-            let sug_block = json!({
-                "id": Uuid::new_v4().to_string(),
-                "type": "suggestion",
-                "data": suggestions
-            });
-            response_blocks.push(sug_block.clone());
-            let _ = tx
-                .send(Ok(format!(
-                    "{}\n",
-                    json!({ "type": "block", "block": sug_block })
-                )))
-                .await;
-        }
-    }
-
-    // 5. Finish stream and persist to database
+    // 4. Immediately conclude message stream so UI unblocks with zero delay (turns red stop square to send button instantly)
     let _ = tx.send(Ok(format!("{}\n", json!({ "type": "messageEnd" })))).await;
 
     let _ = state.db.update_message_response(
@@ -1238,6 +1208,61 @@ async fn run_chat_agent(
         &json!(response_blocks),
         "completed",
     );
+
+    // 5. Asynchronously generate follow-up suggestions in the background without blocking the user
+    if let Some(prov) = provider {
+        let http_client = state.http_client.clone();
+        let prov_type = prov.provider_type.clone();
+        let base_url = prov.get_effective_base_url();
+        let api_key = prov.get_effective_api_key();
+        let chat_model_key = body.chat_model.key.clone();
+        let mut messages_for_suggestions = current_messages.clone();
+        messages_for_suggestions.push(ChatMessage {
+            role: "assistant".to_string(),
+            content: full_text.clone(),
+            tool_calls: None,
+            tool_call_id: None,
+        });
+        let tx_clone = tx.clone();
+        let db_clone = state.db.clone();
+        let chat_id_clone = chat_id.clone();
+        let message_id_clone = message_id.clone();
+        let mut response_blocks_clone = response_blocks.clone();
+
+        tokio::spawn(async move {
+            let suggestions = crate::agents::suggestions::generate_suggestions(
+                &http_client,
+                &prov_type,
+                base_url.as_deref(),
+                api_key.as_deref(),
+                &chat_model_key,
+                &messages_for_suggestions,
+            )
+            .await;
+
+            if !suggestions.is_empty() {
+                let sug_block = json!({
+                    "id": Uuid::new_v4().to_string(),
+                    "type": "suggestion",
+                    "data": suggestions
+                });
+                response_blocks_clone.push(sug_block.clone());
+                let _ = tx_clone
+                    .send(Ok(format!(
+                        "{}\n",
+                        json!({ "type": "block", "block": sug_block })
+                    )))
+                    .await;
+
+                let _ = db_clone.update_message_response(
+                    &chat_id_clone,
+                    &message_id_clone,
+                    &json!(response_blocks_clone),
+                    "completed",
+                );
+            }
+        });
+    }
 }
 
 // ==================== 9Router Lifecycle Handlers ====================
