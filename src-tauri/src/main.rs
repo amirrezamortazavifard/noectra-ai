@@ -185,6 +185,19 @@ fn sync_window_theme(app: tauri::AppHandle, theme: String) -> Result<(), String>
     Ok(())
 }
 
+#[tauri::command]
+fn toggle_pet_window(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("pet-window") {
+        let is_visible = window.is_visible().unwrap_or(false);
+        if is_visible {
+            window.hide().map_err(|e| e.to_string())?;
+        } else {
+            window.show().map_err(|e| e.to_string())?;
+        }
+    }
+    Ok(())
+}
+
 #[tokio::main]
 async fn main() {
     let data_dir = get_app_data_dir();
@@ -296,7 +309,8 @@ async fn main() {
             tray::toggle_tray_hub_cmd,
             tray::open_workspace_cmd,
             tray::open_route_cmd,
-            tray::exit_app_cmd
+            tray::exit_app_cmd,
+            toggle_pet_window
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

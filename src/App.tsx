@@ -15,6 +15,7 @@ import { ChatProvider } from '@/lib/hooks/useChat';
 import { UIConfigSections } from '@/lib/config/types';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import TrayHub from '@/components/Tray/TrayHub';
+import PetWindow from '@/components/Pet/PetWindow';
 import { useAutoUpdateChecker } from '@/lib/hooks/useAutoUpdateChecker';
 import '@/app/globals.css';
 
@@ -73,12 +74,24 @@ export default function App() {
     return false;
   });
 
+  const [isPetWindow, setIsPetWindow] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      return (
+        window.location.hash.includes('pet') ||
+        window.location.pathname.includes('pet')
+      );
+    }
+    return false;
+  });
+
   useEffect(() => {
     import('@tauri-apps/api/webviewWindow')
       .then(({ getCurrentWebviewWindow }) => {
         const appWindow = getCurrentWebviewWindow();
         if (appWindow.label === 'tray-hub') {
           setIsTrayHub(true);
+        } else if (appWindow.label === 'pet-window') {
+          setIsPetWindow(true);
         }
       })
       .catch(() => {});
@@ -137,6 +150,18 @@ export default function App() {
         <ThemeProvider defaultTheme="dark">
           <div className="flex h-screen w-screen items-center justify-center bg-transparent p-0 m-0 overflow-hidden select-none">
             <TrayHub />
+          </div>
+        </ThemeProvider>
+      </ErrorBoundary>
+    );
+  }
+
+  if (isPetWindow) {
+    return (
+      <ErrorBoundary>
+        <ThemeProvider defaultTheme="dark">
+          <div className="flex h-screen w-screen items-center justify-center bg-transparent p-0 m-0 overflow-hidden select-none">
+            <PetWindow />
           </div>
         </ThemeProvider>
       </ErrorBoundary>

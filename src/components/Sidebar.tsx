@@ -15,6 +15,7 @@ import { useSelectedLayoutSegments } from 'next/navigation';
 import React, { type ReactNode } from 'react';
 import Layout from './Layout';
 import SettingsButton from './Settings/SettingsButton';
+import PetButton from './Pet/PetButton';
 
 const VerticalIconContainer = ({ children }: { children: ReactNode }) => {
   return <div className="flex flex-col items-center w-full space-y-3">{children}</div>;
@@ -137,6 +138,7 @@ const Sidebar = ({ children }: { children: React.ReactNode }) => {
           </nav>
 
           <div className="relative z-10 flex flex-col items-center gap-2.5 pb-1">
+            <PetButton />
             <SettingsButton />
 
             <div
