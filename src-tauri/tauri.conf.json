@@ -37,8 +37,8 @@
       {
         "label": "pet-window",
         "title": "Noectra AI Pet",
-        "width": 200,
-        "height": 200,
+        "width": 260,
+        "height": 260,
         "resizable": false,
         "decorations": false,
         "transparent": true,

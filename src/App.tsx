@@ -159,11 +159,9 @@ export default function App() {
   if (isPetWindow) {
     return (
       <ErrorBoundary>
-        <ThemeProvider defaultTheme="dark">
-          <div className="flex h-screen w-screen items-center justify-center bg-transparent p-0 m-0 overflow-hidden select-none">
-            <PetWindow />
-          </div>
-        </ThemeProvider>
+        <div style={{ background: 'transparent' }} className="flex h-screen w-screen items-center justify-center bg-transparent p-0 m-0 overflow-hidden select-none">
+          <PetWindow />
+        </div>
       </ErrorBoundary>
     );
   }

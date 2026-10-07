@@ -198,6 +198,22 @@ fn toggle_pet_window(app: tauri::AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+#[tauri::command]
+fn start_drag_pet(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("pet-window") {
+        window.start_dragging().map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn hide_pet_window(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("pet-window") {
+        window.hide().map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
 #[tokio::main]
 async fn main() {
     let data_dir = get_app_data_dir();
@@ -310,7 +326,9 @@ async fn main() {
             tray::open_workspace_cmd,
             tray::open_route_cmd,
             tray::exit_app_cmd,
-            toggle_pet_window
+            toggle_pet_window,
+            start_drag_pet,
+            hide_pet_window
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
