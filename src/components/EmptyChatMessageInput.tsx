@@ -6,13 +6,16 @@ import Optimization from './MessageInputActions/Optimization';
 import Attach from './MessageInputActions/Attach';
 import { useChat } from '@/lib/hooks/useChat';
 import ModelSelector from './MessageInputActions/ChatModelSelector';
+import WebSearchToggle from './MessageInputActions/WebSearchToggle';
+import VoiceInput from './MessageInputActions/VoiceInput';
 import { soundService } from '@/lib/sound/soundService';
 
 const EmptyChatMessageInput = () => {
-  const { sendMessage } = useChat();
+  const { sendMessage, setFiles } = useChat();
 
   /* const [copilotEnabled, setCopilotEnabled] = useState(false); */
   const [message, setMessage] = useState('');
+  const [isDragging, setIsDragging] = useState(false);
 
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
 
@@ -60,8 +63,29 @@ const EmptyChatMessageInput = () => {
           }
         }
       }}
-      className="w-full"
+      onDragOver={(e) => {
+        e.preventDefault();
+        setIsDragging(true);
+      }}
+      onDragLeave={(e) => {
+        e.preventDefault();
+        setIsDragging(false);
+      }}
+      onDrop={(e) => {
+        e.preventDefault();
+        setIsDragging(false);
+        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+          const droppedFiles = Array.from(e.dataTransfer.files);
+          setFiles((prev) => [...prev, ...droppedFiles]);
+        }
+      }}
+      className="w-full relative"
     >
+      {isDragging && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-sky-500/10 backdrop-blur-[2px] border-2 border-dashed border-sky-500 rounded-2xl pointer-events-none transition-all duration-200">
+          <p className="text-sky-500 font-medium text-lg">Drop files to attach</p>
+        </div>
+      )}
       <div className="flex flex-col bg-light-secondary dark:bg-dark-secondary px-3 pt-5 pb-3 rounded-2xl w-full border border-light-200 dark:border-dark-200 shadow-sm shadow-light-200/10 dark:shadow-black/20 transition-all duration-200 focus-within:border-light-300 dark:focus-within:border-dark-300">
         <TextareaAutosize
           ref={inputRef}
@@ -72,12 +96,16 @@ const EmptyChatMessageInput = () => {
           placeholder="Ask anything..."
         />
         <div className="flex flex-row items-center justify-between mt-4">
-          <Optimization />
+          <div className="flex flex-row items-center space-x-1.5">
+            <WebSearchToggle />
+            <Optimization />
+          </div>
           <div className="flex flex-row items-center space-x-2">
             <div className="flex flex-row items-center space-x-1">
               <Sources />
               <ModelSelector />
               <Attach />
+              <VoiceInput onTranscript={(text) => setMessage((prev) => prev + text)} />
             </div>
             <button
               disabled={message.trim().length === 0}

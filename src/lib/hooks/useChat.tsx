@@ -308,7 +308,7 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
   const [files, setFiles] = useState<File[]>([]);
   const [fileIds, setFileIds] = useState<string[]>([]);
 
-  const [sources, setSources] = useState<string[]>(['web']);
+  const [sources, setSources] = useState<string[]>([]);
   const [optimizationMode, setOptimizationMode] = useState('speed');
 
   const [isMessagesLoaded, setIsMessagesLoaded] = useState(!routeChatId);

@@ -6,12 +6,15 @@ import AttachSmall from './MessageInputActions/AttachSmall';
 import ModelSelector from './MessageInputActions/ChatModelSelector';
 import Optimization from './MessageInputActions/Optimization';
 import Sources from './MessageInputActions/Sources';
+import WebSearchToggle from './MessageInputActions/WebSearchToggle';
+import VoiceInput from './MessageInputActions/VoiceInput';
 import { useChat } from '@/lib/hooks/useChat';
 import { soundService } from '@/lib/sound/soundService';
 
 const MessageInput = () => {
-  const { loading, sendMessage } = useChat();
+  const { loading, sendMessage, setFiles } = useChat();
   const [message, setMessage] = useState('');
+  const [isDragging, setIsDragging] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
@@ -56,10 +59,31 @@ const MessageInput = () => {
             handleSend();
           }
         }}
+        onDragOver={(e) => {
+          e.preventDefault();
+          setIsDragging(true);
+        }}
+        onDragLeave={(e) => {
+          e.preventDefault();
+          setIsDragging(false);
+        }}
+        onDrop={(e) => {
+          e.preventDefault();
+          setIsDragging(false);
+          if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+            const droppedFiles = Array.from(e.dataTransfer.files);
+            setFiles((prev) => [...prev, ...droppedFiles]);
+          }
+        }}
         className={cn(
           'relative flex flex-col w-full bg-light-secondary dark:bg-dark-secondary border border-light-200 dark:border-dark-200 shadow-sm shadow-light-200/20 dark:shadow-black/40 rounded-2xl transition-all duration-300 focus-within:border-light-300 dark:focus-within:border-dark-300 focus-within:ring-2 focus-within:ring-light-300/20 dark:focus-within:ring-dark-300/20',
         )}
       >
+        {isDragging && (
+          <div className="absolute inset-0 z-50 flex items-center justify-center bg-sky-500/10 backdrop-blur-[2px] border-2 border-dashed border-sky-500 rounded-2xl pointer-events-none transition-all duration-200">
+            <p className="text-sky-500 font-medium text-lg">Drop files to attach</p>
+          </div>
+        )}
         {/* Text Area */}
         <div className="flex-1 w-full p-4 pb-2">
           <TextareaAutosize
@@ -77,6 +101,7 @@ const MessageInput = () => {
 
           {/* Left Actions (Optimization Mode) */}
           <div className="flex flex-row items-center space-x-1.5">
+            <WebSearchToggle />
             <Optimization placement="top" />
           </div>
 
@@ -86,6 +111,7 @@ const MessageInput = () => {
               <Sources placement="top" />
               <ModelSelector placement="top" />
               <AttachSmall />
+              <VoiceInput onTranscript={(text) => setMessage((prev) => prev + text)} />
             </div>
 
             {loading ? (
