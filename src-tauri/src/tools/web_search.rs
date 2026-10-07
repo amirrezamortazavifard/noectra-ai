@@ -7,12 +7,20 @@ use crate::searxng::{search_searxng, SearxngOptions};
 pub fn clean_search_query(raw: &str) -> String {
     let mut q = raw.trim().to_string();
 
-    // Persian conversational prefixes and suffixes
+    // Persian conversational prefixes, suffixes, and request verbs
     let persian_phrases = [
-        "میتونی درمورد", "میتونی در مورد", "میتونی برام", "میتونی لطفا", "میتونی",
+        "میخوام که برام", "می‌خواهم که برام", "میخوام که", "می‌خواهم که",
+        "میخوام برام", "می‌خواهم برام", "میخوام برام", "میخوام", "می‌خوام", "میخواهم", "می‌خواهم",
+        "میتونی درمورد", "میتونی در مورد", "میتونی برام", "میتونی لطفا", "میتونی", "میتونید",
         "توی اینترنت سرچ کنی؟", "توی اینترنت سرچ کنی", "در اینترنت سرچ کنی", "توی نت سرچ کنی",
         "در اینترنت جستجو کنی", "توی اینترنت جستجو کنی", "لطفاً سرچ کن", "لطفا سرچ کن",
         "برام سرچ کن", "سرچ کن", "جستجو کن", "توی اینترنت", "در اینترنت", "در نت", "توی نت",
+        "با سرچ در وب در بیاری", "با سرچ در وب دربیاری", "با سرچ در وب", "با سرچ در اینترنت",
+        "با سرچ وب", "با سرچ نت", "رو برام با سرچ", "با سرچ", "از وب در بیاری", "از وب دربیاری",
+        "از اینترنت در بیاری", "از نت در بیاری", "از وب برام بیار", "از وب پیدا کن",
+        "رو برام در بیاری", "رو برام دربیاری", "رو برام پیدا کن", "رو برام بیار", "رو برام بفرست",
+        "رو برام", "رو برامون", "برام در بیاری", "برام دربیاری", "برام پیدا کن", "برام بیار",
+        "در بیاری", "در بیار", "دربیاری", "دربیار", "استخراج کن", "پیدا کن", "نشون بده", "نشونم بده",
         "اطلاعاتی در مورد", "اطلاعاتی درباره", "اطلاعاتی درمورد", "اطلاعاتی بده", "توضیح بده",
         "در مورد", "درمورد", "درباره", "راجع به", "در رابطه با", "چیست و", "چیست",
         "به من بگو", "بگو ببینم", "میخوام بدونم", "می‌خواهم بدانم",
@@ -24,10 +32,11 @@ pub fn clean_search_query(raw: &str) -> String {
 
     // English conversational prefixes
     let english_phrases = [
-        "can you search the web for", "can you search for", "can you search",
-        "search the web for", "search the internet for", "search for",
+        "can you please search the web for", "can you search the web for", "can you search for",
+        "can you search", "search the web for", "search the internet for", "search for",
         "please search for", "please search", "look up", "tell me about",
         "what is", "who is", "give me information about", "i want to know about",
+        "find me information about", "find me", "look for",
     ];
 
     for phrase in &english_phrases {
@@ -39,7 +48,7 @@ pub fn clean_search_query(raw: &str) -> String {
     }
 
     // Clean punctuation
-    q = q.replace(['؟', '?', '!', '.', ',', ':', '،', '«', '»', '"', '\'', '(', ')', '[', ']'], " ");
+    q = q.replace(['؟', '?', '!', '.', ',', ':', '،', '«', '»', '"', '\'', '(', ')', '[', ']', '`', '؛'], " ");
 
     let words: Vec<&str> = q.split_whitespace().collect();
     if words.is_empty() {
@@ -109,7 +118,7 @@ pub async fn search_web(
         }
     }
 
-    // 2. Try DuckDuckGo Lite (High reliability, zero captcha, direct clean links)
+    // 2. Try DuckDuckGo Lite
     if all_results.len() < 5 {
         if let Ok(lite_results) = search_duckduckgo_lite(client, effective_query).await {
             append_unique(&mut all_results, &mut seen_urls, lite_results);
@@ -123,21 +132,28 @@ pub async fn search_web(
         }
     }
 
-    // 4. Try Google Web search scraping (clean text results)
-    if all_results.len() < 3 {
-        if let Ok(google_results) = search_google_web(client, effective_query).await {
-            append_unique(&mut all_results, &mut seen_urls, google_results);
-        }
-    }
-
-    // 5. Try Wikipedia Search API (Multilingual encyclopedic knowledge)
+    // 4. Try Wikipedia Search API (High availability, multilingual encyclopedic knowledge, official domains)
     if all_results.len() < 4 {
         if let Ok(wiki_results) = search_wikipedia(client, effective_query).await {
             append_unique(&mut all_results, &mut seen_urls, wiki_results);
         }
     }
 
-    // 6. Try SearXNG if custom URL is configured and not default dead searx.be
+    // 5. Try DuckDuckGo Instant Answer API (Zero bot challenge, structured facts)
+    if all_results.len() < 4 {
+        if let Ok(ddg_api_results) = search_duckduckgo_api(client, effective_query).await {
+            append_unique(&mut all_results, &mut seen_urls, ddg_api_results);
+        }
+    }
+
+    // 6. Try Google Web search scraping (clean text results)
+    if all_results.len() < 3 {
+        if let Ok(google_results) = search_google_web(client, effective_query).await {
+            append_unique(&mut all_results, &mut seen_urls, google_results);
+        }
+    }
+
+    // 7. Try SearXNG if custom URL is configured and not default dead searx.be
     let clean_searx = searxng_url.trim();
     if all_results.len() < 4 && !clean_searx.is_empty() && !clean_searx.contains("searx.be") {
         let opts = SearxngOptions {
@@ -160,10 +176,12 @@ pub async fn search_web(
         }
     }
 
-    // 7. If still empty, try raw query with DuckDuckGo Lite without word stripping
-    if all_results.is_empty() && effective_query != raw_trimmed {
-        if let Ok(raw_res) = search_duckduckgo_lite(client, raw_trimmed).await {
-            append_unique(&mut all_results, &mut seen_urls, raw_res);
+    // 8. If still empty and effective query differed, try Wikipedia with entity query
+    if all_results.is_empty() {
+        if let Some(entity_q) = extract_entity_query(raw_trimmed) {
+            if let Ok(entity_wiki) = search_wikipedia(client, &entity_q).await {
+                append_unique(&mut all_results, &mut seen_urls, entity_wiki);
+            }
         }
     }
 
@@ -444,7 +462,94 @@ fn parse_google_html(html: &str) -> Vec<Value> {
     results
 }
 
-/// Wikipedia Search API (instant, free, encyclopedic, zero captchas)
+/// Extracts the core subject/entity by stripping intent modifiers (e.g. "لیست ایمیل اساتید" -> "دانشگاه علوم پزشکی گناباد")
+pub fn extract_entity_query(clean: &str) -> Option<String> {
+    let mut q = clean.to_string();
+    let intent_words = [
+        "لیست", "فهرست", "ایمیل‌های", "ایمیل های", "ایمیل", "ایمیلها",
+        "اساتید", "استادان", "اعضای هیئت علمی", "عضو هیئت علمی", "هیئت علمی",
+        "شماره تماس", "شماره تلفن", "تلفن‌های", "تلفن", "شماره‌های", "شماره",
+        "آدرس", "نشانی", "پورتال", "سامانه", "سایت رسمی", "سایت", "وبسایت", "کد پستی",
+        "رزومه", "معرفی", "مشخصات", "سوابق",
+        // English intent words
+        "list of", "email address of", "email addresses of", "emails of", "email of",
+        "contact info of", "phone number of", "professors of", "faculty of", "official website of",
+    ];
+
+    for w in &intent_words {
+        q = q.replace(w, " ");
+    }
+
+    let words: Vec<&str> = q.split_whitespace().collect();
+    if words.is_empty() {
+        None
+    } else {
+        let joined = words.join(" ");
+        if joined == clean {
+            None
+        } else {
+            Some(joined)
+        }
+    }
+}
+
+/// DuckDuckGo Instant Answer API (Free JSON endpoint, zero bot challenge)
+pub async fn search_duckduckgo_api(client: &Client, query: &str) -> Result<Vec<Value>, String> {
+    let clean_query = query.trim();
+    if clean_query.is_empty() {
+        return Ok(vec![]);
+    }
+
+    let url = format!(
+        "https://api.duckduckgo.com/?q={}&format=json&no_html=1&skip_disambig=1",
+        urlencoding::encode(clean_query)
+    );
+
+    let res = client
+        .get(&url)
+        .header("User-Agent", "NoectraAI/1.0 (Desktop client)")
+        .timeout(Duration::from_secs(6))
+        .send()
+        .await
+        .map_err(|e| format!("DDG API failed: {}", e))?;
+
+    if !res.status().is_success() {
+        return Err(format!("DDG API HTTP {}", res.status()));
+    }
+
+    let val = res.json::<Value>().await.map_err(|e| e.to_string())?;
+    let mut results = Vec::new();
+
+    let heading = val["Heading"].as_str().unwrap_or("").trim();
+    let r#abstract = val["Abstract"].as_str().unwrap_or("").trim();
+    let abstract_url = val["AbstractURL"].as_str().unwrap_or("").trim();
+
+    if !heading.is_empty() && !r#abstract.is_empty() {
+        results.push(json!({
+            "title": heading,
+            "url": if abstract_url.is_empty() { format!("https://duckduckgo.com/?q={}", urlencoding::encode(clean_query)) } else { abstract_url.to_string() },
+            "snippet": r#abstract
+        }));
+    }
+
+    if let Some(topics) = val["RelatedTopics"].as_array() {
+        for t in topics.iter().take(3) {
+            if let (Some(text), Some(first_url)) = (t["Text"].as_str(), t["FirstURL"].as_str()) {
+                if !text.is_empty() && !first_url.is_empty() {
+                    results.push(json!({
+                        "title": text.chars().take(60).collect::<String>(),
+                        "url": first_url,
+                        "snippet": text
+                    }));
+                }
+            }
+        }
+    }
+
+    Ok(results)
+}
+
+/// Wikipedia Search API (instant, free, encyclopedic, zero captchas) with entity fallback & official link extraction
 pub async fn search_wikipedia(client: &Client, query: &str) -> Result<Vec<Value>, String> {
     let clean_query = query.trim();
     if clean_query.is_empty() {
@@ -457,43 +562,94 @@ pub async fn search_wikipedia(client: &Client, query: &str) -> Result<Vec<Value>
     let mut results = Vec::new();
     let re_html_tag = regex::Regex::new(r"<[^>]+>").unwrap();
 
-    for lang in langs {
-        let url = format!(
-            "https://{}.wikipedia.org/w/api.php?action=query&list=search&srsearch={}&format=json&utf8=1",
-            lang,
-            urlencoding::encode(clean_query)
-        );
+    // Queries to test: original clean query, and entity fallback if intent modifiers exist
+    let mut search_queries = vec![clean_query.to_string()];
+    if let Some(entity_q) = extract_entity_query(clean_query) {
+        if entity_q != clean_query && entity_q.chars().count() >= 3 {
+            search_queries.push(entity_q);
+        }
+    }
 
-        if let Ok(res) = client
-            .get(&url)
-            .header("User-Agent", "NoectraAI/1.0 (https://noectra.ai; contact@noectra.ai)")
-            .timeout(Duration::from_secs(6))
-            .send()
-            .await
-        {
-            if res.status().is_success() {
-                if let Ok(val) = res.json::<Value>().await {
-                    if let Some(items) = val["query"]["search"].as_array() {
-                        for item in items.iter().take(4) {
-                            let title = item["title"].as_str().unwrap_or_default();
-                            let raw_snippet = item["snippet"].as_str().unwrap_or_default();
-                            let snippet = clean_text(&re_html_tag.replace_all(raw_snippet, ""));
-                            let page_url = format!("https://{}.wikipedia.org/wiki/{}", lang, urlencoding::encode(title));
+    for sq in &search_queries {
+        for lang in &langs {
+            let url = format!(
+                "https://{}.wikipedia.org/w/api.php?action=query&list=search&srsearch={}&format=json&utf8=1",
+                lang,
+                urlencoding::encode(sq)
+            );
 
-                            if !title.is_empty() && !snippet.is_empty() {
-                                results.push(json!({
-                                    "title": title,
-                                    "url": page_url,
-                                    "snippet": snippet
-                                }));
+            if let Ok(res) = client
+                .get(&url)
+                .header("User-Agent", "NoectraAI/1.0 (https://noectra.ai; contact@noectra.ai)")
+                .timeout(Duration::from_secs(6))
+                .send()
+                .await
+            {
+                if res.status().is_success() {
+                    if let Ok(val) = res.json::<Value>().await {
+                        if let Some(items) = val["query"]["search"].as_array() {
+                            for item in items.iter().take(4) {
+                                let title = item["title"].as_str().unwrap_or_default();
+                                let raw_snippet = item["snippet"].as_str().unwrap_or_default();
+                                let snippet = clean_text(&re_html_tag.replace_all(raw_snippet, ""));
+                                let page_url = format!("https://{}.wikipedia.org/wiki/{}", lang, urlencoding::encode(title));
+
+                                if !title.is_empty() && !snippet.is_empty() {
+                                    results.push(json!({
+                                        "title": title,
+                                        "url": page_url,
+                                        "snippet": snippet
+                                    }));
+                                }
                             }
                         }
                     }
                 }
             }
+            if results.len() >= 4 {
+                break;
+            }
         }
-        if results.len() >= 4 {
+        if results.len() >= 3 {
             break;
+        }
+    }
+
+    // If top hit is an institution/organization, attempt to retrieve official external links from Wikipedia
+    let top_title = results.first().and_then(|f| f["title"].as_str().map(|s| s.to_string()));
+    if let Some(title) = top_title {
+        let lang = if title.chars().any(|c| ('\u{0600}'..='\u{06FF}').contains(&c)) { "fa" } else { "en" };
+        let ext_url = format!(
+            "https://{}.wikipedia.org/w/api.php?action=query&prop=extlinks&titles={}&format=json&utf8=1",
+            lang,
+            urlencoding::encode(&title)
+        );
+        if let Ok(res) = client
+            .get(&ext_url)
+            .header("User-Agent", "NoectraAI/1.0")
+            .timeout(Duration::from_secs(4))
+            .send()
+            .await
+        {
+            if let Ok(val) = res.json::<Value>().await {
+                if let Some(pages) = val["query"]["pages"].as_object() {
+                    for (_pid, pval) in pages {
+                        if let Some(extlinks) = pval["extlinks"].as_array() {
+                            for el in extlinks.iter().take(3) {
+                                if let Some(link) = el["*"].as_str() {
+                                    if link.starts_with("http") && !link.contains("wikipedia.org") && !link.contains("archive.org") {
+                                        results.push(json!({
+                                            "title": format!("Official link / Portal ({})", title),
+                                            "url": link,
+                                            "snippet": format!("Official web resource or related external portal for {}", title)
+                                        }));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -601,5 +757,30 @@ mod tests {
         let items = val["results"].as_array().unwrap();
         assert!(!items.is_empty(), "Persian search results should not be empty!");
         assert!(items[0]["url"].as_str().unwrap().starts_with("http"));
+    }
+
+    #[tokio::test]
+    async fn test_search_web_user_gonabad_query() {
+        let client = Client::builder()
+            .timeout(Duration::from_secs(12))
+            .build()
+            .unwrap();
+
+        let raw = "میخوام که لیست ایمیل اساتید دانشگاه علوم پزشکی گناباد رو برام با سرچ در وب در بیاری";
+        let cleaned = clean_search_query(raw);
+        assert!(!cleaned.contains("میخوام"));
+        assert!(!cleaned.contains("در بیاری"));
+
+        let res = search_web(&client, raw, None, "").await;
+        assert!(res.is_ok());
+        let val = res.unwrap();
+        let items = val["results"].as_array().unwrap();
+        assert!(!items.is_empty(), "Gonabad search results should not be empty!");
+        let found_gonabad = items.iter().any(|r| {
+            let t = r["title"].as_str().unwrap_or_default();
+            let s = r["snippet"].as_str().unwrap_or_default();
+            t.contains("گناباد") || s.contains("گناباد")
+        });
+        assert!(found_gonabad, "Should find university details for Gonabad!");
     }
 }

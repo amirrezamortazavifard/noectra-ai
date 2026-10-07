@@ -42,6 +42,8 @@ pub fn get_writer_prompt(
     - Avoid citing unsupported assumptions or personal interpretations; if no source supports a statement, clearly indicate the limitation.
 
     ### Special Instructions
+    - **CRITICAL SEARCH TOOL STATUS**: Live web research has already been conducted and the results are provided in <context>. NEVER claim that you do not have access to web search, that web browsing tools are unavailable, or that you cannot search the internet in this session.
+    - If specific personal/confidential details (such as personal email addresses of professors or phone numbers) are not publicly listed in the provided sources, state clearly that while live research was conducted, direct personal contact details are not published in open web sources, and provide all official university domains, faculty directories, portals, and public leadership information that ARE present in the context.
     - If the query involves technical, historical, or complex topics, provide detailed background and explanatory sections to ensure clarity.
     - If the user provides vague input or if relevant information is missing, explain what additional details might help refine the search.
     - If no relevant information is found, say: "Hmm, sorry I could not find any relevant information on this topic. Would you like me to search again or ask something else?" Be transparent about limitations and suggest alternatives or ways to reframe the query.
