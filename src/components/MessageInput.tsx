@@ -9,10 +9,12 @@ import Sources from './MessageInputActions/Sources';
 import WebSearchToggle from './MessageInputActions/WebSearchToggle';
 import VoiceInput from './MessageInputActions/VoiceInput';
 import { useChat } from '@/lib/hooks/useChat';
+import { uploadDroppedFiles } from '@/lib/services/uploadService';
+import { toast } from 'sonner';
 import { soundService } from '@/lib/sound/soundService';
 
 const MessageInput = () => {
-  const { loading, sendMessage, setFiles } = useChat();
+  const { loading, sendMessage, files, setFiles, fileIds, setFileIds } = useChat();
   const [message, setMessage] = useState('');
   const [isDragging, setIsDragging] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
@@ -67,12 +69,20 @@ const MessageInput = () => {
           e.preventDefault();
           setIsDragging(false);
         }}
-        onDrop={(e) => {
+        onDrop={async (e) => {
           e.preventDefault();
           setIsDragging(false);
           if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
             const droppedFiles = Array.from(e.dataTransfer.files);
-            setFiles((prev) => [...prev, ...droppedFiles]);
+            try {
+              toast.loading('Processing & vectorizing dropped files...', { id: 'drop-upload' });
+              const uploaded = await uploadDroppedFiles(droppedFiles);
+              setFiles([...files, ...uploaded]);
+              setFileIds([...fileIds, ...uploaded.map((f: any) => f.fileId)]);
+              toast.success(`Attached ${uploaded.length} file(s)`, { id: 'drop-upload' });
+            } catch (err: any) {
+              toast.error(err?.message || 'Failed to attach files', { id: 'drop-upload' });
+            }
           }
         }}
         className={cn(

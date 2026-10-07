@@ -142,6 +142,7 @@ const MessageBox = ({
                   block={researchBlock}
                   status={section.message.status}
                   isLast={isLast}
+                  query={section.message.query}
                 />
               </div>
             ))}
@@ -152,11 +153,12 @@ const MessageBox = ({
             !section.message.responseBlocks.some(
               (b) => b.type === 'research' && b.data.subSteps.length > 0,
             ) && (
-              <div className="flex items-center gap-3 p-3 rounded-xl bg-light-secondary/50 dark:bg-dark-secondary/50 border border-light-200 dark:border-dark-200 shadow-sm w-max">
-                <Disc3 className="w-5 h-5 text-fuchsia-500 animate-spin" />
-                <span className="text-sm font-medium text-black/70 dark:text-white/70">
-                  Thinking...
-                </span>
+              <div className="flex flex-col space-y-2">
+                <AssistantSteps
+                  status="answering"
+                  isLast={isLast}
+                  query={section.message.query}
+                />
               </div>
             )}
 
