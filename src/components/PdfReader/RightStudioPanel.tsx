@@ -179,7 +179,7 @@ export const RightStudioPanel: React.FC<RightStudioPanelProps> = ({
     if (!isOpen || activeTab !== 'bilingual') return;
     if (!pageText && (!bilingualSegments || bilingualSegments.length === 0)) return;
 
-    const cacheKey = `pdf_trans_${meta?.title || meta?.name || 'doc'}_p${currentPage}_${targetLanguage}_${translationEngine}_${segmentationMode}`;
+    const cacheKey = `pdf_trans_v3_${meta?.title || meta?.name || 'doc'}_p${currentPage}_${targetLanguage}_${translationEngine}_${segmentationMode}`;
     const cached = localStorage.getItem(cacheKey);
     if (cached) {
       try {
@@ -221,7 +221,7 @@ export const RightStudioPanel: React.FC<RightStudioPanelProps> = ({
       return;
     }
 
-    const cacheKey = `pdf_trans_${meta?.title || meta?.name || 'doc'}_p${currentPage}_${targetLanguage}_${activeEngine}_${segmentationMode}`;
+    const cacheKey = `pdf_trans_v3_${meta?.title || meta?.name || 'doc'}_p${currentPage}_${targetLanguage}_${activeEngine}_${segmentationMode}`;
     if (!force) {
       const cached = localStorage.getItem(cacheKey);
       if (cached) {
