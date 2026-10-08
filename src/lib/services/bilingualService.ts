@@ -4,36 +4,27 @@ import {
   isRtlLanguage,
   cleanPdfTextFragment,
 } from './persianTextFormatter';
+import {
+  getLanguageCode,
+  getLanguageName,
+} from './supportedLanguages';
 
 export type TranslationEngine = 'ai' | 'google';
-
-const LANGUAGE_CODE_MAP: Record<string, string> = {
-  Persian: 'fa',
-  Spanish: 'es',
-  French: 'fr',
-  German: 'de',
-  Chinese: 'zh-CN',
-  Arabic: 'ar',
-  Turkish: 'tr',
-  Russian: 'ru',
-  English: 'en',
-  Italian: 'it',
-  Japanese: 'ja',
-  Korean: 'ko',
-};
 
 /**
  * Translate a single text string using Google Translate API
  */
 export async function translateWithGoogle(
   text: string,
-  targetLang: string = 'Persian'
+  targetLang: string = 'Persian',
+  sourceLang: string = 'English'
 ): Promise<string> {
-  const targetCode = LANGUAGE_CODE_MAP[targetLang] || targetLang.toLowerCase().slice(0, 2) || 'fa';
+  const targetCode = getLanguageCode(targetLang);
+  const sourceCode = getLanguageCode(sourceLang);
   const clean = cleanPdfTextFragment(text);
   if (!clean) return '';
 
-  const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${targetCode}&dt=t&q=${encodeURIComponent(clean)}`;
+  const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${sourceCode}&tl=${targetCode}&dt=t&q=${encodeURIComponent(clean)}`;
 
   const res = await fetch(url);
   if (!res.ok) {
@@ -124,18 +115,22 @@ export async function translateSingleSection(
   text: string,
   targetLang: string = 'Persian',
   engine: TranslationEngine = 'ai',
-  docTitle?: string
+  docTitle?: string,
+  sourceLang: string = 'English'
 ): Promise<string> {
   const clean = cleanPdfTextFragment(text);
   if (!clean) return '';
 
   if (engine === 'google') {
-    return translateWithGoogle(clean, targetLang);
+    return translateWithGoogle(clean, targetLang, sourceLang);
   }
 
+  const targetName = getLanguageName(targetLang);
+  const sourceName = getLanguageName(sourceLang);
   const isRtl = isRtlLanguage(targetLang);
+
   const prompt = `You are a world-class academic translator specializing in scientific and technical papers.
-Translate the following excerpt into natural, highly fluent, publication-grade academic ${targetLang}.
+Translate the following excerpt from ${sourceName} into natural, highly fluent, publication-grade academic ${targetName}.
 ${isRtl ? 'Write in fluent, modern academic Persian (فارسی روان و دانشگاهی). Use proper Persian semi-spaces (نیم‌فاصله) where appropriate. Keep acronyms, citations, and formulas intact.' : ''}
 ${docTitle ? `Context Paper Title: "${docTitle}"\n` : ''}
 
@@ -157,7 +152,8 @@ export async function translatePageContent(
   paragraphs: (string | ParagraphTranslation)[],
   targetLang: string = 'Persian',
   docTitle?: string,
-  engine: TranslationEngine = 'ai'
+  engine: TranslationEngine = 'ai',
+  sourceLang: string = 'English'
 ): Promise<ParagraphTranslation[]> {
   if (paragraphs.length === 0) return [];
 
@@ -185,7 +181,7 @@ export async function translatePageContent(
       const translatedList = await Promise.all(
         normalized.map(async (item) => {
           try {
-            let translated = await translateWithGoogle(item.original, targetLang);
+            let translated = await translateWithGoogle(item.original, targetLang, sourceLang);
             if (isRtl) {
               translated = formatPersianAcademicText(translated);
             }
@@ -208,12 +204,15 @@ export async function translatePageContent(
   }
 
   // 2. AI Model engine (Academic contextual translation)
+  const targetName = getLanguageName(targetLang);
+  const sourceName = getLanguageName(sourceLang);
+
   const numberedText = normalized
     .map((p, idx) => `[P${idx + 1}] ${p.original}`)
     .join('\n\n');
 
   const prompt = `You are an elite academic translator specializing in scientific literature.
-Translate the following numbered paragraphs into natural, highly fluent, publication-grade academic ${targetLang}.
+Translate the following numbered paragraphs from ${sourceName} into natural, highly fluent, publication-grade academic ${targetName}.
 Preserve technical accuracy and academic tone. Maintain the numbering format strictly.
 ${
   isRtl

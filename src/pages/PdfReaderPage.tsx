@@ -306,7 +306,12 @@ export default function PdfReaderPage() {
   };
 
   // Bilingual & Linguistic State
-  const [targetLanguage, setTargetLanguage] = useState<string>('Persian');
+  const [sourceLanguage, setSourceLanguage] = useState<string>(
+    () => localStorage.getItem('pdf_source_language') || 'English'
+  );
+  const [targetLanguage, setTargetLanguage] = useState<string>(
+    () => localStorage.getItem('pdf_target_language') || 'Persian'
+  );
   const [currentPageText, setCurrentPageText] = useState<string>('');
   const [bilingualSegments, setBilingualSegments] = useState<ParagraphTranslation[]>([]);
   const [activeBilingualSectionId, setActiveBilingualSectionId] = useState<string | null>(null);
@@ -1344,8 +1349,16 @@ export default function PdfReaderPage() {
                 setStudioTab('ai');
               }}
               pageText={currentPageText}
+              sourceLanguage={sourceLanguage}
+              onSourceLanguageChange={(lang) => {
+                setSourceLanguage(lang);
+                localStorage.setItem('pdf_source_language', lang);
+              }}
               targetLanguage={targetLanguage}
-              onTargetLanguageChange={(lang) => setTargetLanguage(lang)}
+              onTargetLanguageChange={(lang) => {
+                setTargetLanguage(lang);
+                localStorage.setItem('pdf_target_language', lang);
+              }}
               bilingualSegments={bilingualSegments}
               segmentationMode={segmentationMode}
               onSegmentationModeChange={(mode) => {

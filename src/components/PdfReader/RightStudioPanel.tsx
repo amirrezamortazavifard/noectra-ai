@@ -30,6 +30,7 @@ import {
   AlignLeft,
   Volume2,
   Search,
+  ArrowRightLeft,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { soundService } from '@/lib/sound/soundService';
@@ -41,6 +42,7 @@ import {
   TranslationEngine,
 } from '@/lib/services/bilingualService';
 import { isRtlLanguage } from '@/lib/services/persianTextFormatter';
+import { SOURCE_LANGUAGES, TARGET_LANGUAGES } from '@/lib/services/supportedLanguages';
 
 export type StudioTab = 'notes' | 'bilingual' | 'ai';
 
@@ -65,6 +67,8 @@ interface RightStudioPanelProps {
 
   // Bilingual tab props
   pageText: string;
+  sourceLanguage?: string;
+  onSourceLanguageChange?: (lang: string) => void;
   targetLanguage: string;
   onTargetLanguageChange: (lang: string) => void;
   bilingualSegments?: ParagraphTranslation[];
@@ -85,17 +89,6 @@ interface RightStudioPanelProps {
   onReindex?: () => void;
 }
 
-const SUPPORTED_LANGUAGES = [
-  { code: 'Persian', label: 'Persian (فارسی)' },
-  { code: 'Spanish', label: 'Spanish (Español)' },
-  { code: 'French', label: 'French (Français)' },
-  { code: 'German', label: 'German (Deutsch)' },
-  { code: 'Chinese', label: 'Chinese (中文)' },
-  { code: 'Arabic', label: 'Arabic (العربية)' },
-  { code: 'Turkish', label: 'Turkish (Türkçe)' },
-  { code: 'Russian', label: 'Russian (Русский)' },
-];
-
 export const RightStudioPanel: React.FC<RightStudioPanelProps> = ({
   isOpen,
   activeTab,
@@ -111,7 +104,9 @@ export const RightStudioPanel: React.FC<RightStudioPanelProps> = ({
   onHighlightDelete,
   onAskAiAboutExcerpt,
   pageText,
-  targetLanguage,
+  sourceLanguage = 'English',
+  onSourceLanguageChange,
+  targetLanguage = 'Persian',
   onTargetLanguageChange,
   bilingualSegments,
   segmentationMode = 'paragraph',
@@ -179,7 +174,7 @@ export const RightStudioPanel: React.FC<RightStudioPanelProps> = ({
     if (!isOpen || activeTab !== 'bilingual') return;
     if (!pageText && (!bilingualSegments || bilingualSegments.length === 0)) return;
 
-    const cacheKey = `pdf_trans_v3_${meta?.title || meta?.name || 'doc'}_p${currentPage}_${targetLanguage}_${translationEngine}_${segmentationMode}`;
+    const cacheKey = `pdf_trans_v3_${meta?.title || meta?.name || 'doc'}_p${currentPage}_${sourceLanguage}_${targetLanguage}_${translationEngine}_${segmentationMode}`;
     const cached = localStorage.getItem(cacheKey);
     if (cached) {
       try {
@@ -200,6 +195,7 @@ export const RightStudioPanel: React.FC<RightStudioPanelProps> = ({
     handleTranslatePage(false);
   }, [
     currentPage,
+    sourceLanguage,
     targetLanguage,
     translationEngine,
     segmentationMode,
@@ -221,7 +217,7 @@ export const RightStudioPanel: React.FC<RightStudioPanelProps> = ({
       return;
     }
 
-    const cacheKey = `pdf_trans_v3_${meta?.title || meta?.name || 'doc'}_p${currentPage}_${targetLanguage}_${activeEngine}_${segmentationMode}`;
+    const cacheKey = `pdf_trans_v3_${meta?.title || meta?.name || 'doc'}_p${currentPage}_${sourceLanguage}_${targetLanguage}_${activeEngine}_${segmentationMode}`;
     if (!force) {
       const cached = localStorage.getItem(cacheKey);
       if (cached) {
@@ -248,7 +244,8 @@ export const RightStudioPanel: React.FC<RightStudioPanelProps> = ({
         rawParagraphs,
         targetLanguage,
         meta?.title || meta?.name,
-        activeEngine
+        activeEngine,
+        sourceLanguage
       );
       setTranslations(results);
       localStorage.setItem(cacheKey, JSON.stringify(results));
@@ -270,13 +267,14 @@ export const RightStudioPanel: React.FC<RightStudioPanelProps> = ({
         item.original,
         targetLanguage,
         translationEngine,
-        meta?.title || meta?.name
+        meta?.title || meta?.name,
+        sourceLanguage
       );
       const updated = translations.map((t) =>
         t.id === item.id ? { ...t, translated: newTranslation } : t
       );
       setTranslations(updated);
-      const cacheKey = `pdf_trans_${meta?.title || meta?.name || 'doc'}_p${currentPage}_${targetLanguage}_${translationEngine}`;
+      const cacheKey = `pdf_trans_v3_${meta?.title || meta?.name || 'doc'}_p${currentPage}_${sourceLanguage}_${targetLanguage}_${translationEngine}_${segmentationMode}`;
       localStorage.setItem(cacheKey, JSON.stringify(updated));
       toast.success(`Section § ${item.index} re-translated`);
     } catch {
@@ -600,18 +598,62 @@ export const RightStudioPanel: React.FC<RightStudioPanelProps> = ({
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* Sub-toolbar */}
           <div className="px-3.5 py-2 border-b border-light-200 dark:border-white/10 bg-light-secondary/40 dark:bg-white/[0.01] flex flex-wrap items-center justify-between gap-2 select-none">
-            <div className="flex items-center gap-1.5">
-              <select
-                value={targetLanguage}
-                onChange={(e) => onTargetLanguageChange(e.target.value)}
-                className="text-xs font-semibold py-1 px-2 rounded-lg bg-light-primary dark:bg-[#141822] border border-light-200 dark:border-white/10 text-slate-900 dark:text-white focus:outline-none focus:border-sky-500 shadow-2xs"
-              >
-                {SUPPORTED_LANGUAGES.map((lang) => (
-                  <option key={lang.code} value={lang.code} className="bg-white dark:bg-[#141822] text-slate-900 dark:text-white">
-                    {lang.label}
-                  </option>
-                ))}
-              </select>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {/* Language Selector Pair + Swap Button */}
+              <div className="flex items-center gap-1 bg-light-primary dark:bg-[#141822] py-0.5 px-1 rounded-lg border border-light-200 dark:border-white/10 shadow-2xs">
+                {/* Source Language */}
+                <select
+                  value={sourceLanguage}
+                  onChange={(e) => onSourceLanguageChange?.(e.target.value)}
+                  title="Source Document Language (Default: English)"
+                  className="text-xs font-semibold py-0.5 px-1 rounded bg-transparent text-slate-800 dark:text-slate-200 focus:outline-none cursor-pointer max-w-[105px] truncate"
+                >
+                  {SOURCE_LANGUAGES.map((lang) => (
+                    <option
+                      key={`src-${lang.code}`}
+                      value={lang.name}
+                      className="bg-white dark:bg-[#141822] text-slate-900 dark:text-white"
+                    >
+                      {lang.name} {lang.nativeName !== lang.name ? `(${lang.nativeName})` : ''}
+                    </option>
+                  ))}
+                </select>
+
+                {/* Swap Languages Button */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (sourceLanguage !== 'Auto Detect' && sourceLanguage !== 'auto') {
+                      const prevSrc = sourceLanguage;
+                      const prevTgt = targetLanguage;
+                      onSourceLanguageChange?.(prevTgt);
+                      onTargetLanguageChange(prevSrc);
+                    }
+                  }}
+                  title="Swap Source and Target Languages"
+                  className="p-1 rounded text-black/50 dark:text-white/50 hover:text-sky-500 dark:hover:text-sky-400 hover:bg-light-200 dark:hover:bg-white/10 transition-colors"
+                >
+                  <ArrowRightLeft size={11} />
+                </button>
+
+                {/* Target Language */}
+                <select
+                  value={targetLanguage}
+                  onChange={(e) => onTargetLanguageChange(e.target.value)}
+                  title="Target Translation Language (Default: Persian)"
+                  className="text-xs font-semibold py-0.5 px-1 rounded bg-transparent text-sky-600 dark:text-sky-400 focus:outline-none cursor-pointer max-w-[105px] truncate"
+                >
+                  {TARGET_LANGUAGES.map((lang) => (
+                    <option
+                      key={`tgt-${lang.code}`}
+                      value={lang.name}
+                      className="bg-white dark:bg-[#141822] text-slate-900 dark:text-white"
+                    >
+                      {lang.name} {lang.nativeName !== lang.name ? `(${lang.nativeName})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
               {/* Translation Engine Toggle */}
               <div className="flex items-center bg-light-secondary dark:bg-white/5 border border-light-200 dark:border-white/10 rounded-lg p-0.5 text-[11px]">
