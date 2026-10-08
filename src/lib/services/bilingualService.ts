@@ -1,4 +1,9 @@
 import { ParagraphTranslation, DictionaryLookupResult } from '@/components/PdfReader/types';
+import {
+  formatPersianAcademicText,
+  isRtlLanguage,
+  cleanPdfTextFragment,
+} from './persianTextFormatter';
 
 export type TranslationEngine = 'ai' | 'google';
 
@@ -25,7 +30,7 @@ export async function translateWithGoogle(
   targetLang: string = 'Persian'
 ): Promise<string> {
   const targetCode = LANGUAGE_CODE_MAP[targetLang] || targetLang.toLowerCase().slice(0, 2) || 'fa';
-  const clean = text.trim();
+  const clean = cleanPdfTextFragment(text);
   if (!clean) return '';
 
   const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${targetCode}&dt=t&q=${encodeURIComponent(clean)}`;
@@ -40,10 +45,16 @@ export async function translateWithGoogle(
     return clean;
   }
 
-  return json[0]
+  let rawTranslated = json[0]
     .map((item: any) => (Array.isArray(item) && item[0] ? item[0] : ''))
     .join('')
     .trim();
+
+  if (isRtlLanguage(targetLang)) {
+    rawTranslated = formatPersianAcademicText(rawTranslated);
+  }
+
+  return rawTranslated;
 }
 
 /**
@@ -107,36 +118,85 @@ async function callChatCompletion(prompt: string): Promise<string> {
 }
 
 /**
- * Translate an array of paragraphs from the current page into the target language.
- * Supports both AI Model (deep ISI context) and Google Translate (instant neural).
+ * Translate a single section independently (for on-demand retranslation)
+ */
+export async function translateSingleSection(
+  text: string,
+  targetLang: string = 'Persian',
+  engine: TranslationEngine = 'ai',
+  docTitle?: string
+): Promise<string> {
+  const clean = cleanPdfTextFragment(text);
+  if (!clean) return '';
+
+  if (engine === 'google') {
+    return translateWithGoogle(clean, targetLang);
+  }
+
+  const isRtl = isRtlLanguage(targetLang);
+  const prompt = `You are a world-class academic translator specializing in scientific and technical papers.
+Translate the following excerpt into natural, highly fluent, publication-grade academic ${targetLang}.
+${isRtl ? 'Write in fluent, modern academic Persian (فارسی روان و دانشگاهی). Use proper Persian semi-spaces (نیم‌فاصله) where appropriate. Keep acronyms, citations, and formulas intact.' : ''}
+${docTitle ? `Context Paper Title: "${docTitle}"\n` : ''}
+
+Source excerpt:
+"${clean}"
+
+Respond ONLY with the direct translation text. Do not wrap in quotes or add conversational commentary.`;
+
+  const raw = await callChatCompletion(prompt);
+  const cleaned = raw.trim().replace(/^["']|["']$/g, '');
+  return isRtl ? formatPersianAcademicText(cleaned) : cleaned;
+}
+
+/**
+ * Translate an array of paragraphs (or structured ParagraphTranslation objects)
+ * from the current page into the target language.
  */
 export async function translatePageContent(
-  paragraphs: string[],
+  paragraphs: (string | ParagraphTranslation)[],
   targetLang: string = 'Persian',
   docTitle?: string,
   engine: TranslationEngine = 'ai'
 ): Promise<ParagraphTranslation[]> {
   if (paragraphs.length === 0) return [];
 
+  // Normalize into standard shape preserving rects & anchorY
+  const normalized: ParagraphTranslation[] = paragraphs.map((p, idx) => {
+    if (typeof p === 'string') {
+      return {
+        id: `para-${idx}`,
+        index: idx + 1,
+        original: cleanPdfTextFragment(p),
+        translated: '',
+      };
+    }
+    return {
+      ...p,
+      original: cleanPdfTextFragment(p.original),
+    };
+  });
+
+  const isRtl = isRtlLanguage(targetLang);
+
   // 1. Google Translate engine (Instant parallel execution)
   if (engine === 'google') {
     try {
       const translatedList = await Promise.all(
-        paragraphs.map(async (p, idx) => {
+        normalized.map(async (item) => {
           try {
-            const translated = await translateWithGoogle(p, targetLang);
+            let translated = await translateWithGoogle(item.original, targetLang);
+            if (isRtl) {
+              translated = formatPersianAcademicText(translated);
+            }
             return {
-              id: `para-${idx}`,
-              index: idx + 1,
-              original: p,
-              translated: translated || p,
+              ...item,
+              translated: translated || item.original,
             };
           } catch {
             return {
-              id: `para-${idx}`,
-              index: idx + 1,
-              original: p,
-              translated: p,
+              ...item,
+              translated: item.original,
             };
           }
         })
@@ -147,13 +207,19 @@ export async function translatePageContent(
     }
   }
 
-  // 2. AI Model engine (Academic translation)
-  const numberedText = paragraphs
-    .map((p, idx) => `[P${idx + 1}] ${p.trim()}`)
+  // 2. AI Model engine (Academic contextual translation)
+  const numberedText = normalized
+    .map((p, idx) => `[P${idx + 1}] ${p.original}`)
     .join('\n\n');
 
-  const prompt = `You are an elite academic translator specializing in scientific literature. Translate the following numbered paragraphs into natural, highly fluent, publication-grade ${targetLang}.
+  const prompt = `You are an elite academic translator specializing in scientific literature.
+Translate the following numbered paragraphs into natural, highly fluent, publication-grade academic ${targetLang}.
 Preserve technical accuracy and academic tone. Maintain the numbering format strictly.
+${
+  isRtl
+    ? 'For Persian: Write in natural, publication-grade academic Persian (فارسی روان و دانشگاهی). Use proper semi-spaces (نیم‌فاصله) for prefixes like "می/نمی" and plural suffixes like "ها". Keep technical acronyms, variables, and references intact.'
+    : ''
+}
 
 ${docTitle ? `Document Title: "${docTitle}"\n` : ''}
 Input Paragraphs:
@@ -169,15 +235,15 @@ Do not include any conversational preamble or outro.`;
   const results: ParagraphTranslation[] = [];
   const lines = rawOutput.split(/\[P\d+\]/i);
 
-  // If regex splitting matched properly
   if (lines.length > 1) {
-    for (let i = 0; i < paragraphs.length; i++) {
-      const translatedChunk = lines[i + 1]?.trim() || '';
+    for (let i = 0; i < normalized.length; i++) {
+      let translatedChunk = lines[i + 1]?.trim() || '';
+      if (isRtl) {
+        translatedChunk = formatPersianAcademicText(translatedChunk);
+      }
       results.push({
-        id: `para-${i}`,
-        index: i + 1,
-        original: paragraphs[i],
-        translated: translatedChunk || paragraphs[i],
+        ...normalized[i],
+        translated: translatedChunk || normalized[i].original,
       });
     }
   } else {
@@ -187,12 +253,14 @@ Do not include any conversational preamble or outro.`;
       .map((l) => l.replace(/^\[P\d+\]\s*/i, '').trim())
       .filter(Boolean);
 
-    for (let i = 0; i < paragraphs.length; i++) {
+    for (let i = 0; i < normalized.length; i++) {
+      let t = fallbackLines[i] || rawOutput || normalized[i].original;
+      if (isRtl) {
+        t = formatPersianAcademicText(t);
+      }
       results.push({
-        id: `para-${i}`,
-        index: i + 1,
-        original: paragraphs[i],
-        translated: fallbackLines[i] || rawOutput || paragraphs[i],
+        ...normalized[i],
+        translated: t,
       });
     }
   }
@@ -202,7 +270,6 @@ Do not include any conversational preamble or outro.`;
 
 /**
  * Look up an academic term in the context of its sentence.
- * Supports both AI Model (deep concept analysis) and Google Translate (instant).
  */
 export async function lookupAcademicTerm(
   term: string,
@@ -212,8 +279,8 @@ export async function lookupAcademicTerm(
   engine: TranslationEngine = 'ai'
 ): Promise<DictionaryLookupResult> {
   const cleanTerm = term.trim().replace(/^[^a-zA-Z0-9]+|[^a-zA-Z0-9]+$/g, '');
+  const isRtl = isRtlLanguage(targetLang);
 
-  // 1. Google Translate engine (Instant term + context translation)
   if (engine === 'google') {
     try {
       const [transTerm, transContext] = await Promise.all([
@@ -225,7 +292,7 @@ export async function lookupAcademicTerm(
         term: cleanTerm,
         partOfSpeech: 'term',
         definition: `Google Translation: ${transTerm}`,
-        translation: transTerm,
+        translation: isRtl ? formatPersianAcademicText(transTerm) : transTerm,
         academicContext: transContext ? `Sentence Translation: "${transContext}"` : undefined,
       };
     } catch (err) {
@@ -233,7 +300,6 @@ export async function lookupAcademicTerm(
     }
   }
 
-  // 2. AI Model engine (Full domain dictionary analysis)
   const prompt = `You are an expert academic dictionary and linguistic specialist. Analyze the following term in the specific domain context of this academic paper sentence:
 
 Term: "${cleanTerm}"
@@ -256,7 +322,6 @@ Do NOT wrap in markdown backticks other than raw json. Respond strictly with val
   const raw = await callChatCompletion(prompt);
   let cleaned = raw.trim();
 
-  // Strip potential markdown code fences
   if (cleaned.startsWith('```json')) {
     cleaned = cleaned.replace(/^```json\s*/, '').replace(/\s*```$/, '');
   } else if (cleaned.startsWith('```')) {
@@ -270,11 +335,10 @@ Do NOT wrap in markdown backticks other than raw json. Respond strictly with val
       phonetic: parsed.phonetic,
       partOfSpeech: parsed.partOfSpeech || 'term',
       definition: parsed.definition || 'Academic concept in scientific literature.',
-      translation: parsed.translation || cleanTerm,
+      translation: isRtl ? formatPersianAcademicText(parsed.translation || cleanTerm) : (parsed.translation || cleanTerm),
       academicContext: parsed.academicContext,
     };
   } catch {
-    // Fallback if model didn't return perfect JSON
     return {
       term: cleanTerm,
       partOfSpeech: 'term',
@@ -288,11 +352,11 @@ Do NOT wrap in markdown backticks other than raw json. Respond strictly with val
 /**
  * Native Speech Synthesis pronunciation helper
  */
-export function speakTerm(text: string): void {
+export function speakTerm(text: string, lang: string = 'en-US'): void {
   if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'en-US';
+    utterance.lang = lang;
     utterance.rate = 0.9;
     window.speechSynthesis.speak(utterance);
   }

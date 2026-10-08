@@ -32,7 +32,9 @@ import {
   SplitViewMode,
   SplitRatio,
   PageViewMode,
+  ParagraphTranslation,
 } from '@/components/PdfReader/types';
+import { extractParagraphsFromPage, extractParagraphsFromText } from '@/lib/pdf/pdfParagraphExtractor';
 import { PdfToolbar } from '@/components/PdfReader/PdfToolbar';
 import { PdfViewer } from '@/components/PdfReader/PdfViewer';
 import { PdfDocumentSidebar } from '@/components/PdfReader/PdfDocumentSidebar';
@@ -305,22 +307,36 @@ export default function PdfReaderPage() {
   // Bilingual & Linguistic State
   const [targetLanguage, setTargetLanguage] = useState<string>('Persian');
   const [currentPageText, setCurrentPageText] = useState<string>('');
+  const [bilingualSegments, setBilingualSegments] = useState<ParagraphTranslation[]>([]);
+  const [activeBilingualSectionId, setActiveBilingualSectionId] = useState<string | null>(null);
 
-  // Extract text of current page for Bilingual Mode
+  // Extract structured paragraphs of current page for synchronized Bilingual Mode
   useEffect(() => {
+    let isCancelled = false;
+
     if (docType === 'pdf' && pdfDoc) {
       pdfDoc
         .getPage(currentPage)
-        .then((page) => {
-          page.getTextContent().then((tc) => {
-            const str = tc.items.map((i: any) => ('str' in i ? i.str : '')).join(' ');
-            setCurrentPageText(str);
-          });
+        .then(async (page) => {
+          if (isCancelled) return;
+          const segments = await extractParagraphsFromPage(page, currentPage);
+          if (isCancelled) return;
+
+          setBilingualSegments(segments);
+          const fullText = segments.map((s) => s.original).join('\n\n');
+          setCurrentPageText(fullText);
         })
         .catch(() => {});
     } else if (markdownContent) {
-      setCurrentPageText(markdownContent.slice((currentPage - 1) * 2000, currentPage * 2000));
+      const slice = markdownContent.slice((currentPage - 1) * 2000, currentPage * 2000);
+      const segments = extractParagraphsFromText(slice, currentPage);
+      setBilingualSegments(segments);
+      setCurrentPageText(slice);
     }
+
+    return () => {
+      isCancelled = true;
+    };
   }, [docType, pdfDoc, currentPage, markdownContent]);
 
   // Save dictionary lookup term as concept card
@@ -1174,6 +1190,13 @@ export default function PdfReaderPage() {
                     isOcrLoading={isOcrLoading}
                     areaOcrActive={areaOcrActive}
                     onAreaOcrCrop={handleAreaOcrCrop}
+                    bilingualSegments={bilingualSegments}
+                    activeBilingualSectionId={activeBilingualSectionId}
+                    onHoverBilingualSection={(id) => setActiveBilingualSectionId(id)}
+                    onClickBilingualSection={(id) => {
+                      setActiveBilingualSectionId(id);
+                      setStudioTab('bilingual');
+                    }}
                   />
                 )}
 
@@ -1306,6 +1329,26 @@ export default function PdfReaderPage() {
               pageText={currentPageText}
               targetLanguage={targetLanguage}
               onTargetLanguageChange={(lang) => setTargetLanguage(lang)}
+              bilingualSegments={bilingualSegments}
+              activeBilingualSectionId={activeBilingualSectionId}
+              onHoverBilingualSection={(id) => setActiveBilingualSectionId(id)}
+              onClickBilingualSection={(id) => setActiveBilingualSectionId(id)}
+              onSaveConceptNote={(quote, trans) => {
+                const newCard: CanvasCard = {
+                  id: Date.now().toString(),
+                  documentId: meta?.id || 'doc',
+                  pageNumber: currentPage,
+                  type: 'concept',
+                  title: `Concept · Page ${currentPage}`,
+                  content: `**Excerpt**:\n"${quote}"\n\n**${targetLanguage} Translation**:\n${trans}`,
+                  quote: quote,
+                  color: 'cyan',
+                  tags: ['translation', targetLanguage.toLowerCase()],
+                  timestamp: Date.now(),
+                };
+                saveCards([newCard, ...cards]);
+                toast.success('Saved translation to Notes');
+              }}
               activeExcerpt={activeExcerpt}
               onClearExcerpt={() => setActiveExcerpt(null)}
               initialPrompt={initialAiPrompt}

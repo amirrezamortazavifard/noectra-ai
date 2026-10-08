@@ -10,6 +10,7 @@ import {
   DictionaryPopupState,
   DictionaryLookupResult,
   PageViewMode,
+  ParagraphTranslation,
 } from './types';
 import { StickyNote, Loader2, ScanLine, Crop } from 'lucide-react';
 import { toast } from 'sonner';
@@ -39,6 +40,10 @@ interface PdfViewerProps {
   isOcrLoading?: boolean;
   areaOcrActive?: boolean;
   onAreaOcrCrop?: (dataUrl: string, pageNumber: number) => void;
+  bilingualSegments?: ParagraphTranslation[];
+  activeBilingualSectionId?: string | null;
+  onHoverBilingualSection?: (id: string | null) => void;
+  onClickBilingualSection?: (id: string) => void;
 }
 
 interface PdfPageItemProps {
@@ -56,6 +61,10 @@ interface PdfPageItemProps {
   isOcrLoading?: boolean;
   areaOcrActive?: boolean;
   onAreaOcrCrop?: (dataUrl: string, pageNumber: number) => void;
+  bilingualSegments?: ParagraphTranslation[];
+  activeBilingualSectionId?: string | null;
+  onHoverBilingualSection?: (id: string | null) => void;
+  onClickBilingualSection?: (id: string) => void;
 }
 
 // Individual virtualized Page Item for smooth continuous multi-page rendering
@@ -75,6 +84,10 @@ const PdfPageItem: React.FC<PdfPageItemProps> = React.memo(
     isOcrLoading,
     areaOcrActive,
     onAreaOcrCrop,
+    bilingualSegments,
+    activeBilingualSectionId,
+    onHoverBilingualSection,
+    onClickBilingualSection,
   }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const textLayerRef = useRef<HTMLDivElement>(null);
@@ -82,6 +95,72 @@ const PdfPageItem: React.FC<PdfPageItemProps> = React.memo(
     const [pageSize, setPageSize] = useState<{ width: number; height: number }>(defaultSize);
     const [isRendering, setIsRendering] = useState(false);
     const [isScannedPage, setIsScannedPage] = useState(false);
+
+    // Active bilingual paragraph segment
+    const activeBilingualSection = useMemo(() => {
+      if (!activeBilingualSectionId || !bilingualSegments) return null;
+      return bilingualSegments.find((s) => s.id === activeBilingualSectionId) || null;
+    }, [activeBilingualSectionId, bilingualSegments]);
+
+    const handlePageMouseMove = useCallback(
+      (e: React.MouseEvent<HTMLDivElement>) => {
+        if (!bilingualSegments || bilingualSegments.length === 0 || !onHoverBilingualSection) return;
+        const rect = e.currentTarget.getBoundingClientRect();
+        const mouseXRel = (e.clientX - rect.left) / rect.width;
+        const mouseYRel = (e.clientY - rect.top) / rect.height;
+
+        const matched = bilingualSegments.find((seg) => {
+          if (!seg.rects || seg.rects.length === 0) return false;
+          return seg.rects.some(
+            (r) =>
+              mouseXRel >= r.x - 0.02 &&
+              mouseXRel <= r.x + r.width + 0.02 &&
+              mouseYRel >= r.y - 0.005 &&
+              mouseYRel <= r.y + r.height + 0.005
+          );
+        });
+
+        if (matched) {
+          if (activeBilingualSectionId !== matched.id) {
+            onHoverBilingualSection(matched.id);
+          }
+        } else if (activeBilingualSectionId) {
+          onHoverBilingualSection(null);
+        }
+      },
+      [bilingualSegments, activeBilingualSectionId, onHoverBilingualSection]
+    );
+
+    const handlePageMouseLeave = useCallback(() => {
+      if (activeBilingualSectionId && onHoverBilingualSection) {
+        onHoverBilingualSection(null);
+      }
+    }, [activeBilingualSectionId, onHoverBilingualSection]);
+
+    const handlePageClick = useCallback(
+      (e: React.MouseEvent<HTMLDivElement>) => {
+        if (!bilingualSegments || bilingualSegments.length === 0 || !onClickBilingualSection) return;
+        const rect = e.currentTarget.getBoundingClientRect();
+        const mouseXRel = (e.clientX - rect.left) / rect.width;
+        const mouseYRel = (e.clientY - rect.top) / rect.height;
+
+        const matched = bilingualSegments.find((seg) => {
+          if (!seg.rects || seg.rects.length === 0) return false;
+          return seg.rects.some(
+            (r) =>
+              mouseXRel >= r.x - 0.02 &&
+              mouseXRel <= r.x + r.width + 0.02 &&
+              mouseYRel >= r.y - 0.005 &&
+              mouseYRel <= r.y + r.height + 0.005
+          );
+        });
+
+        if (matched) {
+          onClickBilingualSection(matched.id);
+        }
+      },
+      [bilingualSegments, onClickBilingualSection]
+    );
 
     // Area Snipping State
     const [isSnipping, setIsSnipping] = useState(false);
@@ -266,6 +345,9 @@ const PdfPageItem: React.FC<PdfPageItemProps> = React.memo(
     return (
       <div
         data-page-number={pageNumber}
+        onMouseMove={handlePageMouseMove}
+        onMouseLeave={handlePageMouseLeave}
+        onClick={handlePageClick}
         className="pdf-page-wrapper relative my-3 shadow-2xl shadow-black/15 dark:shadow-2xl dark:shadow-black/90 rounded-md bg-white border border-light-200 dark:border-white/10 transition-all select-text shrink-0"
         style={{
           width: `${pageSize.width}px`,
@@ -414,6 +496,42 @@ const PdfPageItem: React.FC<PdfPageItemProps> = React.memo(
               })}
             </div>
 
+            {/* Active Synchronized Bilingual Section Highlight Layer */}
+            {activeBilingualSection &&
+              activeBilingualSection.rects &&
+              activeBilingualSection.rects.length > 0 && (
+                <div className="absolute inset-0 pointer-events-none rounded-md overflow-visible z-15">
+                  {/* Floating Indicator Badge on PDF Left Margin */}
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: `${Math.max(1, activeBilingualSection.rects[0].y * 100)}%`,
+                      left: `${Math.max(0, activeBilingualSection.rects[0].x * 100 - 1.5)}%`,
+                    }}
+                    className="pointer-events-none -translate-x-full -translate-y-1.5 z-30 flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-gradient-to-r from-sky-500 via-indigo-600 to-purple-600 text-white shadow-xl shadow-sky-500/40 text-[10px] font-bold animate-in fade-in zoom-in-90 duration-150 select-none"
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-300 animate-ping" />
+                    <span>§ {activeBilingualSection.index}</span>
+                    <span className="text-[9px] font-medium opacity-90 hidden sm:inline">Translation Sync</span>
+                  </div>
+
+                  {/* High-visibility line stripes with active glow animation */}
+                  {activeBilingualSection.rects.map((r, rIdx) => (
+                    <div
+                      key={`active-bi-${activeBilingualSection.id}-${rIdx}`}
+                      style={{
+                        position: 'absolute',
+                        left: `${r.x * 100}%`,
+                        top: `${r.y * 100}%`,
+                        width: `${r.width * 100}%`,
+                        height: `${r.height * 100}%`,
+                      }}
+                      className="bilingual-stripe-active rounded-xs bg-sky-400/25 dark:bg-sky-400/35 border-b-2 border-sky-400 dark:border-sky-300 transition-all duration-150"
+                    />
+                  ))}
+                </div>
+              )}
+
             {/* Floating Margin Callout Pins on Canvas Right Edge */}
             <div className="absolute -right-7 top-0 bottom-0 w-6 pointer-events-none select-none">
               {sortedHighlights.map((hl) => {
@@ -500,9 +618,50 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
   isOcrLoading,
   areaOcrActive,
   onAreaOcrCrop,
+  bilingualSegments,
+  activeBilingualSectionId,
+  onHoverBilingualSection,
+  onClickBilingualSection,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const isProgrammaticScroll = useRef<boolean>(false);
+
+  // Smoothly scroll to active bilingual section if selected and out of view
+  useEffect(() => {
+    if (!activeBilingualSectionId || !bilingualSegments || !containerRef.current) return;
+    const seg = bilingualSegments.find((s) => s.id === activeBilingualSectionId);
+    if (!seg || seg.anchorY === undefined) return;
+
+    const pageNum = seg.pageNumber || currentPage;
+    const pageEl = containerRef.current.querySelector<HTMLElement>(`[data-page-number="${pageNum}"]`);
+    if (!pageEl) return;
+
+    const containerRect = containerRef.current.getBoundingClientRect();
+    const pageRect = pageEl.getBoundingClientRect();
+    const targetYInContainer = pageRect.top + (seg.anchorY / 100) * pageRect.height;
+
+    const isOutOfView =
+      targetYInContainer < containerRect.top + 70 ||
+      targetYInContainer > containerRect.bottom - 90;
+
+    if (isOutOfView) {
+      isProgrammaticScroll.current = true;
+      const targetScrollTop =
+        containerRef.current.scrollTop +
+        (targetYInContainer - containerRect.top) -
+        containerRef.current.clientHeight / 3;
+
+      containerRef.current.scrollTo({
+        top: Math.max(0, targetScrollTop),
+        behavior: 'smooth',
+      });
+
+      const timer = setTimeout(() => {
+        isProgrammaticScroll.current = false;
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [activeBilingualSectionId, bilingualSegments, currentPage]);
 
   const [dictionaryState, setDictionaryState] = useState<DictionaryPopupState | null>(null);
   const [dictionaryEngine, setDictionaryEngine] = useState<TranslationEngine>(
@@ -789,6 +948,10 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
               isOcrLoading={isOcrLoading}
               areaOcrActive={areaOcrActive}
               onAreaOcrCrop={onAreaOcrCrop}
+              bilingualSegments={pNum === currentPage ? bilingualSegments : []}
+              activeBilingualSectionId={activeBilingualSectionId}
+              onHoverBilingualSection={onHoverBilingualSection}
+              onClickBilingualSection={onClickBilingualSection}
             />
           ))}
       </div>

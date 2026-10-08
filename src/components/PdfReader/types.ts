@@ -100,6 +100,9 @@ export interface ParagraphTranslation {
   index: number;
   original: string;
   translated: string;
+  pageNumber?: number;
+  rects?: HighlightRect[];
+  anchorY?: number;
 }
 
 export interface DictionaryLookupResult {
