@@ -109,29 +109,38 @@ async function callChatCompletion(prompt: string): Promise<string> {
 }
 
 /**
+ * Helper to check if a string contains Persian/Arabic unicode characters
+ */
+function hasPersianArabicLetters(text: string): boolean {
+  return /[\u0600-\u06FF]/.test(text);
+}
+
+/**
  * Translate a single section independently (for on-demand retranslation)
  */
 export async function translateSingleSection(
   text: string,
   targetLang: string = 'Persian',
-  engine: TranslationEngine = 'ai',
+  engine: TranslationEngine = 'google',
   docTitle?: string,
   sourceLang: string = 'English'
 ): Promise<string> {
   const clean = cleanPdfTextFragment(text);
   if (!clean) return '';
 
+  const isRtl = isRtlLanguage(targetLang);
+
   if (engine === 'google') {
-    return translateWithGoogle(clean, targetLang, sourceLang);
+    const res = await translateWithGoogle(clean, targetLang, sourceLang);
+    return isRtl ? formatPersianAcademicText(res) : res;
   }
 
   const targetName = getLanguageName(targetLang);
   const sourceName = getLanguageName(sourceLang);
-  const isRtl = isRtlLanguage(targetLang);
 
   const prompt = `You are a world-class academic translator specializing in scientific and technical papers.
 Translate the following excerpt from ${sourceName} into natural, highly fluent, publication-grade academic ${targetName}.
-${isRtl ? 'Write in fluent, modern academic Persian (فارسی روان و دانشگاهی). Use proper Persian semi-spaces (نیم‌فاصله) where appropriate. Keep acronyms, citations, and formulas intact.' : ''}
+${isRtl ? 'Write in fluent, modern academic Persian (فارسی روان و دانشگاهی). Use proper Persian semi-spaces (نیم‌فاصله) where appropriate. Translate names, captions, and context faithfully.' : ''}
 ${docTitle ? `Context Paper Title: "${docTitle}"\n` : ''}
 
 Source excerpt:
@@ -139,9 +148,18 @@ Source excerpt:
 
 Respond ONLY with the direct translation text. Do not wrap in quotes or add conversational commentary.`;
 
-  const raw = await callChatCompletion(prompt);
-  const cleaned = raw.trim().replace(/^["']|["']$/g, '');
-  return isRtl ? formatPersianAcademicText(cleaned) : cleaned;
+  try {
+    const raw = await callChatCompletion(prompt);
+    let cleaned = raw.trim().replace(/^["']|["']$/g, '');
+    if (isRtl && !hasPersianArabicLetters(cleaned)) {
+      cleaned = await translateWithGoogle(clean, targetLang, sourceLang);
+    }
+    return isRtl ? formatPersianAcademicText(cleaned) : cleaned;
+  } catch (err) {
+    console.warn('AI single section translation failed, falling back to Google Translate:', err);
+    const gFallback = await translateWithGoogle(clean, targetLang, sourceLang);
+    return isRtl ? formatPersianAcademicText(gFallback) : gFallback;
+  }
 }
 
 /**
@@ -152,7 +170,7 @@ export async function translatePageContent(
   paragraphs: (string | ParagraphTranslation)[],
   targetLang: string = 'Persian',
   docTitle?: string,
-  engine: TranslationEngine = 'ai',
+  engine: TranslationEngine = 'google',
   sourceLang: string = 'English'
 ): Promise<ParagraphTranslation[]> {
   if (paragraphs.length === 0) return [];
@@ -204,19 +222,20 @@ export async function translatePageContent(
   }
 
   // 2. AI Model engine (Academic contextual translation)
-  const targetName = getLanguageName(targetLang);
-  const sourceName = getLanguageName(sourceLang);
+  try {
+    const targetName = getLanguageName(targetLang);
+    const sourceName = getLanguageName(sourceLang);
 
-  const numberedText = normalized
-    .map((p, idx) => `[P${idx + 1}] ${p.original}`)
-    .join('\n\n');
+    const numberedText = normalized
+      .map((p, idx) => `[P${idx + 1}] ${p.original}`)
+      .join('\n\n');
 
-  const prompt = `You are an elite academic translator specializing in scientific literature.
+    const prompt = `You are an elite academic translator specializing in scientific literature.
 Translate the following numbered paragraphs from ${sourceName} into natural, highly fluent, publication-grade academic ${targetName}.
 Preserve technical accuracy and academic tone. Maintain the numbering format strictly.
 ${
   isRtl
-    ? 'For Persian: Write in natural, publication-grade academic Persian (فارسی روان و دانشگاهی). Use proper semi-spaces (نیم‌فاصله) for prefixes like "می/نمی" and plural suffixes like "ها". Keep technical acronyms, variables, and references intact.'
+    ? 'For Persian: Write in natural, publication-grade academic Persian (فارسی روان و دانشگاهی). Use proper semi-spaces (نیم‌فاصله) for prefixes like "می/نمی" and plural suffixes like "ها". Translate author names, figure labels, and academic terms into fluent Persian.'
     : ''
 }
 
@@ -229,42 +248,72 @@ Format your output strictly with matching tags for each paragraph:
 [P2] Translation here...
 Do not include any conversational preamble or outro.`;
 
-  const rawOutput = await callChatCompletion(prompt);
+    const rawOutput = await callChatCompletion(prompt);
 
-  const results: ParagraphTranslation[] = [];
-  const lines = rawOutput.split(/\[P\d+\]/i);
+    const results: ParagraphTranslation[] = [];
+    const lines = rawOutput.split(/\[P\d+\]/i);
 
-  if (lines.length > 1) {
-    for (let i = 0; i < normalized.length; i++) {
-      let translatedChunk = lines[i + 1]?.trim() || '';
-      if (isRtl) {
-        translatedChunk = formatPersianAcademicText(translatedChunk);
+    if (lines.length > 1) {
+      for (let i = 0; i < normalized.length; i++) {
+        let translatedChunk = lines[i + 1]?.trim() || '';
+        if (isRtl && translatedChunk) {
+          translatedChunk = formatPersianAcademicText(translatedChunk);
+        }
+        results.push({
+          ...normalized[i],
+          translated: translatedChunk,
+        });
       }
-      results.push({
-        ...normalized[i],
-        translated: translatedChunk || normalized[i].original,
-      });
-    }
-  } else {
-    // Fallback: split by double newlines
-    const fallbackLines = rawOutput
-      .split('\n\n')
-      .map((l) => l.replace(/^\[P\d+\]\s*/i, '').trim())
-      .filter(Boolean);
+    } else {
+      // Fallback: split by double newlines
+      const fallbackLines = rawOutput
+        .split('\n\n')
+        .map((l) => l.replace(/^\[P\d+\]\s*/i, '').trim())
+        .filter(Boolean);
 
-    for (let i = 0; i < normalized.length; i++) {
-      let t = fallbackLines[i] || rawOutput || normalized[i].original;
-      if (isRtl) {
-        t = formatPersianAcademicText(t);
+      for (let i = 0; i < normalized.length; i++) {
+        let t = fallbackLines[i] || '';
+        if (isRtl && t) {
+          t = formatPersianAcademicText(t);
+        }
+        results.push({
+          ...normalized[i],
+          translated: t,
+        });
       }
-      results.push({
-        ...normalized[i],
-        translated: t,
-      });
     }
+
+    // Fail-Safe: For any item where AI failed to produce translation or returned non-RTL text when RTL is expected,
+    // automatically fallback to Google Translate for that specific item.
+    const finalResults = await Promise.all(
+      results.map(async (item) => {
+        const needsFallback = !item.translated || (isRtl && !hasPersianArabicLetters(item.translated));
+        if (needsFallback) {
+          try {
+            let gTrans = await translateWithGoogle(item.original, targetLang, sourceLang);
+            if (isRtl) {
+              gTrans = formatPersianAcademicText(gTrans);
+            }
+            return {
+              ...item,
+              translated: gTrans || item.original,
+            };
+          } catch {
+            return {
+              ...item,
+              translated: item.translated || item.original,
+            };
+          }
+        }
+        return item;
+      })
+    );
+
+    return finalResults;
+  } catch (err) {
+    console.warn('AI translation engine failed entirely, executing Google Translate fallback:', err);
+    return translatePageContent(paragraphs, targetLang, docTitle, 'google', sourceLang);
   }
-
-  return results;
 }
 
 /**
