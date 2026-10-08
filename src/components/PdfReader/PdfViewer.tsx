@@ -41,6 +41,7 @@ interface PdfViewerProps {
   areaOcrActive?: boolean;
   onAreaOcrCrop?: (dataUrl: string, pageNumber: number) => void;
   bilingualSegments?: ParagraphTranslation[];
+  isBilingualActive?: boolean;
   activeBilingualSectionId?: string | null;
   onHoverBilingualSection?: (id: string | null) => void;
   onClickBilingualSection?: (id: string) => void;
@@ -62,6 +63,7 @@ interface PdfPageItemProps {
   areaOcrActive?: boolean;
   onAreaOcrCrop?: (dataUrl: string, pageNumber: number) => void;
   bilingualSegments?: ParagraphTranslation[];
+  isBilingualActive?: boolean;
   activeBilingualSectionId?: string | null;
   onHoverBilingualSection?: (id: string | null) => void;
   onClickBilingualSection?: (id: string) => void;
@@ -85,6 +87,7 @@ const PdfPageItem: React.FC<PdfPageItemProps> = React.memo(
     areaOcrActive,
     onAreaOcrCrop,
     bilingualSegments,
+    isBilingualActive = false,
     activeBilingualSectionId,
     onHoverBilingualSection,
     onClickBilingualSection,
@@ -96,15 +99,15 @@ const PdfPageItem: React.FC<PdfPageItemProps> = React.memo(
     const [isRendering, setIsRendering] = useState(false);
     const [isScannedPage, setIsScannedPage] = useState(false);
 
-    // Active bilingual paragraph segment
+    // Active bilingual paragraph segment - only compute when bilingual mode is active
     const activeBilingualSection = useMemo(() => {
-      if (!activeBilingualSectionId || !bilingualSegments) return null;
+      if (!isBilingualActive || !activeBilingualSectionId || !bilingualSegments) return null;
       return bilingualSegments.find((s) => s.id === activeBilingualSectionId) || null;
-    }, [activeBilingualSectionId, bilingualSegments]);
+    }, [isBilingualActive, activeBilingualSectionId, bilingualSegments]);
 
     const handlePageMouseMove = useCallback(
       (e: React.MouseEvent<HTMLDivElement>) => {
-        if (!bilingualSegments || bilingualSegments.length === 0 || !onHoverBilingualSection) return;
+        if (!isBilingualActive || !bilingualSegments || bilingualSegments.length === 0 || !onHoverBilingualSection) return;
         const rect = e.currentTarget.getBoundingClientRect();
         const mouseXRel = (e.clientX - rect.left) / rect.width;
         const mouseYRel = (e.clientY - rect.top) / rect.height;
@@ -128,18 +131,19 @@ const PdfPageItem: React.FC<PdfPageItemProps> = React.memo(
           onHoverBilingualSection(null);
         }
       },
-      [bilingualSegments, activeBilingualSectionId, onHoverBilingualSection]
+      [isBilingualActive, bilingualSegments, activeBilingualSectionId, onHoverBilingualSection]
     );
 
     const handlePageMouseLeave = useCallback(() => {
+      if (!isBilingualActive) return;
       if (activeBilingualSectionId && onHoverBilingualSection) {
         onHoverBilingualSection(null);
       }
-    }, [activeBilingualSectionId, onHoverBilingualSection]);
+    }, [isBilingualActive, activeBilingualSectionId, onHoverBilingualSection]);
 
     const handlePageClick = useCallback(
       (e: React.MouseEvent<HTMLDivElement>) => {
-        if (!bilingualSegments || bilingualSegments.length === 0 || !onClickBilingualSection) return;
+        if (!isBilingualActive || !bilingualSegments || bilingualSegments.length === 0 || !onClickBilingualSection) return;
         const rect = e.currentTarget.getBoundingClientRect();
         const mouseXRel = (e.clientX - rect.left) / rect.width;
         const mouseYRel = (e.clientY - rect.top) / rect.height;
@@ -496,8 +500,9 @@ const PdfPageItem: React.FC<PdfPageItemProps> = React.memo(
               })}
             </div>
 
-            {/* Active Synchronized Bilingual Section Highlight Layer */}
-            {activeBilingualSection &&
+            {/* Active Synchronized Bilingual Section Highlight Layer (Only when Bilingual Mode is active) */}
+            {isBilingualActive &&
+              activeBilingualSection &&
               activeBilingualSection.rects &&
               activeBilingualSection.rects.length > 0 && (
                 <div className="absolute inset-0 pointer-events-none rounded-md overflow-visible z-15">
@@ -619,6 +624,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
   areaOcrActive,
   onAreaOcrCrop,
   bilingualSegments,
+  isBilingualActive = false,
   activeBilingualSectionId,
   onHoverBilingualSection,
   onClickBilingualSection,
@@ -628,7 +634,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
 
   // Smoothly scroll to active bilingual section if selected and out of view
   useEffect(() => {
-    if (!activeBilingualSectionId || !bilingualSegments || !containerRef.current) return;
+    if (!isBilingualActive || !activeBilingualSectionId || !bilingualSegments || !containerRef.current) return;
     const seg = bilingualSegments.find((s) => s.id === activeBilingualSectionId);
     if (!seg || seg.anchorY === undefined) return;
 
@@ -948,8 +954,9 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
               isOcrLoading={isOcrLoading}
               areaOcrActive={areaOcrActive}
               onAreaOcrCrop={onAreaOcrCrop}
-              bilingualSegments={pNum === currentPage ? bilingualSegments : []}
-              activeBilingualSectionId={activeBilingualSectionId}
+              bilingualSegments={isBilingualActive && pNum === currentPage ? bilingualSegments : []}
+              isBilingualActive={isBilingualActive}
+              activeBilingualSectionId={isBilingualActive ? activeBilingualSectionId : null}
               onHoverBilingualSection={onHoverBilingualSection}
               onClickBilingualSection={onClickBilingualSection}
             />

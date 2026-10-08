@@ -314,6 +314,13 @@ export default function PdfReaderPage() {
     () => (localStorage.getItem('pdf_segmentation_mode') as TranslationSegmentationMode) || 'paragraph'
   );
 
+  // Clear active bilingual highlight when bilingual mode is not active
+  useEffect(() => {
+    if (studioTab !== 'bilingual') {
+      setActiveBilingualSectionId(null);
+    }
+  }, [studioTab]);
+
   // Extract structured paragraphs of current page for synchronized Bilingual Mode
   useEffect(() => {
     let isCancelled = false;
@@ -1194,12 +1201,18 @@ export default function PdfReaderPage() {
                     isOcrLoading={isOcrLoading}
                     areaOcrActive={areaOcrActive}
                     onAreaOcrCrop={handleAreaOcrCrop}
-                    bilingualSegments={bilingualSegments}
-                    activeBilingualSectionId={activeBilingualSectionId}
-                    onHoverBilingualSection={(id) => setActiveBilingualSectionId(id)}
+                    bilingualSegments={studioTab === 'bilingual' ? bilingualSegments : []}
+                    isBilingualActive={Boolean(studioTab === 'bilingual')}
+                    activeBilingualSectionId={studioTab === 'bilingual' ? activeBilingualSectionId : null}
+                    onHoverBilingualSection={(id) => {
+                      if (studioTab === 'bilingual') {
+                        setActiveBilingualSectionId(id);
+                      }
+                    }}
                     onClickBilingualSection={(id) => {
-                      setActiveBilingualSectionId(id);
-                      setStudioTab('bilingual');
+                      if (studioTab === 'bilingual') {
+                        setActiveBilingualSectionId(id);
+                      }
                     }}
                   />
                 )}
