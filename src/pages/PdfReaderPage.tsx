@@ -33,6 +33,7 @@ import {
   SplitRatio,
   PageViewMode,
   ParagraphTranslation,
+  TranslationSegmentationMode,
 } from '@/components/PdfReader/types';
 import { extractParagraphsFromPage, extractParagraphsFromText } from '@/lib/pdf/pdfParagraphExtractor';
 import { PdfToolbar } from '@/components/PdfReader/PdfToolbar';
@@ -309,6 +310,9 @@ export default function PdfReaderPage() {
   const [currentPageText, setCurrentPageText] = useState<string>('');
   const [bilingualSegments, setBilingualSegments] = useState<ParagraphTranslation[]>([]);
   const [activeBilingualSectionId, setActiveBilingualSectionId] = useState<string | null>(null);
+  const [segmentationMode, setSegmentationMode] = useState<TranslationSegmentationMode>(
+    () => (localStorage.getItem('pdf_segmentation_mode') as TranslationSegmentationMode) || 'paragraph'
+  );
 
   // Extract structured paragraphs of current page for synchronized Bilingual Mode
   useEffect(() => {
@@ -319,7 +323,7 @@ export default function PdfReaderPage() {
         .getPage(currentPage)
         .then(async (page) => {
           if (isCancelled) return;
-          const segments = await extractParagraphsFromPage(page, currentPage);
+          const segments = await extractParagraphsFromPage(page, currentPage, segmentationMode);
           if (isCancelled) return;
 
           setBilingualSegments(segments);
@@ -329,7 +333,7 @@ export default function PdfReaderPage() {
         .catch(() => {});
     } else if (markdownContent) {
       const slice = markdownContent.slice((currentPage - 1) * 2000, currentPage * 2000);
-      const segments = extractParagraphsFromText(slice, currentPage);
+      const segments = extractParagraphsFromText(slice, currentPage, segmentationMode);
       setBilingualSegments(segments);
       setCurrentPageText(slice);
     }
@@ -337,7 +341,7 @@ export default function PdfReaderPage() {
     return () => {
       isCancelled = true;
     };
-  }, [docType, pdfDoc, currentPage, markdownContent]);
+  }, [docType, pdfDoc, currentPage, markdownContent, segmentationMode]);
 
   // Save dictionary lookup term as concept card
   const handleSaveDictionaryCard = (res: DictionaryLookupResult) => {
@@ -1330,6 +1334,11 @@ export default function PdfReaderPage() {
               targetLanguage={targetLanguage}
               onTargetLanguageChange={(lang) => setTargetLanguage(lang)}
               bilingualSegments={bilingualSegments}
+              segmentationMode={segmentationMode}
+              onSegmentationModeChange={(mode) => {
+                setSegmentationMode(mode);
+                localStorage.setItem('pdf_segmentation_mode', mode);
+              }}
               activeBilingualSectionId={activeBilingualSectionId}
               onHoverBilingualSection={(id) => setActiveBilingualSectionId(id)}
               onClickBilingualSection={(id) => setActiveBilingualSectionId(id)}

@@ -5,6 +5,7 @@ import {
   HIGHLIGHT_COLORS,
   PdfDocumentMeta,
   ParagraphTranslation,
+  TranslationSegmentationMode,
 } from './types';
 import { PdfAiPanel } from './PdfAiPanel';
 import {
@@ -67,6 +68,8 @@ interface RightStudioPanelProps {
   targetLanguage: string;
   onTargetLanguageChange: (lang: string) => void;
   bilingualSegments?: ParagraphTranslation[];
+  segmentationMode?: TranslationSegmentationMode;
+  onSegmentationModeChange?: (mode: TranslationSegmentationMode) => void;
   activeBilingualSectionId?: string | null;
   onHoverBilingualSection?: (id: string | null) => void;
   onClickBilingualSection?: (id: string) => void;
@@ -111,6 +114,8 @@ export const RightStudioPanel: React.FC<RightStudioPanelProps> = ({
   targetLanguage,
   onTargetLanguageChange,
   bilingualSegments,
+  segmentationMode = 'paragraph',
+  onSegmentationModeChange,
   activeBilingualSectionId,
   onHoverBilingualSection,
   onClickBilingualSection,
@@ -174,7 +179,7 @@ export const RightStudioPanel: React.FC<RightStudioPanelProps> = ({
     if (!isOpen || activeTab !== 'bilingual') return;
     if (!pageText && (!bilingualSegments || bilingualSegments.length === 0)) return;
 
-    const cacheKey = `pdf_trans_${meta?.title || meta?.name || 'doc'}_p${currentPage}_${targetLanguage}_${translationEngine}`;
+    const cacheKey = `pdf_trans_${meta?.title || meta?.name || 'doc'}_p${currentPage}_${targetLanguage}_${translationEngine}_${segmentationMode}`;
     const cached = localStorage.getItem(cacheKey);
     if (cached) {
       try {
@@ -197,6 +202,7 @@ export const RightStudioPanel: React.FC<RightStudioPanelProps> = ({
     currentPage,
     targetLanguage,
     translationEngine,
+    segmentationMode,
     isOpen,
     activeTab,
     pageText,
@@ -215,7 +221,7 @@ export const RightStudioPanel: React.FC<RightStudioPanelProps> = ({
       return;
     }
 
-    const cacheKey = `pdf_trans_${meta?.title || meta?.name || 'doc'}_p${currentPage}_${targetLanguage}_${activeEngine}`;
+    const cacheKey = `pdf_trans_${meta?.title || meta?.name || 'doc'}_p${currentPage}_${targetLanguage}_${activeEngine}_${segmentationMode}`;
     if (!force) {
       const cached = localStorage.getItem(cacheKey);
       if (cached) {
@@ -642,6 +648,36 @@ export const RightStudioPanel: React.FC<RightStudioPanelProps> = ({
                 >
                   <Globe size={11} />
                   <span>Google</span>
+                </button>
+              </div>
+
+              {/* Granularity Toggle: Paragraph ¶ vs Sentence 🔤 */}
+              <div className="flex items-center bg-light-secondary dark:bg-white/5 border border-light-200 dark:border-white/10 rounded-lg p-0.5 text-[11px]">
+                <button
+                  type="button"
+                  onClick={() => onSegmentationModeChange?.('paragraph')}
+                  title="Translate by Paragraphs (Contextual reading flow)"
+                  className={`flex items-center gap-1 px-2 py-0.5 rounded-md transition-all ${
+                    segmentationMode === 'paragraph'
+                      ? 'bg-sky-500 text-white font-semibold shadow-xs'
+                      : 'text-black/60 dark:text-white/60 hover:text-black dark:hover:text-white'
+                  }`}
+                >
+                  <span className="font-serif font-bold text-xs">¶</span>
+                  <span className="hidden sm:inline">Paragraph</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onSegmentationModeChange?.('sentence')}
+                  title="Translate by Sentences (High-precision line-by-line alignment)"
+                  className={`flex items-center gap-1 px-2 py-0.5 rounded-md transition-all ${
+                    segmentationMode === 'sentence'
+                      ? 'bg-sky-500 text-white font-semibold shadow-xs'
+                      : 'text-black/60 dark:text-white/60 hover:text-black dark:hover:text-white'
+                  }`}
+                >
+                  <span className="font-sans font-bold text-[10px]">A-Z</span>
+                  <span className="hidden sm:inline">Sentence</span>
                 </button>
               </div>
             </div>

@@ -95,6 +95,8 @@ export interface PdfChatSession {
   scope?: 'page' | 'document';
 }
 
+export type TranslationSegmentationMode = 'paragraph' | 'sentence';
+
 export interface ParagraphTranslation {
   id: string;
   index: number;
