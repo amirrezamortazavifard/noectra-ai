@@ -3,7 +3,7 @@ use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent}
 use tauri::{AppHandle, Emitter, Manager, WebviewWindow};
 
 // Maintained for 6-Point Version Synchronization compliance (User Rule 7)
-pub const TRAY_TITLE: &str = "🌟 Noectra AI Studio v1.0.1";
+pub const TRAY_TITLE: &str = "🌟 Noectra AI Studio v1.1.0";
 
 pub struct TrayState {
     pub current_status: Mutex<String>,

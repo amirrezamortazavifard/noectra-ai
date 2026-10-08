@@ -31,7 +31,7 @@ export default defineConfig({
   envPrefix: ['VITE_', 'TAURI_ENV_*'],
   define: {
     'process.env': {
-      NEXT_PUBLIC_VERSION: JSON.stringify('1.0.1'),
+      NEXT_PUBLIC_VERSION: JSON.stringify('1.1.0'),
     },
   },
 });
