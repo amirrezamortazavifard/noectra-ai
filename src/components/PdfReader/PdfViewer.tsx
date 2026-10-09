@@ -504,38 +504,60 @@ const PdfPageItem: React.FC<PdfPageItemProps> = React.memo(
             {isBilingualActive &&
               activeBilingualSection &&
               activeBilingualSection.rects &&
-              activeBilingualSection.rects.length > 0 && (
-                <div className="absolute inset-0 pointer-events-none rounded-md overflow-visible z-15">
-                  {/* Floating Indicator Badge on PDF Left Margin */}
-                  <div
-                    style={{
-                      position: 'absolute',
-                      top: `${Math.max(1, activeBilingualSection.rects[0].y * 100)}%`,
-                      left: `${Math.max(0, activeBilingualSection.rects[0].x * 100 - 1.5)}%`,
-                    }}
-                    className="pointer-events-none -translate-x-full -translate-y-1.5 z-30 flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-gradient-to-r from-sky-500 via-indigo-600 to-purple-600 text-white shadow-xl shadow-sky-500/40 text-[10px] font-bold animate-in fade-in zoom-in-90 duration-150 select-none"
-                  >
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-300 animate-ping" />
-                    <span>§ {activeBilingualSection.index}</span>
-                    <span className="text-[9px] font-medium opacity-90 hidden sm:inline">Translation Sync</span>
-                  </div>
+              activeBilingualSection.rects.length > 0 && (() => {
+                const rects = activeBilingualSection.rects;
+                const minX = Math.min(...rects.map((r) => r.x));
+                const minY = Math.min(...rects.map((r) => r.y));
+                const maxY = Math.max(...rects.map((r) => r.y + r.height));
 
-                  {/* High-visibility line stripes with active glow animation */}
-                  {activeBilingualSection.rects.map((r, rIdx) => (
+                return (
+                  <div className="absolute inset-0 pointer-events-none rounded-md overflow-visible z-15">
+                    {/* Minimalist Floating Indicator Tag (positioned above the active paragraph, within its column) */}
                     <div
-                      key={`active-bi-${activeBilingualSection.id}-${rIdx}`}
                       style={{
                         position: 'absolute',
-                        left: `${r.x * 100}%`,
-                        top: `${r.y * 100}%`,
-                        width: `${r.width * 100}%`,
-                        height: `${r.height * 100}%`,
+                        top: `${Math.max(0.4, minY * 100 - 2.5)}%`,
+                        left: `${minX * 100}%`,
                       }}
-                      className="bilingual-stripe-active rounded-xs bg-sky-400/25 dark:bg-sky-400/35 border-b-2 border-sky-400 dark:border-sky-300 transition-all duration-150"
+                      className="pointer-events-none z-30 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gradient-to-r from-sky-500 to-indigo-600 text-white shadow-md text-[9px] font-semibold tracking-wide animate-in fade-in zoom-in-95 duration-150 select-none"
+                    >
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-300 animate-pulse" />
+                      <span>§ {activeBilingualSection.index}</span>
+                      <span className="text-[8px] opacity-80 font-normal hidden sm:inline">Sync</span>
+                    </div>
+
+                    {/* Subtle Left Accent Rail indicating active paragraph bounds in whitespace */}
+                    <div
+                      style={{
+                        position: 'absolute',
+                        left: `${Math.max(0, minX * 100 - 0.8)}%`,
+                        top: `${minY * 100}%`,
+                        width: '3px',
+                        height: `${Math.max(0.5, (maxY - minY) * 100)}%`,
+                      }}
+                      className="pointer-events-none rounded-full bg-gradient-to-b from-sky-400 via-indigo-500 to-sky-400 opacity-75"
                     />
-                  ))}
-                </div>
-              )}
+
+                    {/* Optical Multiplied Academic Highlighter Stripes */}
+                    {rects.map((r, rIdx) => (
+                      <div
+                        key={`active-bi-${activeBilingualSection.id}-${rIdx}`}
+                        style={{
+                          position: 'absolute',
+                          left: `${r.x * 100}%`,
+                          top: `${r.y * 100}%`,
+                          width: `${r.width * 100}%`,
+                          height: `${r.height * 100}%`,
+                          backgroundColor: 'rgba(56, 189, 248, 0.20)',
+                          mixBlendMode: 'multiply',
+                          borderRadius: '2px',
+                        }}
+                        className="bilingual-stripe-active pointer-events-none transition-all duration-150"
+                      />
+                    ))}
+                  </div>
+                );
+              })()}
 
             {/* Floating Margin Callout Pins on Canvas Right Edge */}
             <div className="absolute -right-7 top-0 bottom-0 w-6 pointer-events-none select-none">
