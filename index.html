@@ -20,6 +20,27 @@
             if (meta) meta.setAttribute('content', '#ffffff');
           }
         } catch(e) {}
+
+        // Enforce native desktop app feel: disable default web browser context menu
+        window.addEventListener('contextmenu', function(e) {
+          e.preventDefault();
+        }, { capture: true });
+
+        // Disable browser-specific devtools and reload keys (F12, Inspect, Reload, View Source, Print)
+        window.addEventListener('keydown', function(e) {
+          var isCtrlOrCmd = e.ctrlKey || e.metaKey;
+          var key = e.key;
+
+          if (
+            key === 'F12' ||
+            (isCtrlOrCmd && e.shiftKey && (key === 'I' || key === 'i' || key === 'J' || key === 'j' || key === 'C' || key === 'c')) ||
+            (isCtrlOrCmd && (key === 'u' || key === 'U' || key === 'r' || key === 'R' || key === 'p' || key === 'P')) ||
+            (!isCtrlOrCmd && key === 'F5')
+          ) {
+            e.preventDefault();
+            e.stopPropagation();
+          }
+        }, { capture: true });
       })();
     </script>
   </head>
