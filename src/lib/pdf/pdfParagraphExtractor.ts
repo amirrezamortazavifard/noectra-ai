@@ -40,6 +40,8 @@ export interface ColumnZone {
 /**
  * Detect text columns using Harumi-inspired X-density histogram projection.
  * Discretizes horizontal space into fine buckets and locates unoccupied gaps (gutters).
+ * Uses density-weighted thresholding to prevent single stray characters (like page numbers
+ * in footers) from fragmenting or destroying real column gutters.
  */
 export function detectTextColumns(
   items: ItemBox[],
@@ -47,26 +49,38 @@ export function detectTextColumns(
 ): ColumnZone[] {
   if (items.length === 0) return [{ xStart: 0, xEnd: 1.0 }];
 
+  // Exclude single running headers/footers (e.g. standalone page number at bottom center)
+  const contentItems = items.filter((it) => {
+    const isFooterNoise = it.top > 0.93 && it.str.trim().length <= 6;
+    const isHeaderNoise = it.top < 0.04 && it.str.trim().length <= 6;
+    return !isFooterNoise && !isHeaderNoise;
+  });
+
   const BUCKET_SIZE = 0.005; // 0.5% page width (~3 pt per bucket)
   const numBuckets = Math.ceil(1.0 / BUCKET_SIZE) + 1;
-  const occupied = new Uint8Array(numBuckets);
+  const bucketCounts = new Int32Array(numBuckets);
 
-  for (const item of items) {
+  for (const item of contentItems) {
     const lo = Math.max(0, Math.floor(item.left / BUCKET_SIZE));
     const hi = Math.min(numBuckets - 1, Math.ceil(item.right / BUCKET_SIZE));
     for (let b = lo; b <= hi; b++) {
-      occupied[b] = 1;
+      bucketCounts[b]++;
     }
   }
 
+  const maxDensity = Math.max(...bucketCounts);
+  if (maxDensity < 3) return [{ xStart: 0, xEnd: 1.0 }];
+
+  // A bucket is considered empty/gutter if its density is negligible (0 or noise <= 3% of peak)
+  const gapThreshold = Math.max(0, Math.min(1, Math.floor(maxDensity * 0.03)));
   const minGapBuckets = Math.ceil(minGapRatio / BUCKET_SIZE);
 
-  // Collect empty bucket spans
+  // Collect empty/gutter bucket spans
   const rawGaps: Array<{ start: number; end: number }> = [];
   let gapStart: number | null = null;
 
   for (let i = 0; i < numBuckets; i++) {
-    if (occupied[i] === 0) {
+    if (bucketCounts[i] <= gapThreshold) {
       if (gapStart === null) gapStart = i;
     } else {
       if (gapStart !== null) {
@@ -81,15 +95,15 @@ export function detectTextColumns(
     rawGaps.push({ start: gapStart, end: numBuckets });
   }
 
-  // Filter out outer page margins; a true column gutter must have substantial items on both sides
+  // Filter true gaps: must be in content area and have substantial items on both sides
   const trueGaps = rawGaps.filter((g) => {
     const gapLeft = g.start * BUCKET_SIZE;
     const gapRight = g.end * BUCKET_SIZE;
     if (gapLeft < 0.15 || gapRight > 0.85) return false;
 
-    const leftCount = items.filter((it) => it.right <= gapLeft + 0.010).length;
-    const rightCount = items.filter((it) => it.left >= gapRight - 0.010).length;
-    return leftCount >= 3 && rightCount >= 3;
+    const leftCount = contentItems.filter((it) => it.right <= gapLeft + 0.010).length;
+    const rightCount = contentItems.filter((it) => it.left >= gapRight - 0.010).length;
+    return leftCount >= 4 && rightCount >= 4;
   });
 
   if (trueGaps.length === 0) {
