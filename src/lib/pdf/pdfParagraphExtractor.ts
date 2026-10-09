@@ -29,7 +29,97 @@ interface GroupedLine {
   rect: HighlightRect;
   fontSize: number;
   hasEOL: boolean;
-  column: 'left' | 'right' | 'full';
+  column: string;
+}
+
+export interface ColumnZone {
+  xStart: number;
+  xEnd: number;
+}
+
+/**
+ * Detect text columns using Harumi-inspired X-density histogram projection.
+ * Discretizes horizontal space into fine buckets and locates unoccupied gaps (gutters).
+ */
+export function detectTextColumns(
+  items: ItemBox[],
+  minGapRatio: number = 0.020 // 2.0% of page width (~12-15 pt)
+): ColumnZone[] {
+  if (items.length === 0) return [{ xStart: 0, xEnd: 1.0 }];
+
+  const BUCKET_SIZE = 0.005; // 0.5% page width (~3 pt per bucket)
+  const numBuckets = Math.ceil(1.0 / BUCKET_SIZE) + 1;
+  const occupied = new Uint8Array(numBuckets);
+
+  for (const item of items) {
+    const lo = Math.max(0, Math.floor(item.left / BUCKET_SIZE));
+    const hi = Math.min(numBuckets - 1, Math.ceil(item.right / BUCKET_SIZE));
+    for (let b = lo; b <= hi; b++) {
+      occupied[b] = 1;
+    }
+  }
+
+  const minGapBuckets = Math.ceil(minGapRatio / BUCKET_SIZE);
+
+  // Collect empty bucket spans
+  const rawGaps: Array<{ start: number; end: number }> = [];
+  let gapStart: number | null = null;
+
+  for (let i = 0; i < numBuckets; i++) {
+    if (occupied[i] === 0) {
+      if (gapStart === null) gapStart = i;
+    } else {
+      if (gapStart !== null) {
+        if (i - gapStart >= minGapBuckets) {
+          rawGaps.push({ start: gapStart, end: i });
+        }
+        gapStart = null;
+      }
+    }
+  }
+  if (gapStart !== null && numBuckets - gapStart >= minGapBuckets) {
+    rawGaps.push({ start: gapStart, end: numBuckets });
+  }
+
+  // Filter out outer page margins; a true column gutter must have substantial items on both sides
+  const trueGaps = rawGaps.filter((g) => {
+    const gapLeft = g.start * BUCKET_SIZE;
+    const gapRight = g.end * BUCKET_SIZE;
+    if (gapLeft < 0.15 || gapRight > 0.85) return false;
+
+    const leftCount = items.filter((it) => it.right <= gapLeft + 0.010).length;
+    const rightCount = items.filter((it) => it.left >= gapRight - 0.010).length;
+    return leftCount >= 3 && rightCount >= 3;
+  });
+
+  if (trueGaps.length === 0) {
+    return [{ xStart: 0, xEnd: 1.0 }];
+  }
+
+  // Build column zones
+  const zones: ColumnZone[] = [];
+  let colStart = 0;
+
+  for (const gap of trueGaps) {
+    const gapLeft = gap.start * BUCKET_SIZE;
+    const gapRight = gap.end * BUCKET_SIZE;
+    if (gapLeft > colStart) {
+      zones.push({
+        xStart: colStart,
+        xEnd: gapLeft,
+      });
+    }
+    colStart = gapRight;
+  }
+
+  if (colStart < 1.0) {
+    zones.push({
+      xStart: colStart,
+      xEnd: 1.0,
+    });
+  }
+
+  return zones;
 }
 
 /**
@@ -63,7 +153,7 @@ export function splitIntoAcademicSentences(text: string): string[] {
  */
 function groupItemsIntoLines(
   items: ItemBox[],
-  columnType: 'left' | 'right' | 'full'
+  columnType: string
 ): GroupedLine[] {
   if (items.length === 0) return [];
 
@@ -115,7 +205,7 @@ function groupItemsIntoLines(
       (l) =>
         Math.abs(item.top - l.top) < 0.007 &&
         item.left >= l.right - 0.015 &&
-        item.left - l.right < 0.035 // Inter-word gap inside the same column
+        item.left - l.right < 0.038 // Inter-word gap inside the same column
     );
 
     if (matchedIdx !== -1) {
@@ -242,8 +332,11 @@ export async function extractParagraphsFromPage(
 
     if (validItems.length === 0) return [];
 
-    // 1. IDENTIFY FULL-WIDTH HORIZONTAL DIVIDERS (Figures, Tables, Titles, Captions)
-    // A baseline is full-width if items together span from left (< 0.32) across middle (> 0.68)
+    // 1. IDENTIFY GENUINE FULL-WIDTH HORIZONTAL DIVIDERS (Figures, Tables, Titles, Captions)
+    // A baseline is ONLY full-width if:
+    // a) A single wide element exists (width >= 0.52), OR
+    // b) The elements span >= 55% of the page AND there is NO interior column gutter gap
+    //    between consecutive words in the middle zone [0.30, 0.70].
     interface FullWidthRegion {
       minY: number;
       maxY: number;
@@ -258,18 +351,30 @@ export async function extractParagraphsFromPage(
 
     const fullWidthRegions: FullWidthRegion[] = [];
     for (const [, binItems] of baselineMap.entries()) {
-      const minLeft = Math.min(...binItems.map((i) => i.left));
-      const maxRight = Math.max(...binItems.map((i) => i.right));
-      const minY = Math.min(...binItems.map((i) => i.top));
-      const maxY = Math.max(...binItems.map((i) => i.bottom));
+      const sortedBin = [...binItems].sort((a, b) => a.left - b.left);
+      const minLeft = sortedBin[0].left;
+      const maxRight = Math.max(...sortedBin.map((i) => i.right));
+      const minY = Math.min(...sortedBin.map((i) => i.top));
+      const maxY = Math.max(...sortedBin.map((i) => i.bottom));
       const spanWidth = maxRight - minLeft;
 
-      // Full-width criteria: spans >= 58% of page and crosses the center
-      const isFullWidthSpan = spanWidth >= 0.58 && minLeft < 0.32 && maxRight > 0.68;
-      // Single wide item (e.g. wide title or preformatted block)
-      const hasWideItem = binItems.some((i) => i.width >= 0.55);
+      // Check for interior column gutter gap between consecutive items in the middle 40% of the page
+      let hasInteriorGutter = false;
+      for (let j = 0; j < sortedBin.length - 1; j++) {
+        const gap = sortedBin[j + 1].left - sortedBin[j].right;
+        const gapCenter = (sortedBin[j].right + sortedBin[j + 1].left) / 2;
+        // In academic papers, column gutters are typically >= 2.5% page width
+        if (gap >= 0.025 && gapCenter >= 0.30 && gapCenter <= 0.70) {
+          hasInteriorGutter = true;
+          break;
+        }
+      }
 
-      if (isFullWidthSpan || hasWideItem) {
+      const hasWideItem = sortedBin.some((i) => i.width >= 0.52);
+      const isContinuousFullSpan =
+        spanWidth >= 0.55 && minLeft < 0.32 && maxRight > 0.68 && !hasInteriorGutter;
+
+      if (hasWideItem || isContinuousFullSpan) {
         fullWidthRegions.push({ minY, maxY });
       }
     }
@@ -282,7 +387,7 @@ export async function extractParagraphsFromPage(
         mergedDividers.push({ ...r });
       } else {
         const last = mergedDividers[mergedDividers.length - 1];
-        if (r.minY - last.maxY < 0.025) {
+        if (r.minY - last.maxY < 0.020) {
           last.maxY = Math.max(last.maxY, r.maxY);
         } else {
           mergedDividers.push({ ...r });
@@ -314,7 +419,7 @@ export async function extractParagraphsFromPage(
       pageBands.push({ minY: 0.0, maxY: 1.0, type: 'content' });
     }
 
-    // 3. PROCESS EACH BAND WITH COLUMN ISOLATION AND ACADEMIC READING ORDER
+    // 3. PROCESS EACH BAND WITH HARUMI X-DENSITY COLUMN DETECTION & READING ORDER
     const orderedLines: GroupedLine[] = [];
 
     for (const band of pageBands) {
@@ -331,72 +436,59 @@ export async function extractParagraphsFromPage(
         continue;
       }
 
-      // Content band: dynamically detect if multi-column and locate the gutter
-      // Scan potential gutter split points from x = 0.35 to 0.65
-      const gutterCandidates: Array<{ x: number; crossing: number }> = [];
-      for (let x = 0.36; x <= 0.64; x += 0.005) {
-        const crossing = bandItems.filter(
-          (i) => i.left < x - 0.005 && i.right > x + 0.005
-        ).length;
-        gutterCandidates.push({ x, crossing });
-      }
+      // Content band: run Harumi-style X-density column detection
+      const columnZones = detectTextColumns(bandItems, 0.020);
 
-      // Find continuous zero-crossing (or min-crossing) intervals
-      let bestGutterCenter: number | null = null;
-      let maxZeroRun = 0;
-      let curRunStart: number | null = null;
-      let curRunLen = 0;
+      if (columnZones.length > 1) {
+        // Multi-column layout detected!
+        // Group items into their respective column zones
+        const spanningItems: ItemBox[] = [];
+        const columnItemBuckets: ItemBox[][] = columnZones.map(() => []);
 
-      for (let i = 0; i < gutterCandidates.length; i++) {
-        const c = gutterCandidates[i];
-        if (c.crossing === 0) {
-          if (curRunStart === null) curRunStart = c.x;
-          curRunLen++;
-        } else {
-          if (curRunLen > maxZeroRun) {
-            maxZeroRun = curRunLen;
-            bestGutterCenter = curRunStart! + (curRunLen * 0.005) / 2;
+        for (const item of bandItems) {
+          const itemCenter = item.left + item.width / 2;
+          // Find matching column zone
+          const matchingZoneIdx = columnZones.findIndex(
+            (z) => itemCenter >= z.xStart - 0.008 && itemCenter <= z.xEnd + 0.008
+          );
+
+          if (matchingZoneIdx !== -1) {
+            columnItemBuckets[matchingZoneIdx].push(item);
+          } else {
+            // Check if item spans across multiple columns (e.g. subheader)
+            if (item.width >= 0.40) {
+              spanningItems.push(item);
+            } else {
+              // Assign to closest zone by center distance
+              let bestIdx = 0;
+              let bestDist = Infinity;
+              columnZones.forEach((z, idx) => {
+                const zoneCenter = (z.xStart + z.xEnd) / 2;
+                const dist = Math.abs(itemCenter - zoneCenter);
+                if (dist < bestDist) {
+                  bestDist = dist;
+                  bestIdx = idx;
+                }
+              });
+              columnItemBuckets[bestIdx].push(item);
+            }
           }
-          curRunStart = null;
-          curRunLen = 0;
         }
-      }
-      if (curRunLen > maxZeroRun) {
-        maxZeroRun = curRunLen;
-        bestGutterCenter = curRunStart! + (curRunLen * 0.005) / 2;
-      }
 
-      // Verify that there are substantial items on BOTH sides of the detected gutter
-      let isTwoColumn = false;
-      let splitX = 0.50;
-
-      if (bestGutterCenter !== null && maxZeroRun >= 3) {
-        const leftCount = bandItems.filter((i) => i.right <= bestGutterCenter! + 0.005).length;
-        const rightCount = bandItems.filter((i) => i.left >= bestGutterCenter! - 0.005).length;
-        if (leftCount >= 4 && rightCount >= 4) {
-          isTwoColumn = true;
-          splitX = bestGutterCenter;
+        // 1. Spanning header lines within this band (if any)
+        if (spanningItems.length > 0) {
+          const spanLines = groupItemsIntoLines(spanningItems, 'full');
+          orderedLines.push(...spanLines);
         }
-      }
 
-      if (isTwoColumn) {
-        // STRICT COLUMN PARTITIONING:
-        // Items in left column and right column are COMPLETELY SEPARATED!
-        const leftItems = bandItems.filter((i) => i.right <= splitX + 0.005);
-        const rightItems = bandItems.filter((i) => i.left >= splitX - 0.005);
-        const spanningItems = bandItems.filter(
-          (i) => i.left < splitX - 0.005 && i.right > splitX + 0.005
-        );
-
-        const leftLines = groupItemsIntoLines(leftItems, 'left');
-        const rightLines = groupItemsIntoLines(rightItems, 'right');
-        const spanningLines = groupItemsIntoLines(spanningItems, 'full');
-
-        // ACADEMIC READING ORDER:
-        // 1. Any band header spanning items
-        // 2. ALL Left Column lines from top to bottom
-        // 3. ALL Right Column lines from top to bottom
-        orderedLines.push(...spanningLines, ...leftLines, ...rightLines);
+        // 2. STRICT COLUMN READING ORDER:
+        // Read Column 0 from top to bottom completely, then Column 1, then Column 2, etc.
+        for (let colIdx = 0; colIdx < columnZones.length; colIdx++) {
+          const itemsInCol = columnItemBuckets[colIdx];
+          if (itemsInCol.length === 0) continue;
+          const colLines = groupItemsIntoLines(itemsInCol, `col-${colIdx}`);
+          orderedLines.push(...colLines);
+        }
       } else {
         // Single column flow: group all items and read top to bottom
         const singleLines = groupItemsIntoLines(bandItems, 'full');

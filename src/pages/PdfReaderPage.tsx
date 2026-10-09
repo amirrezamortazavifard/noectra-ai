@@ -379,10 +379,13 @@ export default function PdfReaderPage() {
 
       for (let i = 1; i <= doc.numPages; i++) {
         const page = await doc.getPage(i);
-        const textContent = await page.getTextContent();
-        const pageText = textContent.items
-          .map((item: any) => ('str' in item ? item.str : ''))
-          .join(' ');
+        const segments = await extractParagraphsFromPage(page, i, 'paragraph');
+        const pageText =
+          segments.length > 0
+            ? segments.map((s) => s.original).join('\n\n')
+            : (await page.getTextContent()).items
+                .map((item: any) => ('str' in item ? item.str : ''))
+                .join(' ');
         pages.push({ pageNumber: i, text: pageText });
 
         if (i % 5 === 0 || i === doc.numPages) {
@@ -870,13 +873,22 @@ export default function PdfReaderPage() {
       return;
     }
 
+    if (currentPageText) {
+      setCurrentTtsText(currentPageText);
+      setTtsActive(true);
+      return;
+    }
+
     if (docType === 'pdf' && pdfDoc) {
       try {
         const page = await pdfDoc.getPage(currentPage);
-        const textContent = await page.getTextContent();
-        const text = textContent.items
-          .map((item: any) => ('str' in item ? item.str : ''))
-          .join(' ');
+        const segments = await extractParagraphsFromPage(page, currentPage, 'paragraph');
+        const text =
+          segments.length > 0
+            ? segments.map((s) => s.original).join('\n\n')
+            : (await page.getTextContent()).items
+                .map((item: any) => ('str' in item ? item.str : ''))
+                .join(' ');
         setCurrentTtsText(text);
         setTtsActive(true);
       } catch {
@@ -898,13 +910,22 @@ export default function PdfReaderPage() {
       return;
     }
 
+    if (currentPageText) {
+      setSpeedReaderText(currentPageText);
+      setSpeedReaderOpen(true);
+      return;
+    }
+
     if (docType === 'pdf' && pdfDoc) {
       try {
         const page = await pdfDoc.getPage(currentPage);
-        const textContent = await page.getTextContent();
-        const text = textContent.items
-          .map((item: any) => ('str' in item ? item.str : ''))
-          .join(' ');
+        const segments = await extractParagraphsFromPage(page, currentPage, 'paragraph');
+        const text =
+          segments.length > 0
+            ? segments.map((s) => s.original).join('\n\n')
+            : (await page.getTextContent()).items
+                .map((item: any) => ('str' in item ? item.str : ''))
+                .join(' ');
         setSpeedReaderText(text);
         setSpeedReaderOpen(true);
       } catch {
