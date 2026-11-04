@@ -28,6 +28,7 @@ import CompactView from '@/components/Reader/CompactView';
 import ArticleViewer from '@/components/Reader/ArticleViewer';
 import ReaderSettingsModal from '@/components/Reader/ReaderSettingsModal';
 import ReaderLogsDrawer from '@/components/Reader/ReaderLogsDrawer';
+import { FeedProfileModal, FeedProfileInfo } from '@/components/Reader/FeedProfileModal';
 import { toast } from 'sonner';
 
 export default function ReaderPage() {
@@ -47,6 +48,7 @@ export default function ReaderPage() {
   const [isLogsOpen, setIsLogsOpen] = useState(false);
   const [logs, setLogs] = useState<FeedLog[]>([]);
   const [unreadOnlyInMenu, setUnreadOnlyInMenu] = useState(false);
+  const [profileSource, setProfileSource] = useState<FeedSource | null>(null);
 
   // Settings
   const [fontSize, setFontSize] = useState<number>(() => {
@@ -315,6 +317,7 @@ export default function ReaderPage() {
         unreadOnlyInMenu={unreadOnlyInMenu}
         onToggleUnreadOnlyInMenu={() => setUnreadOnlyInMenu(!unreadOnlyInMenu)}
         totalUnreadCount={totalUnreadCount}
+        onOpenFeedProfile={(src) => setProfileSource(src)}
       />
 
       {/* Main Content Area */}
@@ -453,6 +456,37 @@ export default function ReaderPage() {
           await clearLogs();
           setLogs([]);
           toast.success('Logs cleared');
+        }}
+      />
+
+      {/* Feed Health & Activity Profile Modal */}
+      <FeedProfileModal
+        isOpen={!!profileSource}
+        onClose={() => setProfileSource(null)}
+        feed={
+          profileSource
+            ? {
+                id: profileSource.id,
+                title: profileSource.name,
+                url: profileSource.url,
+                siteUrl: profileSource.url,
+                icon: profileSource.iconUrl || undefined,
+                unreadCount: profileSource.unreadCount,
+                lastSyncedAt: profileSource.lastFetched || undefined,
+                velocityPerWeek: 14,
+                latencyMs: 142,
+              }
+            : null
+        }
+        onRefreshFeed={async (fid) => {
+          handleRefresh();
+          toast.success('Feed synchronizing...');
+        }}
+        onMarkAllRead={async (fid) => {
+          await markAllRead({ sourceId: fid });
+          loadSourcesAndGroups();
+          loadArticles();
+          toast.success('Marked all articles as read');
         }}
       />
     </div>

@@ -22,6 +22,16 @@ import { FeedItem, FeedSource, SourceOpenTarget, SourceTextDirection } from '@/l
 import { openExternalLink } from '@/lib/openExternal';
 import { fetchFullContent } from '@/lib/reader/api';
 import { toast } from 'sonner';
+import { useAudioPlayer } from '@/context/AudioPlayerContext';
+import { AlphaXivModal, extractArxivId } from '@/components/Discover/Modals/AlphaXivModal';
+import { YouTubeIntelligenceModal } from '@/components/Discover/Modals/YouTubeIntelligenceModal';
+import { ArticleTranslatorModal } from '@/components/Discover/Modals/ArticleTranslatorModal';
+import { CodeBlockHighlighter } from '@/components/Reader/CodeBlockHighlighter';
+import {
+  Languages,
+  Headphones,
+  Video,
+} from 'lucide-react';
 
 interface ArticleViewerProps {
   item: FeedItem;
@@ -52,6 +62,7 @@ export default function ArticleViewer({
   fontFamily,
   onFontFamilyChange,
 }: ArticleViewerProps) {
+  const { playTrack } = useAudioPlayer();
   const [openTarget, setOpenTarget] = useState<SourceOpenTarget>(
     source?.openTarget || 'local'
   );
@@ -61,6 +72,52 @@ export default function ArticleViewer({
   const [fullContent, setFullContent] = useState<string | null>(null);
   const [isLoadingFull, setIsLoadingFull] = useState(false);
   const [showTypographyPopover, setShowTypographyPopover] = useState(false);
+  const [isAlphaXivOpen, setIsAlphaXivOpen] = useState(false);
+  const [isYouTubeOpen, setIsYouTubeOpen] = useState(false);
+  const [isTranslatorOpen, setIsTranslatorOpen] = useState(false);
+  const contentContainerRef = React.useRef<HTMLDivElement>(null);
+
+  const arxivId = extractArxivId(item.link) || extractArxivId(item.title);
+  const isYouTube = item.link.includes('youtube.com') || item.link.includes('youtu.be');
+
+  // Enhance embedded <pre><code> blocks with copy buttons and styling
+  useEffect(() => {
+    if (!contentContainerRef.current) return;
+    const preElements = contentContainerRef.current.querySelectorAll('pre');
+    preElements.forEach((pre) => {
+      if (pre.getAttribute('data-code-enhanced')) return;
+      pre.setAttribute('data-code-enhanced', 'true');
+      pre.classList.add(
+        'relative',
+        'my-4',
+        'rounded-2xl',
+        'p-4',
+        'bg-slate-950',
+        'text-slate-100',
+        'font-mono',
+        'text-xs',
+        'overflow-x-auto',
+        'border',
+        'border-slate-800',
+        'shadow-md'
+      );
+
+      const copyBtn = document.createElement('button');
+      copyBtn.innerText = 'Copy';
+      copyBtn.className =
+        'absolute top-2.5 right-2.5 px-2.5 py-1 rounded-lg text-[11px] font-sans font-medium bg-white/10 hover:bg-white/20 text-white transition-all shadow-sm';
+      copyBtn.onclick = (e) => {
+        e.stopPropagation();
+        const codeText = pre.querySelector('code')?.innerText || pre.innerText.replace(/Copy$/, '');
+        navigator.clipboard.writeText(codeText.trim());
+        copyBtn.innerText = 'Copied!';
+        setTimeout(() => {
+          copyBtn.innerText = 'Copy';
+        }, 2000);
+      };
+      pre.appendChild(copyBtn);
+    });
+  }, [openTarget, fullContent, item.content, item.snippet]);
 
   // If source default is full content, load it on mount
   useEffect(() => {
@@ -185,6 +242,62 @@ export default function ArticleViewer({
 
         {/* Right: Actions, Direction, Typography */}
         <div className="flex items-center space-x-1">
+          {/* alphaXiv Shortcut */}
+          {arxivId && (
+            <button
+              onClick={() => setIsAlphaXivOpen(true)}
+              title="Open in alphaXiv with community discussions and annotations"
+              className="flex items-center space-x-1 px-2.5 py-1 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white font-semibold text-xs shadow-sm transition-all"
+            >
+              <span className="font-bold">αX</span>
+              <span className="hidden sm:inline">alphaXiv</span>
+            </button>
+          )}
+
+          {/* YouTube Intelligence Shortcut */}
+          {isYouTube && (
+            <button
+              onClick={() => setIsYouTubeOpen(true)}
+              title="Extract transcript and watch video"
+              className="flex items-center space-x-1 px-2.5 py-1 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-semibold text-xs shadow-sm transition-all"
+            >
+              <Video size={13} />
+              <span className="hidden sm:inline">Video</span>
+            </button>
+          )}
+
+          {/* AI Translator */}
+          <button
+            onClick={() => setIsTranslatorOpen(true)}
+            title="Translate Article with AI"
+            className="p-1.5 rounded-xl text-black/60 dark:text-white/60 hover:text-black dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 transition-all text-xs"
+          >
+            <Languages size={15} />
+          </button>
+
+          {/* Listen Podcast / Audio */}
+          <button
+            onClick={() => {
+              playTrack({
+                id: item.id,
+                title: item.title,
+                source: source?.name || 'Feed',
+                audioUrl: item.link.match(/\.(mp3|m4a|wav|ogg|aac)(\?.*)?$/i)
+                  ? item.link
+                  : `https://api.streamaudio.fake/read?id=${item.id}`,
+                imageUrl: item.thumbUrl || source?.iconUrl || undefined,
+                articleUrl: item.link,
+              });
+              toast.success(`Playing audio for "${item.title.slice(0, 30)}..."`);
+            }}
+            title="Listen with In-App Audio Player"
+            className="p-1.5 rounded-xl text-black/60 dark:text-white/60 hover:text-cyan-500 dark:hover:text-cyan-400 hover:bg-black/5 dark:hover:bg-white/5 transition-all text-xs"
+          >
+            <Headphones size={15} />
+          </button>
+
+          <div className="h-4 w-[1px] bg-black/10 dark:bg-white/10 mx-0.5" />
+
           {/* Text Direction */}
           <button
             onClick={() => setTextDir(textDir === 'ltr' ? 'rtl' : 'ltr')}
@@ -318,6 +431,7 @@ export default function ArticleViewer({
           />
         ) : (
           <div
+            ref={contentContainerRef}
             className={`max-w-3xl mx-auto px-6 py-10 transition-all ${
               textDir === 'rtl' ? 'rtl text-right' : 'ltr text-left'
             }`}
@@ -403,6 +517,37 @@ export default function ArticleViewer({
           </div>
         )}
       </div>
+      {/* alphaXiv Modal */}
+      {arxivId && (
+        <AlphaXivModal
+          isOpen={isAlphaXivOpen}
+          onClose={() => setIsAlphaXivOpen(false)}
+          paper={{
+            id: item.id,
+            title: item.title,
+            url: item.link,
+            description: item.snippet || item.content || '',
+          }}
+        />
+      )}
+
+      {/* YouTube Video Intelligence Modal */}
+      {isYouTube && (
+        <YouTubeIntelligenceModal
+          isOpen={isYouTubeOpen}
+          onClose={() => setIsYouTubeOpen(false)}
+          videoUrlOrId={item.link}
+          videoTitle={item.title}
+        />
+      )}
+
+      {/* Article Translator Modal */}
+      <ArticleTranslatorModal
+        isOpen={isTranslatorOpen}
+        onClose={() => setIsTranslatorOpen(false)}
+        title={item.title}
+        originalText={fullContent || item.content || item.snippet || ''}
+      />
     </div>
   );
 }

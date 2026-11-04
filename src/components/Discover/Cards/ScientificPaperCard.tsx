@@ -14,10 +14,13 @@ import {
   ChevronDown,
   ChevronUp,
   Share2,
+  Headphones,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { openExternalLink } from '@/lib/openExternal';
 import { cn } from '@/lib/utils';
+import { useAudioPlayer } from '@/context/AudioPlayerContext';
+import { AlphaXivModal, extractArxivId } from '@/components/Discover/Modals/AlphaXivModal';
 
 interface ScientificPaperCardProps {
   paper: DiscoverFeedItem;
@@ -42,7 +45,11 @@ export const ScientificPaperCard: React.FC<ScientificPaperCardProps> = ({
   isComparing,
   onToggleCompare,
 }) => {
+  const { playTrack } = useAudioPlayer();
   const [expanded, setExpanded] = useState<boolean>(false);
+  const [isAlphaXivOpen, setIsAlphaXivOpen] = useState<boolean>(false);
+
+  const arxivId = extractArxivId(paper.url) || (paper.doi ? extractArxivId(paper.doi) : null);
 
   const handleOpenSource = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -158,6 +165,22 @@ export const ScientificPaperCard: React.FC<ScientificPaperCardProps> = ({
       {/* Footer Action Row */}
       <div className="flex items-center justify-between pt-3 border-t border-slate-200/70 dark:border-white/10 text-xs">
         <div className="flex items-center gap-2">
+          {/* alphaXiv direct discussion if arXiv paper */}
+          {arxivId && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsAlphaXivOpen(true);
+              }}
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-gradient-to-r from-blue-600/20 to-cyan-600/20 hover:from-blue-600/30 hover:to-cyan-600/30 text-blue-700 dark:text-cyan-300 border border-cyan-500/30 transition-all active:scale-95"
+              title="Open paper with alphaXiv community annotations"
+            >
+              <span className="font-extrabold text-[11px]">αX</span>
+              <span>alphaXiv</span>
+            </button>
+          )}
+
           {/* AI Explain Button */}
           <button
             type="button"
@@ -197,6 +220,26 @@ export const ScientificPaperCard: React.FC<ScientificPaperCardProps> = ({
         </div>
 
         <div className="flex items-center gap-1 text-slate-500 dark:text-slate-400">
+          {/* Listen Audio */}
+          <button
+            type="button"
+            title="Listen to Paper Audio Overview"
+            onClick={(e) => {
+              e.stopPropagation();
+              playTrack({
+                id: paper.id,
+                title: paper.title,
+                source: paper.source,
+                audioUrl: `https://api.streamaudio.fake/read?id=${paper.id}`,
+                articleUrl: paper.url,
+              });
+              toast.success(`Playing audio for "${paper.title.slice(0, 30)}..."`);
+            }}
+            className="p-1.5 rounded-lg hover:text-cyan-600 dark:hover:text-cyan-400 hover:bg-cyan-500/10 transition-colors"
+          >
+            <Headphones size={15} />
+          </button>
+
           {/* Direct PDF Link */}
           {paper.pdfUrl && (
             <button
@@ -250,6 +293,22 @@ export const ScientificPaperCard: React.FC<ScientificPaperCardProps> = ({
           </button>
         </div>
       </div>
+
+      {/* alphaXiv Modal */}
+      {arxivId && (
+        <AlphaXivModal
+          isOpen={isAlphaXivOpen}
+          onClose={() => setIsAlphaXivOpen(false)}
+          paper={{
+            id: paper.id,
+            title: paper.title,
+            url: paper.url,
+            doi: paper.doi,
+            authors: paper.authors,
+            description: paper.description,
+          }}
+        />
+      )}
     </div>
   );
 };

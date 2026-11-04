@@ -13,11 +13,14 @@ import {
   Share2,
   FileText,
   Layers,
+  Headphones,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { openExternalLink } from '@/lib/openExternal';
 import { formatTimeDifference } from '@/lib/utils';
 import { cn } from '@/lib/utils';
+import { useAudioPlayer } from '@/context/AudioPlayerContext';
+import { AlphaXivModal, extractArxivId } from '@/components/Discover/Modals/AlphaXivModal';
 
 interface FeaturedIntelligenceCardProps {
   item: DiscoverFeedItem;
@@ -44,6 +47,10 @@ export const FeaturedIntelligenceCard: React.FC<FeaturedIntelligenceCardProps> =
   isComparing,
   onToggleCompare,
 }) => {
+  const { playTrack } = useAudioPlayer();
+  const [isAlphaXivOpen, setIsAlphaXivOpen] = React.useState<boolean>(false);
+  const arxivId = extractArxivId(item.url) || (item.doi ? extractArxivId(item.doi) : null);
+
   const handleOpenSource = (e: React.MouseEvent) => {
     e.stopPropagation();
     openExternalLink(item.url, e);
@@ -176,6 +183,43 @@ export const FeaturedIntelligenceCard: React.FC<FeaturedIntelligenceCardProps> =
             </div>
 
             <div className="flex items-center gap-1 text-slate-600 dark:text-slate-400">
+              {/* alphaXiv Shortcut */}
+              {arxivId && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsAlphaXivOpen(true);
+                  }}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold bg-gradient-to-r from-blue-600/20 to-cyan-600/20 hover:from-blue-600/30 hover:to-cyan-600/30 text-blue-700 dark:text-cyan-300 border border-cyan-500/30 transition-all active:scale-95"
+                  title="Open paper with alphaXiv community annotations"
+                >
+                  <span className="font-extrabold text-[11px]">αX</span>
+                  <span>alphaXiv</span>
+                </button>
+              )}
+
+              {/* Listen Audio */}
+              <button
+                type="button"
+                title="Listen to Breakthrough Audio Overview"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  playTrack({
+                    id: item.id,
+                    title: item.title,
+                    source: item.source,
+                    audioUrl: (item as any).audioUrl || `https://api.streamaudio.fake/read?id=${item.id}`,
+                    imageUrl: item.thumbnail,
+                    articleUrl: item.url,
+                  });
+                  toast.success(`Playing audio overview for "${item.title.slice(0, 30)}..."`);
+                }}
+                className="p-2 rounded-xl text-slate-600 dark:text-slate-400 hover:text-cyan-600 dark:hover:text-cyan-400 hover:bg-cyan-500/10 transition-colors"
+              >
+                <Headphones size={16} />
+              </button>
+
               {/* Reading Queue Button */}
               <button
                 type="button"
@@ -252,6 +296,22 @@ export const FeaturedIntelligenceCard: React.FC<FeaturedIntelligenceCardProps> =
           </div>
         )}
       </div>
+
+      {/* alphaXiv Modal */}
+      {arxivId && (
+        <AlphaXivModal
+          isOpen={isAlphaXivOpen}
+          onClose={() => setIsAlphaXivOpen(false)}
+          paper={{
+            id: item.id,
+            title: item.title,
+            url: item.url,
+            doi: item.doi,
+            authors: item.authors,
+            description: item.description,
+          }}
+        />
+      )}
     </div>
   );
 };

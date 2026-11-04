@@ -12,6 +12,7 @@ import {
   Upload,
   Download,
   Filter,
+  Activity,
 } from 'lucide-react';
 import { FeedGroup, FeedSource } from '@/lib/reader/types';
 
@@ -28,6 +29,7 @@ interface ReaderSidebarProps {
   unreadOnlyInMenu: boolean;
   onToggleUnreadOnlyInMenu: () => void;
   totalUnreadCount: number;
+  onOpenFeedProfile?: (source: FeedSource) => void;
 }
 
 export default function ReaderSidebar({
@@ -43,6 +45,7 @@ export default function ReaderSidebar({
   unreadOnlyInMenu,
   onToggleUnreadOnlyInMenu,
   totalUnreadCount,
+  onOpenFeedProfile,
 }: ReaderSidebarProps) {
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
 
@@ -178,7 +181,7 @@ export default function ReaderSidebar({
                             onSelectGroup(null);
                             onSelectSource(source.id);
                           }}
-                          className={`w-full flex items-center justify-between px-2 py-1 rounded-lg transition-all ${
+                          className={`w-full group flex items-center justify-between px-2 py-1 rounded-lg transition-all ${
                             isSourceSelected
                               ? 'bg-black/[0.08] dark:bg-white/[0.1] text-black dark:text-white font-medium'
                               : 'text-slate-600 dark:text-slate-400 hover:bg-black/[0.03] dark:hover:bg-white/[0.03]'
@@ -199,11 +202,27 @@ export default function ReaderSidebar({
                             )}
                             <span className="truncate text-left">{source.name}</span>
                           </div>
-                          {source.unreadCount > 0 && (
-                            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-sky-500/15 text-sky-600 dark:text-sky-300 font-semibold">
-                              {source.unreadCount}
-                            </span>
-                          )}
+                          <div className="flex items-center space-x-1 shrink-0">
+                            {onOpenFeedProfile && (
+                              <span
+                                role="button"
+                                tabIndex={0}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onOpenFeedProfile(source);
+                                }}
+                                title="Feed Health & Activity Profile"
+                                className="opacity-0 group-hover:opacity-100 p-0.5 rounded text-black/40 dark:text-white/40 hover:text-cyan-500 dark:hover:text-cyan-400 hover:bg-black/5 dark:hover:bg-white/5 transition-opacity cursor-pointer"
+                              >
+                                <Activity size={11} />
+                              </span>
+                            )}
+                            {source.unreadCount > 0 && (
+                              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-sky-500/15 text-sky-600 dark:text-sky-300 font-semibold">
+                                {source.unreadCount}
+                              </span>
+                            )}
+                          </div>
                         </button>
                       );
                     })}
@@ -228,7 +247,7 @@ export default function ReaderSidebar({
                       onSelectGroup(null);
                       onSelectSource(source.id);
                     }}
-                    className={`w-full flex items-center justify-between px-2.5 py-1 rounded-lg transition-all ${
+                    className={`w-full group flex items-center justify-between px-2.5 py-1 rounded-lg transition-all ${
                       isSourceSelected
                         ? 'bg-black/[0.08] dark:bg-white/[0.1] text-black dark:text-white font-medium'
                         : 'text-slate-600 dark:text-slate-400 hover:bg-black/[0.03] dark:hover:bg-white/[0.03]'
@@ -249,11 +268,27 @@ export default function ReaderSidebar({
                       )}
                       <span className="truncate text-left">{source.name}</span>
                     </div>
-                    {source.unreadCount > 0 && (
-                      <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-sky-500/15 text-sky-600 dark:text-sky-300 font-semibold">
-                        {source.unreadCount}
-                      </span>
-                    )}
+                    <div className="flex items-center space-x-1 shrink-0">
+                      {onOpenFeedProfile && (
+                        <span
+                          role="button"
+                          tabIndex={0}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onOpenFeedProfile(source);
+                          }}
+                          title="Feed Health & Activity Profile"
+                          className="opacity-0 group-hover:opacity-100 p-0.5 rounded text-black/40 dark:text-white/40 hover:text-cyan-500 dark:hover:text-cyan-400 hover:bg-black/5 dark:hover:bg-white/5 transition-opacity cursor-pointer"
+                        >
+                          <Activity size={11} />
+                        </span>
+                      )}
+                      {source.unreadCount > 0 && (
+                        <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-sky-500/15 text-sky-600 dark:text-sky-300 font-semibold">
+                          {source.unreadCount}
+                        </span>
+                      )}
+                    </div>
                   </button>
                 );
               })}

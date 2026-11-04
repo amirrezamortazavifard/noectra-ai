@@ -13,6 +13,8 @@ import ReaderPage from '@/pages/ReaderPage';
 import SetupWizard from '@/components/Setup/SetupWizard';
 import SplashScreen from '@/components/SplashScreen';
 import { ChatProvider } from '@/lib/hooks/useChat';
+import { AudioPlayerProvider } from '@/context/AudioPlayerContext';
+import { PodcastPlayerDock } from '@/components/Audio/PodcastPlayerDock';
 import { UIConfigSections } from '@/lib/config/types';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import TrayHub from '@/components/Tray/TrayHub';
@@ -191,27 +193,30 @@ export default function App() {
             <TrayEventListener />
             {setupComplete ? (
               <ChatProvider>
-                <Sidebar>
-                  <Routes>
-                    <Route path="/" element={<HomePage />} />
-                    <Route path="/chat" element={<ChatWindow />} />
-                    <Route path="/c/:chatId" element={<ChatWindow />} />
-                    <Route path="/discover" element={<DiscoverPage />} />
-                    <Route path="/reader" element={<ReaderPage />} />
-                    <Route path="/pdf" element={<PdfReaderPage />} />
-                    <Route path="/library" element={<LibraryPage />} />
-                    <Route path="/tray" element={<TrayHub />} />
-                  </Routes>
-                </Sidebar>
-                <Toaster
-                  toastOptions={{
-                    unstyled: true,
-                    classNames: {
-                      toast:
-                        'bg-light-secondary dark:bg-dark-secondary dark:text-white/70 text-black/70 rounded-lg p-4 flex flex-row items-center space-x-2',
-                    },
-                  }}
-                />
+                <AudioPlayerProvider>
+                  <Sidebar>
+                    <Routes>
+                      <Route path="/" element={<HomePage />} />
+                      <Route path="/chat" element={<ChatWindow />} />
+                      <Route path="/c/:chatId" element={<ChatWindow />} />
+                      <Route path="/discover" element={<DiscoverPage />} />
+                      <Route path="/reader" element={<ReaderPage />} />
+                      <Route path="/pdf" element={<PdfReaderPage />} />
+                      <Route path="/library" element={<LibraryPage />} />
+                      <Route path="/tray" element={<TrayHub />} />
+                    </Routes>
+                  </Sidebar>
+                  <PodcastPlayerDock />
+                  <Toaster
+                    toastOptions={{
+                      unstyled: true,
+                      classNames: {
+                        toast:
+                          'bg-light-secondary dark:bg-dark-secondary dark:text-white/70 text-black/70 rounded-lg p-4 flex flex-row items-center space-x-2',
+                      },
+                    }}
+                  />
+                </AudioPlayerProvider>
               </ChatProvider>
             ) : (
               <SetupWizard configSections={configSections || defaultFallbackSections} />

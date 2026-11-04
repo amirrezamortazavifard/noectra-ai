@@ -22,6 +22,16 @@ import { toast } from 'sonner';
 import { NewsItem, DiscoverFeedItem } from '@/lib/services/discover/types';
 import { openExternalLink } from '@/lib/openExternal';
 import { formatTimeDifference } from '@/lib/utils';
+import { useAudioPlayer } from '@/context/AudioPlayerContext';
+import { AlphaXivModal, extractArxivId } from '@/components/Discover/Modals/AlphaXivModal';
+import { YouTubeIntelligenceModal } from '@/components/Discover/Modals/YouTubeIntelligenceModal';
+import { ArticleTranslatorModal } from '@/components/Discover/Modals/ArticleTranslatorModal';
+import { CodeBlockHighlighter } from '@/components/Reader/CodeBlockHighlighter';
+import {
+  Languages,
+  Headphones,
+  Video,
+} from 'lucide-react';
 
 interface ArticleReaderModalProps {
   item: NewsItem | DiscoverFeedItem | null;
@@ -35,12 +45,19 @@ export const ArticleReaderModal: React.FC<ArticleReaderModalProps> = ({
   onClose,
 }) => {
   const navigate = useNavigate();
+  const { playTrack } = useAudioPlayer();
   const [viewMode, setViewMode] = useState<'reader' | 'webview'>('reader');
   const [fullContent, setFullContent] = useState<string | null>(null);
   const [loadingContent, setLoadingContent] = useState<boolean>(false);
   const [copied, setCopied] = useState<boolean>(false);
   const [imageError, setImageError] = useState<boolean>(false);
   const [isMaximized, setIsMaximized] = useState<boolean>(false);
+  const [isAlphaXivOpen, setIsAlphaXivOpen] = useState<boolean>(false);
+  const [isYouTubeOpen, setIsYouTubeOpen] = useState<boolean>(false);
+  const [isTranslatorOpen, setIsTranslatorOpen] = useState<boolean>(false);
+
+  const arxivId = item ? (extractArxivId(item.url) || ((item as any).doi ? extractArxivId((item as any).doi) : null)) : null;
+  const isYouTube = item ? (item.url.includes('youtube.com') || item.url.includes('youtu.be')) : false;
 
   // Close on Escape key
   useEffect(() => {
@@ -160,6 +177,64 @@ export const ArticleReaderModal: React.FC<ArticleReaderModalProps> = ({
 
             {/* Action Buttons */}
             <div className="flex items-center gap-1.5 sm:gap-2">
+              {/* alphaXiv Direct Viewer if arXiv paper */}
+              {arxivId && (
+                <button
+                  type="button"
+                  onClick={() => setIsAlphaXivOpen(true)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white shadow-sm transition-all active:scale-95"
+                  title="Open in alphaXiv with community annotations"
+                >
+                  <span className="font-bold">αX</span>
+                  <span className="hidden sm:inline">alphaXiv</span>
+                </button>
+              )}
+
+              {/* YouTube Video Intelligence if video */}
+              {isYouTube && (
+                <button
+                  type="button"
+                  onClick={() => setIsYouTubeOpen(true)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-rose-600 hover:bg-rose-500 text-white shadow-sm transition-all active:scale-95"
+                  title="Extract transcript and watch video"
+                >
+                  <Video size={13} />
+                  <span className="hidden sm:inline">Video & Transcript</span>
+                </button>
+              )}
+
+              {/* Translate with AI */}
+              <button
+                type="button"
+                onClick={() => setIsTranslatorOpen(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium bg-white/[0.08] hover:bg-white/[0.12] text-white border border-white/10 transition-all active:scale-95"
+                title="Translate article with AI"
+              >
+                <Languages size={13} />
+                <span className="hidden md:inline">Translate</span>
+              </button>
+
+              {/* Listen Audio / Podcast */}
+              <button
+                type="button"
+                onClick={() => {
+                  playTrack({
+                    id: item.id,
+                    title: item.title,
+                    source: item.source,
+                    audioUrl: (item as any).audioUrl || (item as any).enclosureUrl || `https://api.streamaudio.fake/read?id=${item.id}`,
+                    imageUrl: (item as any).imageUrl || (item as any).thumbnail,
+                    articleUrl: item.url,
+                  });
+                  toast.success(`Playing audio for "${item.title.slice(0, 30)}..."`);
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium bg-white/[0.08] hover:bg-white/[0.12] text-white border border-white/10 transition-all active:scale-95"
+                title="Listen with Audio Player"
+              >
+                <Headphones size={13} className="text-cyan-400" />
+                <span className="hidden md:inline">Listen</span>
+              </button>
+
               {/* Summarize with AI */}
               <button
                 type="button"
@@ -286,6 +361,10 @@ export const ArticleReaderModal: React.FC<ArticleReaderModalProps> = ({
                           </h3>
                         );
                       }
+                      if (paragraph.includes('```')) {
+                        const cleanCode = paragraph.replace(/```[a-zA-Z0-9_-]*\n?/g, '').replace(/```/g, '');
+                        return <CodeBlockHighlighter key={idx} code={cleanCode} isDark={true} />;
+                      }
                       return (
                         <p key={idx} className="leading-relaxed">
                           {paragraph}
@@ -359,6 +438,36 @@ export const ArticleReaderModal: React.FC<ArticleReaderModalProps> = ({
             </div>
           )}
         </motion.div>
+
+        {/* alphaXiv Modal */}
+        <AlphaXivModal
+          isOpen={isAlphaXivOpen}
+          onClose={() => setIsAlphaXivOpen(false)}
+          paper={{
+            id: item.id,
+            title: item.title,
+            url: item.url,
+            doi: (item as any).doi,
+            authors: (item as any).authors,
+            description: item.description,
+          }}
+        />
+
+        {/* YouTube Video Intelligence Modal */}
+        <YouTubeIntelligenceModal
+          isOpen={isYouTubeOpen}
+          onClose={() => setIsYouTubeOpen(false)}
+          videoUrlOrId={item.url}
+          videoTitle={item.title}
+        />
+
+        {/* Article Translator Modal */}
+        <ArticleTranslatorModal
+          isOpen={isTranslatorOpen}
+          onClose={() => setIsTranslatorOpen(false)}
+          title={item.title}
+          originalText={fullContent || item.description || ''}
+        />
       </div>
     </AnimatePresence>
   );
