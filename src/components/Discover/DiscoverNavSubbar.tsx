@@ -22,6 +22,7 @@ import {
 import { IntelligenceFeedMode } from '@/lib/services/discover/types';
 import { cn } from '@/lib/utils';
 import { GlassDropdown, DropdownItem } from '@/components/Discover/GlassDropdown';
+import { HierarchicalSourceSelector } from '@/components/Discover/HierarchicalSourceSelector';
 
 interface DiscoverNavSubbarProps {
   currentMode: IntelligenceFeedMode;
@@ -40,7 +41,7 @@ interface DiscoverNavSubbarProps {
 
   activeSource: string;
   onSelectSource: (src: string) => void;
-  sourceItems: DropdownItem[];
+  sourceItems?: DropdownItem[];
 
   activeTopic: string;
   onResetTopic: () => void;
@@ -318,16 +319,11 @@ export const DiscoverNavSubbar: React.FC<DiscoverNavSubbarProps> = ({
       {/* ------------------------------------------------------------- */}
       {currentMode !== 'live_buzz' && (
         <div className="flex flex-wrap items-center justify-between gap-2.5 pt-2 border-t border-slate-200/60 dark:border-white/[0.06]">
-          {/* Left: Verified Source Combobox & Active Topic Pill */}
+          {/* Left: Hierarchical Categorized Source Selector & Active Topic Pill */}
           <div className="flex flex-wrap items-center gap-2">
-            <GlassDropdown
-              label="All Verified Feeds"
-              prefix="Source"
-              icon={<Radio size={13} className="text-violet-500" />}
-              items={sourceItems}
-              selectedKey={activeSource}
-              onSelect={onSelectSource}
-              widthClass="min-w-[220px]"
+            <HierarchicalSourceSelector
+              activeSource={activeSource}
+              onSelectSource={onSelectSource}
             />
 
             {/* Active Sub-Topic Chip */}

@@ -219,3 +219,4 @@ export function resolveSocialInput(input: string): ResolvedSocialFeed {
     iconType: 'rss',
   };
 }
+
