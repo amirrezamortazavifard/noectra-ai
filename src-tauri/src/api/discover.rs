@@ -1058,11 +1058,13 @@ pub async fn get_discover_feed_handler(
     let mut filtered: Vec<DiscoverFeedItem> = deduplicated
         .into_iter()
         .filter(|item| {
+            let title_lower = item.title.to_lowercase();
+            let desc_lower = item.description.to_lowercase();
+            let tags_lower: Vec<String> = item.tags.iter().map(|t| t.to_lowercase()).collect();
+
             // Query filter
             if !query_param.is_empty() {
-                let t = item.title.to_lowercase();
-                let d = item.description.to_lowercase();
-                if !t.contains(&query_param) && !d.contains(&query_param) {
+                if !title_lower.contains(&query_param) && !desc_lower.contains(&query_param) {
                     return false;
                 }
             }
@@ -1070,10 +1072,6 @@ pub async fn get_discover_feed_handler(
             // Topic filter
             if !topic_param.is_empty() && topic_param != "all" {
                 let topic_keywords = get_topic_keywords(&topic_param);
-                let title_lower = item.title.to_lowercase();
-                let desc_lower = item.description.to_lowercase();
-                let tags_lower: Vec<String> = item.tags.iter().map(|t| t.to_lowercase()).collect();
-
                 let matches_topic = topic_keywords.iter().any(|kw| {
                     title_lower.contains(kw)
                         || desc_lower.contains(kw)
