@@ -1,12 +1,29 @@
 export interface TaxonomyTopic {
   id: string;
   name: string;
-  category: 'medical_imaging' | 'surgical_cv' | 'computational_pathology' | 'advanced_medical_ai' | 'core_ai';
+  category: string;
   description: string;
   icon: string;
   gradient: string;
   keywords: string[];
   isHot?: boolean;
+}
+
+export interface DisciplineSubTopic {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  keywords: string[];
+  isHot?: boolean;
+}
+
+export interface UniversalDiscipline {
+  id: string;
+  name: string;
+  icon: string;
+  description: string;
+  topics: DisciplineSubTopic[];
 }
 
 export interface StoryTopicItem {
@@ -20,255 +37,457 @@ export interface StoryTopicItem {
 }
 
 // ---------------------------------------------------------------------------
-// Medical Computer Vision & Advanced Medical AI Taxonomy
+// Universal Multi-Disciplinary Taxonomy
 // ---------------------------------------------------------------------------
 
-export const MEDICAL_CV_TAXONOMY: TaxonomyTopic[] = [
-  // Medical Imaging
+export const UNIVERSAL_DISCIPLINES: UniversalDiscipline[] = [
+  // 1. Medicine & Clinical Healthcare
   {
-    id: 'radiology_ai',
-    name: 'Radiology AI',
-    category: 'medical_imaging',
-    description: 'Deep learning for chest X-rays, mammography, and clinical radiology workflows.',
-    icon: '🩻',
-    gradient: 'from-cyan-500 to-blue-600',
-    keywords: ['radiology', 'radiologist', 'chest x-ray', 'cxr', 'mammogram'],
-    isHot: true,
-  },
-  {
-    id: 'ct_analysis',
-    name: 'CT Analysis',
-    category: 'medical_imaging',
-    description: 'Volumetric computed tomography reconstruction, organ segmentation, and anomaly detection.',
-    icon: '🌀',
-    gradient: 'from-blue-500 to-indigo-600',
-    keywords: ['computed tomography', 'ct scan', 'contrast ct', 'low-dose ct'],
-  },
-  {
-    id: 'mri_analysis',
-    name: 'MRI Analysis',
-    category: 'medical_imaging',
-    description: 'Multi-parametric MRI, neuroimaging, cardiac MRI, and accelerated acquisition.',
-    icon: '🧲',
-    gradient: 'from-indigo-500 to-violet-600',
-    keywords: ['magnetic resonance', 'mri', 'diffusion mri', 'fmri', 'brain mri'],
-    isHot: true,
-  },
-  {
-    id: 'ultrasound_ai',
-    name: 'Ultrasound AI',
-    category: 'medical_imaging',
-    description: 'Point-of-care ultrasound (POCUS), echocardiography, and real-time guidance.',
-    icon: '📡',
-    gradient: 'from-teal-500 to-cyan-600',
-    keywords: ['ultrasound', 'echocardiography', 'sonography', 'pocus', 'doppler'],
-  },
-  {
-    id: 'medical_segmentation',
-    name: 'Medical Image Segmentation',
-    category: 'medical_imaging',
-    description: 'Voxel-level organ boundary delineation, tumor contours, and SAM-Med architectures.',
-    icon: '✂️',
-    gradient: 'from-cyan-400 to-teal-600',
-    keywords: ['segmentation', 'u-net', 'nnunet', 'sam-med', 'contouring'],
-    isHot: true,
-  },
-  {
-    id: 'lesion_detection',
-    name: 'Lesion Detection',
-    category: 'medical_imaging',
-    description: 'Automated pulmonary nodule detection, stroke infarct sizing, and lesion localization.',
-    icon: '🎯',
-    gradient: 'from-emerald-500 to-teal-600',
-    keywords: ['lesion detection', 'pulmonary nodule', 'stroke infarct', 'tumor localization'],
-  },
-
-  // Surgical Computer Vision
-  {
-    id: 'surgical_cv',
-    name: 'Surgical Computer Vision',
-    category: 'surgical_cv',
-    description: 'Video understanding for minimally invasive, laparoscopic, and robotic surgery.',
-    icon: '🔬',
-    gradient: 'from-violet-500 to-purple-700',
-    keywords: ['surgical', 'surgery', 'laparoscopic', 'endoscopy', 'robot-assisted'],
-    isHot: true,
-  },
-  {
-    id: 'surgical_instrument_detection',
-    name: 'Surgical Instrument Tracking',
-    category: 'surgical_cv',
-    description: 'Real-time tool tracking, articulation pose estimation, and safety zone bounds.',
-    icon: '🛠️',
-    gradient: 'from-purple-500 to-fuchsia-600',
-    keywords: ['surgical instrument', 'tool detection', 'surgical robot', 'instrument tracking'],
-  },
-  {
-    id: 'surgical_phase_recognition',
-    name: 'Surgical Workflow & Phase Recognition',
-    category: 'surgical_cv',
-    description: 'Temporal workflow parsing, surgical phase transition, and step recognition.',
-    icon: '⏱️',
-    gradient: 'from-fuchsia-500 to-pink-600',
-    keywords: ['surgical workflow', 'phase recognition', 'surgical video', 'cholec80'],
+    id: 'medicine',
+    name: 'Medicine & Healthcare',
+    icon: '🩺',
+    description: 'Clinical medicine, diagnostic radiology, surgical innovation, oncology and epidemiology.',
+    topics: [
+      {
+        id: 'radiology_imaging',
+        name: 'Radiology & Medical Imaging',
+        description: 'CT, MRI, X-ray, Ultrasound, Mammography, PET-CT and nuclear medicine diagnostics.',
+        icon: '🩻',
+        keywords: ['radiology', 'ct scan', 'mri', 'x-ray', 'ultrasound', 'mammography', 'imaging', 'pet-ct'],
+        isHot: true,
+      },
+      {
+        id: 'pathology_histology',
+        name: 'Pathology & Histology',
+        description: 'Whole slide imaging (WSI), cellular morphology, biopsy analysis and tissue biomarkers.',
+        icon: '🔬',
+        keywords: ['pathology', 'histopathology', 'histology', 'whole slide', 'wsi', 'biopsy', 'cell', 'tissue'],
+        isHot: true,
+      },
+      {
+        id: 'surgery_robotics',
+        name: 'Surgery & Surgical Tech',
+        description: 'Minimally invasive surgery, laparoscopy, robotic intervention and surgical video analytics.',
+        icon: '🔪',
+        keywords: ['surgical', 'surgery', 'laparoscopy', 'endoscopy', 'robot-assisted', 'operating room', 'surgeon'],
+      },
+      {
+        id: 'clinical_ai',
+        name: 'Clinical AI & Decision Support',
+        description: 'Diagnostic foundation models, electronic health records (EHR), and patient triage AI.',
+        icon: '🧠',
+        keywords: ['clinical ai', 'diagnostic support', 'ehr', 'triage', 'patient risk', 'clinical decision'],
+        isHot: true,
+      },
+      {
+        id: 'cardiology',
+        name: 'Cardiology & Vascular',
+        description: 'Echocardiography, ECG arrhythmia detection, coronary imaging and cardiovascular interventions.',
+        icon: '🫀',
+        keywords: ['cardiology', 'cardiovascular', 'ecg', 'echocardiography', 'arrhythmia', 'coronary', 'heart'],
+      },
+      {
+        id: 'oncology',
+        name: 'Oncology & Cancer Research',
+        description: 'Tumor biology, precision oncology, cancer genomics, immunotherapy and radiation therapy.',
+        icon: '🎗️',
+        keywords: ['oncology', 'cancer', 'tumor', 'immunotherapy', 'carcinoma', 'neoplasm', 'chemotherapy'],
+        isHot: true,
+      },
+      {
+        id: 'pharmacology',
+        name: 'Pharmacology & Therapeutics',
+        description: 'Drug discovery, molecular screening, pharmacokinetics, toxicology and clinical trials.',
+        icon: '💊',
+        keywords: ['pharmacology', 'drug discovery', 'therapeutics', 'pharmacokinetics', 'molecular screening'],
+      },
+      {
+        id: 'public_health',
+        name: 'Public Health & Epidemiology',
+        description: 'Disease surveillance, global health policy, infection control and epidemic modeling.',
+        icon: '🌐',
+        keywords: ['public health', 'epidemiology', 'vaccine', 'infectious disease', 'outbreak', 'surveillance'],
+      },
+    ],
   },
 
-  // Computational Pathology
+  // 2. Dentistry & Oral Sciences
   {
-    id: 'computational_pathology',
-    name: 'Computational Pathology',
-    category: 'computational_pathology',
-    description: 'Whole Slide Image (WSI) analysis, cell phenotyping, and digital histopathology.',
+    id: 'dentistry',
+    name: 'Dentistry & Oral Health',
+    icon: '🦷',
+    description: 'Digital dentistry, endodontics, orthodontics, oral & maxillofacial surgery, and periodontology.',
+    topics: [
+      {
+        id: 'digital_dentistry',
+        name: 'Digital Dentistry & Dental AI',
+        description: 'Cone beam CT (CBCT), 3D intraoral scanning, CAD/CAM crowns, and automated caries detection.',
+        icon: '💻',
+        keywords: ['digital dentistry', 'cbct', 'intraoral scan', 'cad/cam', 'caries detection', 'dental ai'],
+        isHot: true,
+      },
+      {
+        id: 'orthodontics',
+        name: 'Orthodontics & Dentofacial',
+        description: 'Clear aligners, malocclusion correction, cephalometrics, and facial growth modification.',
+        icon: '✨',
+        keywords: ['orthodontics', 'malocclusion', 'aligners', 'braces', 'cephalometrics', 'dentofacial'],
+      },
+      {
+        id: 'endodontics',
+        name: 'Endodontics & Pulp Biology',
+        description: 'Root canal therapy, dental pulp regeneration, apical periodontitis, and nickel-titanium instrumentation.',
+        icon: '💉',
+        keywords: ['endodontics', 'root canal', 'pulpitis', 'dental pulp', 'periapical', 'apexification'],
+      },
+      {
+        id: 'periodontics',
+        name: 'Periodontology & Implants',
+        description: 'Periodontal regeneration, osseointegration, dental implants, guided bone regeneration and peri-implantitis.',
+        icon: '🌱',
+        keywords: ['periodontology', 'periodontics', 'dental implant', 'osseointegration', 'gingivitis', 'bone graft'],
+        isHot: true,
+      },
+      {
+        id: 'oral_surgery',
+        name: 'Oral & Maxillofacial Surgery',
+        description: 'Surgical tooth extraction, orthognathic correction, jaw pathology, cleft lip/palate, and facial trauma.',
+        icon: '🪡',
+        keywords: ['maxillofacial', 'oral surgery', 'orthognathic', 'jaw resection', 'cleft palate', 'wisdom tooth'],
+      },
+      {
+        id: 'prosthodontics',
+        name: 'Prosthodontics & Materials',
+        description: 'Dental ceramics, zirconia restorations, fixed & removable prostheses, and biomimetic bonding.',
+        icon: '👑',
+        keywords: ['prosthodontics', 'zirconia', 'dental ceramic', 'crown', 'bridge', 'denture', 'veneer'],
+      },
+      {
+        id: 'pediatric_dentistry',
+        name: 'Pediatric & Preventive',
+        description: 'Early caries prevention, fluoride remineralization, pediatric restorative care, and dental trauma.',
+        icon: '🧸',
+        keywords: ['pediatric dentistry', 'caries prevention', 'fluoride', 'pulpotomy', 'pediatric oral'],
+      },
+    ],
+  },
+
+  // 3. Computer Science & Artificial Intelligence
+  {
+    id: 'computer_science',
+    name: 'Computer Science & AI',
+    icon: '💻',
+    description: 'Deep learning, computer vision, large language models, cybersecurity, systems, and algorithms.',
+    topics: [
+      {
+        id: 'computer_vision',
+        name: 'Computer Vision & Multimodal AI',
+        description: 'Object detection, image segmentation, diffusion models, 3D reconstruction and vision transformers.',
+        icon: '👁️',
+        keywords: ['computer vision', 'segmentation', 'object detection', 'diffusion', 'vit', 'multimodal'],
+        isHot: true,
+      },
+      {
+        id: 'nlp_llms',
+        name: 'NLP & Large Language Models',
+        description: 'Generative AI, retrieval-augmented generation (RAG), reasoning architectures, and tokenization.',
+        icon: '💬',
+        keywords: ['nlp', 'llm', 'large language model', 'generative ai', 'rag', 'transformer', 'prompting'],
+        isHot: true,
+      },
+      {
+        id: 'machine_learning',
+        name: 'Core Machine Learning',
+        description: 'Reinforcement learning, optimization algorithms, self-supervised learning, and neural graph networks.',
+        icon: '🤖',
+        keywords: ['machine learning', 'deep learning', 'reinforcement learning', 'neural network', 'optimization'],
+      },
+      {
+        id: 'cybersecurity',
+        name: 'Cybersecurity & Cryptography',
+        description: 'Zero-trust architecture, penetration testing, malware defense, post-quantum crypto, and privacy.',
+        icon: '🛡️',
+        keywords: ['cybersecurity', 'cryptography', 'zero trust', 'malware', 'vulnerability', 'privacy'],
+      },
+      {
+        id: 'software_engineering',
+        name: 'Software Systems & Cloud',
+        description: 'Distributed computing, microservices, cloud-native architecture, compilers, and performance engineering.',
+        icon: '⚙️',
+        keywords: ['software engineering', 'distributed systems', 'cloud', 'compiler', 'microservices', 'kubernetes'],
+      },
+      {
+        id: 'robotics_autonomous',
+        name: 'Robotics & Autonomous Systems',
+        description: 'Mobile robotics, kinematic planning, SLAM navigation, reinforcement learning control, and drones.',
+        icon: '🦾',
+        keywords: ['robotics', 'autonomous', 'slam', 'drone', 'manipulator', 'kinematics'],
+      },
+      {
+        id: 'quantum_computing',
+        name: 'Quantum Computing & Algorithms',
+        description: 'Superconducting qubits, quantum error correction, variational quantum algorithms, and gate synthesis.',
+        icon: '⚛️',
+        keywords: ['quantum computing', 'qubit', 'quantum algorithm', 'quantum error correction', 'quantum circuit'],
+      },
+    ],
+  },
+
+  // 4. Physics & Astronomy
+  {
+    id: 'physics_astronomy',
+    name: 'Physics & Astronomy',
+    icon: '🔭',
+    description: 'Cosmology, astrophysics, high-energy particle physics, quantum mechanics, and planetary science.',
+    topics: [
+      {
+        id: 'astrophysics',
+        name: 'Astrophysics & Cosmology',
+        description: 'Dark matter, gravitational waves, black hole accretion, cosmic microwave background, and galactic formation.',
+        icon: '🌌',
+        keywords: ['astrophysics', 'cosmology', 'black hole', 'dark matter', 'gravitational wave', 'galaxy'],
+        isHot: true,
+      },
+      {
+        id: 'quantum_physics',
+        name: 'Quantum Mechanics & Optics',
+        description: 'Quantum entanglement, Bell inequalities, non-linear optics, photonics, and Bose-Einstein condensates.',
+        icon: '⚛️',
+        keywords: ['quantum mechanics', 'entanglement', 'photonics', 'optics', 'bose-einstein', 'superposition'],
+      },
+      {
+        id: 'high_energy_particle',
+        name: 'High Energy & Particle Physics',
+        description: 'Standard model extensions, LHC colliders, neutrino oscillations, Higgs physics, and muon anomalous magnetic moment.',
+        icon: '💥',
+        keywords: ['particle physics', 'high energy', 'collider', 'cern', 'neutrino', 'higgs', 'quark'],
+      },
+      {
+        id: 'condensed_matter',
+        name: 'Condensed Matter Physics',
+        description: 'Topological insulators, unconventional superconductivity, graphene, spintronics, and metamaterials.',
+        icon: '🧊',
+        keywords: ['condensed matter', 'superconductivity', 'topological insulator', 'spintronics', 'semiconductor'],
+      },
+      {
+        id: 'planetary_space',
+        name: 'Planetary Science & Spaceflight',
+        description: 'Exoplanet atmospheres, James Webb Space Telescope observations, lunar missions, and astrobiology.',
+        icon: '🪐',
+        keywords: ['planetary', 'exoplanet', 'spacecraft', 'jwst', 'telescope', 'mars', 'lunar'],
+        isHot: true,
+      },
+    ],
+  },
+
+  // 5. Chemistry & Materials Science
+  {
+    id: 'chemistry_materials',
+    name: 'Chemistry & Materials',
     icon: '🧪',
-    gradient: 'from-rose-500 to-red-600',
-    keywords: ['pathology', 'histopathology', 'whole slide', 'wsi', 'gigapixel'],
-    isHot: true,
-  },
-  {
-    id: 'nuclei_segmentation',
-    name: 'Cell & Nuclei Segmentation',
-    category: 'computational_pathology',
-    description: 'Cellular morphometry, nuclei instance segmentation (Hover-Net), and tissue microarrays.',
-    icon: '🧬',
-    gradient: 'from-red-500 to-amber-600',
-    keywords: ['nuclei segmentation', 'cell detection', 'hover-net', 'monusac', 'mitosis'],
-  },
-  {
-    id: 'pathology_foundation_models',
-    name: 'Pathology Foundation Models',
-    category: 'computational_pathology',
-    description: 'Billion-parameter self-supervised encoders trained on multi-institutional gigapixel slides.',
-    icon: '🏛️',
-    gradient: 'from-amber-500 to-orange-600',
-    keywords: ['pathology foundation', 'prov-gigapath', 'virchow', 'uni model', 'conch'],
-    isHot: true,
+    description: 'Organic synthesis, biochemistry, catalysis, battery chemistry, MOFs, and advanced nanomaterials.',
+    topics: [
+      {
+        id: 'organic_chemistry',
+        name: 'Organic Chemistry & Catalysis',
+        description: 'Total synthesis, transition metal catalysis, asymmetric organocatalysis, and reaction mechanisms.',
+        icon: '🌿',
+        keywords: ['organic chemistry', 'synthesis', 'catalysis', 'reaction mechanism', 'organocatalyst'],
+      },
+      {
+        id: 'inorganic_materials',
+        name: 'Inorganic Chemistry & MOFs',
+        description: 'Metal-organic frameworks, porous materials, coordination chemistry, carbon capture, and battery anodes.',
+        icon: '🧱',
+        keywords: ['inorganic', 'mof', 'metal-organic', 'coordination chemistry', 'porous material', 'crystal'],
+      },
+      {
+        id: 'biochemistry',
+        name: 'Biochemistry & Chemical Biology',
+        description: 'Protein folding, enzyme kinetics, chemical probes, lipidomics, and metabolic pathway engineering.',
+        icon: '🧬',
+        keywords: ['biochemistry', 'enzyme', 'protein structure', 'chemical biology', 'metabolite'],
+        isHot: true,
+      },
+      {
+        id: 'nanotechnology',
+        name: 'Nanomaterials & 2D Sheets',
+        description: 'Graphene, MXenes, carbon nanotubes, quantum dots, plasmonic nanoparticles, and nano-composites.',
+        icon: '✨',
+        keywords: ['nanomaterials', 'graphene', 'nanotechnology', 'quantum dot', 'nanoparticle', 'mxene'],
+        isHot: true,
+      },
+      {
+        id: 'polymers_biomaterials',
+        name: 'Polymers & Soft Matter',
+        description: 'Hydrogels, biodegradable polymers, self-healing elastomers, and synthetic tissue scaffolds.',
+        icon: '🧴',
+        keywords: ['polymer', 'biomaterial', 'hydrogel', 'elastomer', 'tissue scaffold', 'biodegradable'],
+      },
+    ],
   },
 
-  // Advanced Medical AI
+  // 6. Biological Sciences & Genetics
   {
-    id: 'medical_foundation_models',
-    name: 'Medical Foundation Models',
-    category: 'advanced_medical_ai',
-    description: 'Large multimodal models integrating clinical text, EHR records, and imaging.',
+    id: 'biology_genetics',
+    name: 'Biological Sciences & Genetics',
+    icon: '🧬',
+    description: 'CRISPR gene editing, molecular genetics, microbiology, evolutionary biology, and synthetic biology.',
+    topics: [
+      {
+        id: 'genomics_genetics',
+        name: 'Genomics & CRISPR Editing',
+        description: 'Base editing, epigenetic regulation, genome sequencing, non-coding RNA, and chromatin architecture.',
+        icon: '🔬',
+        keywords: ['genomics', 'crispr', 'gene editing', 'genome', 'epigenetics', 'sequencing', 'dna'],
+        isHot: true,
+      },
+      {
+        id: 'molecular_cellular',
+        name: 'Molecular & Cellular Biology',
+        description: 'Cell division, autophagy, organelle signaling, protein synthesis, and cellular senescence.',
+        icon: '🧫',
+        keywords: ['cellular biology', 'molecular biology', 'autophagy', 'cell signaling', 'senescence'],
+      },
+      {
+        id: 'microbiology_virology',
+        name: 'Microbiology & Virology',
+        description: 'Antimicrobial resistance, bacterial biofilms, bacteriophages, viral replication, and gut microbiome.',
+        icon: '🦠',
+        keywords: ['microbiology', 'virology', 'bacteria', 'virus', 'microbiome', 'antimicrobial resistance'],
+        isHot: true,
+      },
+      {
+        id: 'immunology',
+        name: 'Immunology & Cellular Therapy',
+        description: 'T-cell biology, CAR-T therapies, cytokine signaling, autoimmune diseases, and antibody engineering.',
+        icon: '🛡️',
+        keywords: ['immunology', 'car-t', 't-cell', 'antibody', 'cytokine', 'autoimmune', 'immune'],
+      },
+      {
+        id: 'evolution_ecology',
+        name: 'Ecology & Evolutionary Biology',
+        description: 'Speciation, biodiversity loss, ecological modeling, conservation genetics, and climate adaptation.',
+        icon: '🌱',
+        keywords: ['ecology', 'evolution', 'biodiversity', 'conservation', 'climate adaptation', 'ecosystem'],
+      },
+    ],
+  },
+
+  // 7. Engineering & Applied Technology
+  {
+    id: 'engineering',
+    name: 'Engineering & Applied Tech',
+    icon: '⚙️',
+    description: 'Biomedical engineering, aerospace, microelectronics, renewable energy, and chemical engineering.',
+    topics: [
+      {
+        id: 'biomedical_engineering',
+        name: 'Biomedical Engineering & Prosthetics',
+        description: 'Neural implants, bionic prosthetics, biosensors, microfluidics (lab-on-a-chip), and medical robotics.',
+        icon: '🦿',
+        keywords: ['biomedical engineering', 'prosthetics', 'biosensor', 'lab-on-a-chip', 'implant', 'bionic'],
+        isHot: true,
+      },
+      {
+        id: 'electrical_electronics',
+        name: 'Electrical & Semiconductors',
+        description: 'VLSI chip design, Gallium Nitride (GaN) power devices, RF microwave engineering, and photonics ICs.',
+        icon: '🔌',
+        keywords: ['electrical engineering', 'semiconductor', 'vlsi', 'integrated circuit', 'microelectronics'],
+      },
+      {
+        id: 'mechanical_aerospace',
+        name: 'Mechanical & Aerospace',
+        description: 'Supersonic aerodynamics, propulsion systems, additive manufacturing (3D printing), and computational fluid dynamics.',
+        icon: '🚀',
+        keywords: ['aerospace', 'mechanical engineering', 'propulsion', 'aerodynamics', 'cfd', 'additive manufacturing'],
+      },
+      {
+        id: 'energy_sustainability',
+        name: 'Energy Storage & Renewables',
+        description: 'Solid-state batteries, perovskite solar cells, green hydrogen generation, and grid decarbonization.',
+        icon: '⚡',
+        keywords: ['battery', 'solar cell', 'renewable energy', 'hydrogen', 'energy storage', 'perovskite'],
+        isHot: true,
+      },
+    ],
+  },
+
+  // 8. Neuroscience & Cognitive Science
+  {
+    id: 'neuroscience',
+    name: 'Neuroscience & Brain',
     icon: '🧠',
-    gradient: 'from-cyan-500 to-violet-600',
-    keywords: ['medical foundation', 'med-gemini', 'med-palm', 'biomedclip', 'multimodal medical'],
-    isHot: true,
-  },
-  {
-    id: 'medical_diffusion',
-    name: 'Medical Diffusion Models',
-    category: 'advanced_medical_ai',
-    description: 'Diffusion for MRI acceleration, low-dose CT de-noising, and counterfactual synthesis.',
-    icon: '✨',
-    gradient: 'from-violet-500 to-indigo-600',
-    keywords: ['medical diffusion', 'score-based', 'counterfactual', 'image reconstruction'],
-  },
-  {
-    id: 'clinical_ai_validation',
-    name: 'Clinical AI Validation',
-    category: 'advanced_medical_ai',
-    description: 'FDA clearance evidence, randomized reader studies, and out-of-distribution audits.',
-    icon: '📋',
-    gradient: 'from-emerald-500 to-green-600',
-    keywords: ['clinical validation', 'fda clearance', 'reader study', 'audit', 'generalizability'],
+    description: 'Computational neuroscience, brain-computer interfaces, connectomics, neurodegenerative disorders, and memory.',
+    topics: [
+      {
+        id: 'computational_neuroscience',
+        name: 'Computational Neuroscience',
+        description: 'Biophysical neural models, spiking neural networks, cognitive architectures, and information theory.',
+        icon: '💻',
+        keywords: ['computational neuroscience', 'neural modeling', 'spiking network', 'synaptic plasticity'],
+      },
+      {
+        id: 'neuroimaging_connectomics',
+        name: 'Neuroimaging & Connectomics',
+        description: 'Functional MRI (fMRI), diffusion tensor imaging (DTI), high-density EEG, and whole-brain connectome mapping.',
+        icon: '🧲',
+        keywords: ['neuroimaging', 'fmri', 'dti', 'connectome', 'eeg', 'brain mapping'],
+        isHot: true,
+      },
+      {
+        id: 'bci_neural_interfaces',
+        name: 'Brain-Computer Interfaces (BCI)',
+        description: 'Intracortical microelectrode arrays, non-invasive EEG decoders, neuromodulation, and closed-loop BCI.',
+        icon: '⚡',
+        keywords: ['bci', 'brain-computer interface', 'neural decoding', 'neuromodulation', 'neural interface'],
+        isHot: true,
+      },
+      {
+        id: 'neurodegenerative',
+        name: 'Neurodegenerative Diseases',
+        description: 'Amyloid & tau pathology in Alzheimer’s, alpha-synuclein in Parkinson’s, neuroinflammation, and ALS therapies.',
+        icon: '🩹',
+        keywords: ['alzheimer', 'parkinson', 'neurodegenerative', 'als', 'amyloid', 'tau', 'dementia'],
+        isHot: true,
+      },
+    ],
   },
 ];
 
-// ---------------------------------------------------------------------------
-// Instagram Stories-Style Topic Discovery Strip Items
-// ---------------------------------------------------------------------------
+// Universal Taxonomy Topics list for Command Palette & Global Search
+export const MEDICAL_CV_TAXONOMY: TaxonomyTopic[] = UNIVERSAL_DISCIPLINES.flatMap((d) =>
+  d.topics.map((t) => ({
+    id: t.id,
+    name: t.name,
+    category: d.id,
+    description: t.description,
+    icon: t.icon,
+    gradient: 'from-cyan-500 to-blue-600',
+    keywords: t.keywords,
+    isHot: t.isHot,
+  }))
+);
 
+// Flat fallback for backward compatibility
 export const DISCOVERY_STORY_TOPICS: StoryTopicItem[] = [
   {
     id: 'all',
-    title: 'All Topics',
-    subtitle: 'Global Stream',
+    title: 'All Disciplines',
+    subtitle: 'Global Research Stream',
     icon: '🌐',
     category: 'all',
     gradient: 'from-cyan-500 via-blue-500 to-indigo-600',
     hasNew: true,
   },
-  {
-    id: 'medical_cv',
-    title: 'Medical AI',
-    subtitle: 'Imaging & Vision',
-    icon: '🩺',
-    category: 'medical_cv',
-    gradient: 'from-cyan-400 via-teal-500 to-emerald-500',
+  ...UNIVERSAL_DISCIPLINES.map((d) => ({
+    id: d.id,
+    title: d.name,
+    subtitle: `${d.topics.length} Specializations`,
+    icon: d.icon,
+    category: d.id,
+    gradient: 'from-cyan-500 to-blue-600',
     hasNew: true,
-  },
-  {
-    id: 'radiology_ai',
-    title: 'Radiology AI',
-    subtitle: 'CT, MRI & X-ray',
-    icon: '🩻',
-    category: 'medical_cv',
-    gradient: 'from-blue-500 to-cyan-500',
-    hasNew: true,
-  },
-  {
-    id: 'computational_pathology',
-    title: 'Pathology AI',
-    subtitle: 'Whole Slide WSI',
-    icon: '🧪',
-    category: 'medical_cv',
-    gradient: 'from-rose-500 to-red-600',
-    hasNew: true,
-  },
-  {
-    id: 'surgical_cv',
-    title: 'Surgical Vision',
-    subtitle: 'Robotics & Video',
-    icon: '🔬',
-    category: 'medical_cv',
-    gradient: 'from-violet-500 to-purple-600',
-    hasNew: false,
-  },
-  {
-    id: 'medical_foundation_models',
-    title: 'Foundation',
-    subtitle: 'Medical VLMs',
-    icon: '🧠',
-    category: 'medical_cv',
-    gradient: 'from-purple-500 to-pink-500',
-    hasNew: true,
-  },
-  {
-    id: 'vision_transformers',
-    title: 'Vision Transformers',
-    subtitle: 'ViT & Attention',
-    icon: '👁️',
-    category: 'ai',
-    gradient: 'from-amber-500 to-orange-600',
-    hasNew: false,
-  },
-  {
-    id: 'medical_segmentation',
-    title: 'Segmentation',
-    subtitle: 'SAM-Med & U-Net',
-    icon: '✂️',
-    category: 'medical_cv',
-    gradient: 'from-emerald-500 to-teal-600',
-    hasNew: true,
-  },
-  {
-    id: 'huggingface_models',
-    title: 'New Models',
-    subtitle: 'Hugging Face',
-    icon: '🤗',
-    category: 'models',
-    gradient: 'from-yellow-500 to-amber-600',
-    hasNew: true,
-  },
-  {
-    id: 'clinical_ai_validation',
-    title: 'Clinical Trials',
-    subtitle: 'FDA & Validation',
-    icon: '⚖️',
-    category: 'medical_cv',
-    gradient: 'from-green-500 to-emerald-600',
-    hasNew: false,
-  },
+  })),
 ];
-

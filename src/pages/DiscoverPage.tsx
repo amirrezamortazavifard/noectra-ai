@@ -51,7 +51,7 @@ import {
   followTopic,
   unfollowTopic,
 } from '@/lib/services/discover/intelligenceApi';
-import { TopicStoriesStrip } from '@/components/Discover/TopicStoriesStrip';
+import { UniversalKnowledgeNavigator } from '@/components/Discover/UniversalKnowledgeNavigator';
 import { DiscoverNavSubbar } from '@/components/Discover/DiscoverNavSubbar';
 import { IntelligencePulseSidebar } from '@/components/Discover/IntelligencePulseSidebar';
 import { FeaturedIntelligenceCard } from '@/components/Discover/Cards/FeaturedIntelligenceCard';
@@ -67,30 +67,41 @@ import DiscoverApiKeysModal from '@/components/Discover/DiscoverApiKeysModal';
 import { LiveBuzzDashboard } from '@/components/Discover/LiveBuzz/LiveBuzzDashboard';
 import { useNavigate } from 'react-router-dom';
 
-// Categories for Category Filter
+// Universal Knowledge Domains & Disciplines
 const categoryOptions: DiscoverCategory[] = [
-  { key: 'all', display: 'All Disciplines', icon: '🌐' },
-  { key: 'medical_cv', display: 'Medical AI & CV', icon: '🩺' },
-  { key: 'ai', display: 'Artificial Intelligence', icon: '🤖' },
-  { key: 'cs', display: 'Computer Science', icon: '💻' },
-  { key: 'science', display: 'Science & Physics', icon: '🚀' },
-  { key: 'health', display: 'Healthcare & Clinical', icon: '🧬' },
-  { key: 'tech', display: 'Industry Technology', icon: '⚡' },
+  { key: 'all', display: 'All Knowledge Disciplines', icon: '🌐' },
+  { key: 'medicine', display: 'Medicine & Healthcare', icon: '🩺' },
+  { key: 'dentistry', display: 'Dentistry & Oral Health', icon: '🦷' },
+  { key: 'computer_science', display: 'Computer Science & AI', icon: '💻' },
+  { key: 'physics_astronomy', display: 'Physics & Astronomy', icon: '🔭' },
+  { key: 'chemistry_materials', display: 'Chemistry & Materials', icon: '🧪' },
+  { key: 'biology_genetics', display: 'Biological Sciences & Genetics', icon: '🧬' },
+  { key: 'engineering', display: 'Engineering & Applied Tech', icon: '⚙️' },
+  { key: 'neuroscience', display: 'Neuroscience & Brain', icon: '🧠' },
 ];
 
-// Sources for Source Filter
+// Universal Verified Feeds Catalog
 const sourceOptions: DiscoverSource[] = [
-  { key: 'all', display: 'All Verified Feeds', type: 'rss' },
-  { key: 'arxiv_cv', display: 'arXiv Computer Vision (cs.CV)', type: 'academic' },
-  { key: 'arxiv_ai', display: 'arXiv Artificial Intelligence', type: 'academic' },
-  { key: 'nature', display: 'Nature Journal', type: 'academic' },
+  { key: 'all', display: 'All Verified Feeds (20+ Sources)', type: 'rss' },
+  { key: 'nature', display: 'Nature International Journal', type: 'academic' },
   { key: 'science_mag', display: 'Science Magazine', type: 'academic' },
-  { key: 'medpage', display: 'MedPage Today', type: 'rss' },
-  { key: 'sciencedaily_ai', display: 'ScienceDaily AI', type: 'rss' },
-  { key: 'mit_tech', display: 'MIT Tech Review', type: 'rss' },
-  { key: 'techcrunch', display: 'TechCrunch AI', type: 'rss' },
-  { key: 'wired', display: 'Wired AI & Science', type: 'rss' },
-  { key: 'arstechnica', display: 'Ars Technica', type: 'rss' },
+  { key: 'nature_bdj', display: 'British Dental Journal (Nature BDJ)', type: 'academic' },
+  { key: 'sciencedaily_dentistry', display: 'ScienceDaily Dental Research', type: 'rss' },
+  { key: 'medpage', display: 'MedPage Today Clinical', type: 'rss' },
+  { key: 'sciencedaily_health', display: 'ScienceDaily Health & Medicine', type: 'rss' },
+  { key: 'arxiv_cv', display: 'arXiv Computer Vision (cs.CV)', type: 'academic' },
+  { key: 'arxiv_ai', display: 'arXiv Artificial Intelligence (cs.AI)', type: 'academic' },
+  { key: 'arxiv_cs', display: 'arXiv Computer Science', type: 'academic' },
+  { key: 'arxiv_astro', display: 'arXiv Astrophysics (astro-ph)', type: 'academic' },
+  { key: 'arxiv_quant', display: 'arXiv Quantum Physics (quant-ph)', type: 'academic' },
+  { key: 'sciencedaily_chemistry', display: 'ScienceDaily Chemistry', type: 'rss' },
+  { key: 'sciencedaily_materials', display: 'ScienceDaily Materials Science', type: 'rss' },
+  { key: 'arxiv_qbio', display: 'arXiv Quantitative Biology (q-bio)', type: 'academic' },
+  { key: 'sciencedaily_biology', display: 'ScienceDaily Biology & Genetics', type: 'rss' },
+  { key: 'sciencedaily_engineering', display: 'ScienceDaily Engineering', type: 'rss' },
+  { key: 'sciencedaily_neuro', display: 'ScienceDaily Neuroscience', type: 'rss' },
+  { key: 'mit_tech', display: 'MIT Technology Review', type: 'rss' },
+  { key: 'techcrunch', display: 'TechCrunch Deep Tech & AI', type: 'rss' },
 ];
 
 export const DiscoverPage: React.FC = () => {
@@ -556,17 +567,18 @@ export const DiscoverPage: React.FC = () => {
         </div>
 
         {/* --------------------------------------------------------------- */}
-        {/* Sleek Topic Capsule Pill Bar                                    */}
+        {/* Universal Multi-Disciplinary Knowledge Drawer ("حالت کشویی")     */}
         {/* --------------------------------------------------------------- */}
-        <TopicStoriesStrip
+        <UniversalKnowledgeNavigator
+          activeCategory={activeCategory}
+          onSelectCategory={(categoryId) => setActiveCategory(categoryId)}
           activeTopic={activeTopic}
-          onSelectTopic={(topicId) => {
-            setActiveTopic(topicId);
-          }}
+          onSelectTopic={(topicId) => setActiveTopic(topicId)}
+          onResetAll={handleResetFilters}
         />
 
         {/* --------------------------------------------------------------- */}
-        {/* Unified 2-Tier Mode Selector, Search & Combobox Deck             */}
+        {/* Unified Feed Scope, Universal Search & Verified Sources Subbar  */}
         {/* --------------------------------------------------------------- */}
         <DiscoverNavSubbar
           currentMode={feedMode}
@@ -582,9 +594,6 @@ export const DiscoverPage: React.FC = () => {
           onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
           activeFilterCount={activeFilterCount}
           onResetFilters={handleResetFilters}
-          activeCategory={activeCategory}
-          onSelectCategory={(cat) => setActiveCategory(cat)}
-          categoryItems={categoryDropdownItems}
           activeSource={activeSource}
           onSelectSource={(src) => setActiveSource(src)}
           sourceItems={sourceDropdownItems}

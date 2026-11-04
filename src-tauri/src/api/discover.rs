@@ -95,12 +95,12 @@ struct FeedDefinition {
 }
 
 const REGISTERED_FEEDS: &[FeedDefinition] = &[
-    // Medical & Computer Vision AI Research Feeds
+    // Computer Science & AI
     FeedDefinition {
         id: "arxiv_cv",
         name: "arXiv Computer Vision (cs.CV)",
         url: "https://export.arxiv.org/rss/cs.CV",
-        default_category: "medical_cv",
+        default_category: "computer_science",
         default_item_type: "paper",
         peer_reviewed: false,
     },
@@ -108,7 +108,7 @@ const REGISTERED_FEEDS: &[FeedDefinition] = &[
         id: "arxiv_ai",
         name: "arXiv Artificial Intelligence (cs.AI)",
         url: "https://export.arxiv.org/rss/cs.AI",
-        default_category: "ai",
+        default_category: "computer_science",
         default_item_type: "paper",
         peer_reviewed: false,
     },
@@ -116,15 +116,16 @@ const REGISTERED_FEEDS: &[FeedDefinition] = &[
         id: "arxiv_cs",
         name: "arXiv Computer Science",
         url: "https://export.arxiv.org/rss/cs",
-        default_category: "cs",
+        default_category: "computer_science",
         default_item_type: "paper",
         peer_reviewed: false,
     },
+    // Multidisciplinary Science Breakthroughs
     FeedDefinition {
         id: "nature",
         name: "Nature International Journal",
         url: "https://www.nature.com/nature.rss",
-        default_category: "science",
+        default_category: "medicine",
         default_item_type: "breakthrough",
         peer_reviewed: true,
     },
@@ -132,63 +133,134 @@ const REGISTERED_FEEDS: &[FeedDefinition] = &[
         id: "science_mag",
         name: "Science Magazine",
         url: "https://www.science.org/rss/news_current.xml",
-        default_category: "science",
+        default_category: "medicine",
         default_item_type: "breakthrough",
+        peer_reviewed: true,
+    },
+    // Medicine & Clinical Health
+    FeedDefinition {
+        id: "medpage",
+        name: "MedPage Today Clinical News",
+        url: "https://www.medpagetoday.com/rss/headlines.xml",
+        default_category: "medicine",
+        default_item_type: "news",
+        peer_reviewed: false,
+    },
+    FeedDefinition {
+        id: "sciencedaily_health",
+        name: "ScienceDaily Health & Medicine",
+        url: "https://www.sciencedaily.com/rss/health_medicine.xml",
+        default_category: "medicine",
+        default_item_type: "news",
+        peer_reviewed: true,
+    },
+    // Dentistry & Oral Health Research
+    FeedDefinition {
+        id: "nature_bdj",
+        name: "British Dental Journal (Nature BDJ)",
+        url: "https://www.nature.com/bdj.rss",
+        default_category: "dentistry",
+        default_item_type: "paper",
+        peer_reviewed: true,
+    },
+    FeedDefinition {
+        id: "sciencedaily_dentistry",
+        name: "ScienceDaily Dental Research",
+        url: "https://www.sciencedaily.com/rss/health_medicine/dentistry.xml",
+        default_category: "dentistry",
+        default_item_type: "news",
+        peer_reviewed: true,
+    },
+    // Physics & Astronomy
+    FeedDefinition {
+        id: "arxiv_astro",
+        name: "arXiv Astrophysics (astro-ph)",
+        url: "https://export.arxiv.org/rss/astro-ph",
+        default_category: "physics_astronomy",
+        default_item_type: "paper",
+        peer_reviewed: false,
+    },
+    FeedDefinition {
+        id: "arxiv_quant",
+        name: "arXiv Quantum Physics (quant-ph)",
+        url: "https://export.arxiv.org/rss/quant-ph",
+        default_category: "physics_astronomy",
+        default_item_type: "paper",
+        peer_reviewed: false,
+    },
+    // Chemistry & Materials Science
+    FeedDefinition {
+        id: "sciencedaily_chemistry",
+        name: "ScienceDaily Chemistry Research",
+        url: "https://www.sciencedaily.com/rss/matter_energy/chemistry.xml",
+        default_category: "chemistry_materials",
+        default_item_type: "news",
+        peer_reviewed: true,
+    },
+    FeedDefinition {
+        id: "sciencedaily_materials",
+        name: "ScienceDaily Materials Science",
+        url: "https://www.sciencedaily.com/rss/matter_energy/materials_science.xml",
+        default_category: "chemistry_materials",
+        default_item_type: "news",
+        peer_reviewed: true,
+    },
+    // Biological Sciences & Genetics
+    FeedDefinition {
+        id: "arxiv_qbio",
+        name: "arXiv Quantitative Biology (q-bio)",
+        url: "https://export.arxiv.org/rss/q-bio",
+        default_category: "biology_genetics",
+        default_item_type: "paper",
+        peer_reviewed: false,
+    },
+    FeedDefinition {
+        id: "sciencedaily_biology",
+        name: "ScienceDaily Biology & Genetics",
+        url: "https://www.sciencedaily.com/rss/plants_animals/biology.xml",
+        default_category: "biology_genetics",
+        default_item_type: "news",
+        peer_reviewed: true,
+    },
+    // Engineering & Technology
+    FeedDefinition {
+        id: "sciencedaily_engineering",
+        name: "ScienceDaily Engineering",
+        url: "https://www.sciencedaily.com/rss/computers_math/engineering.xml",
+        default_category: "engineering",
+        default_item_type: "news",
         peer_reviewed: true,
     },
     FeedDefinition {
         id: "sciencedaily_ai",
         name: "ScienceDaily Artificial Intelligence",
         url: "https://www.sciencedaily.com/rss/computers_math/artificial_intelligence.xml",
-        default_category: "ai",
+        default_category: "computer_science",
         default_item_type: "news",
         peer_reviewed: true,
-    },
-    FeedDefinition {
-        id: "medpage",
-        name: "MedPage Today",
-        url: "https://www.medpagetoday.com/rss/headlines.xml",
-        default_category: "health",
-        default_item_type: "news",
-        peer_reviewed: false,
     },
     FeedDefinition {
         id: "mit_tech",
         name: "MIT Technology Review",
         url: "https://www.technologyreview.com/feed/",
-        default_category: "tech",
+        default_category: "computer_science",
         default_item_type: "news",
         peer_reviewed: false,
+    },
+    // Neuroscience & Cognitive Science
+    FeedDefinition {
+        id: "sciencedaily_neuro",
+        name: "ScienceDaily Neuroscience",
+        url: "https://www.sciencedaily.com/rss/mind_brain/neuroscience.xml",
+        default_category: "neuroscience",
+        default_item_type: "news",
+        peer_reviewed: true,
     },
     FeedDefinition {
         id: "techcrunch",
-        name: "TechCrunch AI & Tech",
+        name: "TechCrunch AI & Deep Tech",
         url: "https://techcrunch.com/category/artificial-intelligence/feed/",
-        default_category: "tech",
-        default_item_type: "news",
-        peer_reviewed: false,
-    },
-    FeedDefinition {
-        id: "verge",
-        name: "The Verge",
-        url: "https://www.theverge.com/rss/index.xml",
-        default_category: "tech",
-        default_item_type: "news",
-        peer_reviewed: false,
-    },
-    FeedDefinition {
-        id: "wired",
-        name: "Wired Science & AI",
-        url: "https://www.wired.com/feed/category/science/latest/rss",
-        default_category: "tech",
-        default_item_type: "news",
-        peer_reviewed: false,
-    },
-    FeedDefinition {
-        id: "arstechnica",
-        name: "Ars Technica",
-        url: "https://feeds.arstechnica.com/arstechnica/index",
-        default_category: "tech",
+        default_category: "computer_science",
         default_item_type: "news",
         peer_reviewed: false,
     },
@@ -267,7 +339,43 @@ fn get_taxonomy_rules() -> &'static Vec<TaxonomyRule> {
             TaxonomyRule {
                 tag: "Clinical AI Validation",
                 keywords: &["clinical trial", "fda approval", "diagnostic accuracy", "clinical validation", "radiologist performance", "multicenter"],
-                category: "medical_cv",
+                category: "medicine",
+                is_breakthrough: true,
+            },
+            TaxonomyRule {
+                tag: "Dentistry & Oral AI",
+                keywords: &["dentistry", "dental", "cbct", "caries", "teeth", "orthodontic", "endodontic", "periodontic", "maxillofacial", "prosthodontic", "dental implant"],
+                category: "dentistry",
+                is_breakthrough: false,
+            },
+            TaxonomyRule {
+                tag: "Astrophysics & Cosmology",
+                keywords: &["astrophysics", "cosmology", "black hole", "dark matter", "gravitational wave", "jwst", "galaxy", "telescope"],
+                category: "physics_astronomy",
+                is_breakthrough: true,
+            },
+            TaxonomyRule {
+                tag: "Quantum Physics & Computing",
+                keywords: &["quantum mechanics", "quantum computing", "qubit", "entanglement", "quantum algorithm", "photonics"],
+                category: "physics_astronomy",
+                is_breakthrough: true,
+            },
+            TaxonomyRule {
+                tag: "Genomics & Gene Editing",
+                keywords: &["genomics", "crispr", "gene editing", "genome", "epigenetics", "sequencing", "dna", "rna"],
+                category: "biology_genetics",
+                is_breakthrough: true,
+            },
+            TaxonomyRule {
+                tag: "Nanotechnology & Materials",
+                keywords: &["nanotechnology", "nanomaterial", "graphene", "mof", "catalysis", "polymer", "biomaterial", "mxene"],
+                category: "chemistry_materials",
+                is_breakthrough: false,
+            },
+            TaxonomyRule {
+                tag: "Neuroscience & BCI",
+                keywords: &["neuroscience", "brain-computer interface", "bci", "connectome", "fmri", "neural decoding", "neuromodulation"],
+                category: "neuroscience",
                 is_breakthrough: true,
             },
         ]
@@ -362,74 +470,249 @@ fn get_topic_keywords(topic_str: &str) -> Vec<String> {
     let clean = topic_str.replace('_', " ").trim().to_lowercase();
     let mut keywords = Vec::new();
 
-    // Specific curated mappings for quick and precise matching
+    // Universal Multi-Disciplinary Curated Mappings
     match topic_str {
-        "radiology_ai" => {
-            for kw in [
-                "radiology", "radiological", "radiologist", "x-ray", "radiograph", "ct", "computed tomography",
-                "mri", "magnetic resonance", "ultrasound", "sonography", "mammography", "cxr", "imaging",
-                "lesion", "lung", "chest", "scan", "neuroimaging", "cardiac mri", "pocus"
-            ] {
+        // Dentistry & Oral Health
+        "dentistry" | "digital_dentistry" => {
+            for kw in ["dental", "dentistry", "cbct", "teeth", "tooth", "caries", "intraoral", "cad/cam", "dental ai", "enamel", "dentin"] {
                 keywords.push(kw.to_string());
             }
         }
-        "computational_pathology" => {
-            for kw in [
-                "pathology", "histopathology", "histology", "whole slide", "wsi", "biopsy", "cell",
-                "nuclei", "tissue", "microscopy", "cancer", "tumor", "slide", "staining", "h&e", "cellular"
-            ] {
+        "orthodontics" => {
+            for kw in ["orthodontic", "orthodontics", "aligner", "malocclusion", "braces", "cephalometric", "dentofacial", "bite"] {
                 keywords.push(kw.to_string());
             }
         }
-        "surgical_cv" => {
-            for kw in [
-                "surgical", "surgery", "laparoscopy", "laparoscopic", "endoscopy", "endoscopic",
-                "surgical instrument", "robot-assisted", "robotic surgery", "surgical video", "procedure",
-                "intervention", "surgeon", "operating room", "minimally invasive", "catheter", "incision"
-            ] {
+        "endodontics" => {
+            for kw in ["endodontic", "endodontics", "root canal", "pulp", "pulpitis", "periapical", "apexification", "obturation"] {
                 keywords.push(kw.to_string());
             }
         }
-        "medical_cv" => {
-            for kw in [
-                "medical", "clinical", "biomedical", "healthcare", "diagnostic", "patient", "disease",
-                "hospital", "physician", "doctor", "health", "radiology", "pathology", "surgical", "treatment"
-            ] {
+        "periodontics" => {
+            for kw in ["periodontic", "periodontics", "periodontology", "dental implant", "osseointegration", "gingivitis", "periodontitis", "bone graft"] {
                 keywords.push(kw.to_string());
             }
         }
-        "medical_foundation_models" => {
-            for kw in [
-                "foundation model", "foundation", "biomedclip", "med-gemini", "med-palm", "vision-language",
-                "vlm", "clinical llm", "multimodal", "clip", "pretraining", "pre-trained", "large language model"
-            ] {
+        "oral_surgery" => {
+            for kw in ["oral surgery", "maxillofacial", "orthognathic", "tooth extraction", "cleft palate", "wisdom tooth", "jaw trauma"] {
                 keywords.push(kw.to_string());
             }
         }
-        "vision_transformers" => {
-            for kw in [
-                "vision transformer", "vit", "transformer", "attention", "swin", "self-attention",
-                "deit", "patch", "cross-attention", "token"
-            ] {
+        "prosthodontics" => {
+            for kw in ["prosthodontic", "prosthodontics", "crown", "bridge", "denture", "zirconia", "dental ceramic", "veneer"] {
                 keywords.push(kw.to_string());
             }
         }
-        "medical_segmentation" => {
-            for kw in [
-                "segmentation", "segment", "u-net", "unet", "sam", "sam-med", "contour", "delineation",
-                "mask", "voxel", "organ boundary", "semantic segmentation"
-            ] {
+        "pediatric_dentistry" => {
+            for kw in ["pediatric dentistry", "caries prevention", "fluoride", "pulpotomy", "pediatric dental"] {
                 keywords.push(kw.to_string());
             }
         }
-        "huggingface_models" => {
-            for kw in [
-                "hugging face", "huggingface", "model", "benchmark", "weights", "checkpoint",
-                "open-source", "open source", "sota", "github", "release"
-            ] {
+
+        // Medicine & Clinical Healthcare
+        "medicine" | "clinical_ai" => {
+            for kw in ["medicine", "clinical", "biomedical", "healthcare", "diagnostic", "patient", "disease", "hospital", "physician", "ehr", "triage"] {
                 keywords.push(kw.to_string());
             }
         }
+        "radiology_ai" | "radiology_imaging" => {
+            for kw in ["radiology", "radiological", "radiologist", "x-ray", "radiograph", "ct", "computed tomography", "mri", "magnetic resonance", "ultrasound", "mammography", "cxr", "imaging", "scan"] {
+                keywords.push(kw.to_string());
+            }
+        }
+        "computational_pathology" | "pathology_histology" => {
+            for kw in ["pathology", "histopathology", "histology", "whole slide", "wsi", "biopsy", "cell", "nuclei", "tissue", "microscopy", "cancer", "tumor"] {
+                keywords.push(kw.to_string());
+            }
+        }
+        "surgical_cv" | "surgery_robotics" => {
+            for kw in ["surgical", "surgery", "laparoscopy", "endoscopy", "surgical instrument", "robot-assisted", "surgical video", "procedure", "surgeon"] {
+                keywords.push(kw.to_string());
+            }
+        }
+        "cardiology" => {
+            for kw in ["cardiology", "cardiovascular", "ecg", "echocardiography", "arrhythmia", "coronary", "heart", "myocardial", "stent"] {
+                keywords.push(kw.to_string());
+            }
+        }
+        "oncology" => {
+            for kw in ["oncology", "cancer", "tumor", "immunotherapy", "carcinoma", "neoplasm", "chemotherapy", "melanoma", "metastasis"] {
+                keywords.push(kw.to_string());
+            }
+        }
+        "pharmacology" => {
+            for kw in ["pharmacology", "drug discovery", "therapeutics", "pharmacokinetics", "molecular screening", "clinical trial"] {
+                keywords.push(kw.to_string());
+            }
+        }
+        "public_health" => {
+            for kw in ["public health", "epidemiology", "vaccine", "infectious disease", "outbreak", "pandemic", "surveillance"] {
+                keywords.push(kw.to_string());
+            }
+        }
+
+        // Computer Science & AI
+        "computer_science" | "machine_learning" => {
+            for kw in ["machine learning", "deep learning", "neural network", "reinforcement learning", "algorithm", "computer science"] {
+                keywords.push(kw.to_string());
+            }
+        }
+        "computer_vision" => {
+            for kw in ["computer vision", "segmentation", "object detection", "diffusion model", "vit", "vision transformer", "3d reconstruction", "nerf"] {
+                keywords.push(kw.to_string());
+            }
+        }
+        "nlp_llms" => {
+            for kw in ["nlp", "llm", "large language model", "generative ai", "rag", "transformer", "prompting", "reasoning", "token"] {
+                keywords.push(kw.to_string());
+            }
+        }
+        "cybersecurity" => {
+            for kw in ["cybersecurity", "cryptography", "zero trust", "malware", "vulnerability", "encryption", "threat", "penetration"] {
+                keywords.push(kw.to_string());
+            }
+        }
+        "software_engineering" => {
+            for kw in ["software engineering", "distributed systems", "cloud", "compiler", "microservices", "kubernetes", "architecture"] {
+                keywords.push(kw.to_string());
+            }
+        }
+        "robotics_autonomous" => {
+            for kw in ["robotics", "autonomous", "slam", "drone", "manipulator", "kinematics", "quadruped", "navigation"] {
+                keywords.push(kw.to_string());
+            }
+        }
+        "quantum_computing" => {
+            for kw in ["quantum computing", "qubit", "quantum algorithm", "quantum error correction", "quantum circuit", "superconducting"] {
+                keywords.push(kw.to_string());
+            }
+        }
+
+        // Physics & Astronomy
+        "physics_astronomy" | "astrophysics" => {
+            for kw in ["astrophysics", "cosmology", "black hole", "dark matter", "galaxy", "gravitational wave", "star", "telescope", "jwst", "supernova"] {
+                keywords.push(kw.to_string());
+            }
+        }
+        "quantum_physics" => {
+            for kw in ["quantum mechanics", "entanglement", "quantum information", "photonics", "optics", "qubit", "superposition", "bell inequality"] {
+                keywords.push(kw.to_string());
+            }
+        }
+        "high_energy_particle" => {
+            for kw in ["particle physics", "collider", "cern", "lhc", "neutrino", "higgs", "boson", "quark", "hadron"] {
+                keywords.push(kw.to_string());
+            }
+        }
+        "condensed_matter" => {
+            for kw in ["condensed matter", "superconductivity", "topological insulator", "semiconductor", "spintronics", "graphene"] {
+                keywords.push(kw.to_string());
+            }
+        }
+        "planetary_space" => {
+            for kw in ["planetary", "spacecraft", "exoplanet", "jwst", "mars", "moon", "orbit", "telescope", "astrobiology"] {
+                keywords.push(kw.to_string());
+            }
+        }
+
+        // Chemistry & Materials
+        "chemistry_materials" | "organic_chemistry" => {
+            for kw in ["organic chemistry", "synthesis", "catalysis", "catalytic", "reaction", "molecule", "enantioselective"] {
+                keywords.push(kw.to_string());
+            }
+        }
+        "inorganic_materials" => {
+            for kw in ["inorganic", "mof", "metal-organic", "coordination", "crystal", "porous", "framework", "carbon capture"] {
+                keywords.push(kw.to_string());
+            }
+        }
+        "biochemistry" => {
+            for kw in ["biochemistry", "protein", "enzyme", "chemical biology", "metabolic", "lipid", "proteomics"] {
+                keywords.push(kw.to_string());
+            }
+        }
+        "nanotechnology" => {
+            for kw in ["nanotechnology", "nanomaterial", "nanoparticle", "graphene", "quantum dot", "nanotube", "mxene"] {
+                keywords.push(kw.to_string());
+            }
+        }
+        "polymers_biomaterials" => {
+            for kw in ["polymer", "biomaterial", "hydrogel", "scaffold", "elastomer", "biodegradable", "tissue engineering"] {
+                keywords.push(kw.to_string());
+            }
+        }
+
+        // Biological Sciences & Genetics
+        "biology_genetics" | "genomics_genetics" => {
+            for kw in ["genomics", "genetics", "crispr", "gene", "genome", "sequencing", "dna", "rna", "mutation", "epigenetics"] {
+                keywords.push(kw.to_string());
+            }
+        }
+        "molecular_cellular" => {
+            for kw in ["cellular", "molecular biology", "autophagy", "signaling", "cell division", "organelle", "senescence"] {
+                keywords.push(kw.to_string());
+            }
+        }
+        "microbiology_virology" => {
+            for kw in ["microbiology", "virology", "bacteria", "virus", "pathogen", "antimicrobial", "microbiome", "bacteriophage"] {
+                keywords.push(kw.to_string());
+            }
+        }
+        "immunology" => {
+            for kw in ["immunology", "immune", "antibody", "t-cell", "car-t", "cytokine", "autoimmune", "immunotherapy"] {
+                keywords.push(kw.to_string());
+            }
+        }
+        "evolution_ecology" => {
+            for kw in ["ecology", "evolution", "biodiversity", "species", "ecosystem", "climate adaptation", "conservation"] {
+                keywords.push(kw.to_string());
+            }
+        }
+
+        // Engineering & Applied Tech
+        "engineering" | "biomedical_engineering" => {
+            for kw in ["biomedical engineering", "bionic", "prosthetic", "biosensor", "implant", "biomechanics", "lab-on-a-chip"] {
+                keywords.push(kw.to_string());
+            }
+        }
+        "electrical_electronics" => {
+            for kw in ["electrical engineering", "semiconductor", "vlsi", "circuit", "microelectronics", "rf", "photonics ic"] {
+                keywords.push(kw.to_string());
+            }
+        }
+        "mechanical_aerospace" => {
+            for kw in ["aerospace", "mechanical engineering", "propulsion", "aerodynamic", "cfd", "additive manufacturing", "3d printing"] {
+                keywords.push(kw.to_string());
+            }
+        }
+        "energy_sustainability" => {
+            for kw in ["battery", "solar", "renewable", "energy storage", "hydrogen", "perovskite", "grid", "solid-state battery"] {
+                keywords.push(kw.to_string());
+            }
+        }
+
+        // Neuroscience & Brain
+        "neuroscience" | "computational_neuroscience" => {
+            for kw in ["computational neuroscience", "neural network", "spiking", "neural coding", "brain model", "synaptic plasticity"] {
+                keywords.push(kw.to_string());
+            }
+        }
+        "neuroimaging_connectomics" => {
+            for kw in ["neuroimaging", "fmri", "dti", "connectome", "eeg", "brain map", "connectomics"] {
+                keywords.push(kw.to_string());
+            }
+        }
+        "bci_neural_interfaces" => {
+            for kw in ["bci", "brain-computer interface", "neural interface", "electrode", "decoding", "neuromodulation"] {
+                keywords.push(kw.to_string());
+            }
+        }
+        "neurodegenerative" => {
+            for kw in ["neurodegenerative", "alzheimer", "parkinson", "dementia", "amyloid", "tau", "als", "huntington"] {
+                keywords.push(kw.to_string());
+            }
+        }
+
         _ => {}
     }
 
@@ -451,7 +734,7 @@ fn get_topic_keywords(topic_str: &str) -> Vec<String> {
         }
     }
 
-    // Individual tokens (e.g. "radiology", "pathology", "surgical", "segmentation")
+    // Individual tokens (e.g. "dentistry", "radiology", "quantum", "astrophysics")
     for token in clean.split_whitespace() {
         if token.len() >= 3 && token != "and" && token != "the" && token != "for" {
             keywords.push(token.to_string());
@@ -499,17 +782,32 @@ pub async fn get_discover_feed_handler(
                 return true;
             }
             if category_param != "all" && !category_param.is_empty() {
-                if category_param == "medical_cv" {
-                    return feed.default_category == "medical_cv" || feed.id.contains("arxiv") || feed.id == "medpage" || feed.id == "nature";
+                if category_param == "dentistry" {
+                    return feed.default_category == "dentistry" || feed.id.contains("dental") || feed.id.contains("bdj");
                 }
-                if category_param == "tech" || category_param == "technology" {
-                    return feed.default_category == "tech" || feed.default_category == "ai" || feed.default_category == "cs";
+                if category_param == "physics_astronomy" || category_param == "physics" {
+                    return feed.default_category == "physics_astronomy" || feed.id.contains("astro") || feed.id.contains("quant");
+                }
+                if category_param == "chemistry_materials" || category_param == "chemistry" {
+                    return feed.default_category == "chemistry_materials" || feed.id.contains("chem") || feed.id.contains("materials");
+                }
+                if category_param == "biology_genetics" || category_param == "biology" {
+                    return feed.default_category == "biology_genetics" || feed.id.contains("qbio") || feed.id.contains("bio");
+                }
+                if category_param == "engineering" {
+                    return feed.default_category == "engineering" || feed.id.contains("engineering");
+                }
+                if category_param == "neuroscience" {
+                    return feed.default_category == "neuroscience" || feed.id.contains("neuro");
+                }
+                if category_param == "computer_science" || category_param == "ai" || category_param == "cs" {
+                    return feed.default_category == "computer_science" || feed.id.contains("arxiv") || feed.id.contains("tech");
+                }
+                if category_param == "medicine" || category_param == "medical_cv" || category_param == "health" {
+                    return feed.default_category == "medicine" || feed.id == "medpage" || feed.id == "nature" || feed.id == "science_mag" || feed.id.contains("health");
                 }
                 if category_param == "science" {
-                    return feed.default_category == "science" || feed.id == "nature" || feed.id == "science_mag";
-                }
-                if category_param == "health" {
-                    return feed.default_category == "health" || feed.id == "medpage" || feed.id == "nature";
+                    return feed.id == "nature" || feed.id == "science_mag" || feed.id.contains("sciencedaily");
                 }
             }
             true
@@ -788,35 +1086,120 @@ pub async fn get_discover_feed_handler(
 
             // Category filter
             if !category_param.is_empty() && category_param != "all" {
-                let cat_match = if category_param == "medical_cv" {
-                    item.category == "medical_cv"
-                        || item.category == "health"
-                        || item.tags.iter().any(|t| {
-                            let tl = t.to_lowercase();
-                            tl.contains("radiology")
-                                || tl.contains("medical")
-                                || tl.contains("pathology")
-                                || tl.contains("surgical")
-                                || tl.contains("segmentation")
-                                || tl.contains("clinical")
-                                || tl.contains("vision")
-                        })
-                } else if category_param == "ai" {
-                    item.category == "ai"
-                        || item.tags.iter().any(|t| {
-                            let tl = t.to_lowercase();
-                            tl.contains("artificial intelligence") || tl.contains("ai") || tl.contains("learning")
-                        })
-                } else if category_param == "cs" {
-                    item.category == "cs" || item.category == "ai" || item.source_id.contains("arxiv")
-                } else if category_param == "science" {
-                    item.category == "science" || item.source_id == "nature" || item.source_id == "science_mag"
-                } else if category_param == "health" {
-                    item.category == "health" || item.category == "medical_cv"
-                } else if category_param == "tech" {
-                    item.category == "tech" || item.category == "ai" || item.category == "cs"
-                } else {
-                    item.category.to_lowercase() == category_param
+                let cat_match = match category_param.as_str() {
+                    "dentistry" => {
+                        item.category == "dentistry"
+                            || title_lower.contains("dental")
+                            || title_lower.contains("dentistry")
+                            || title_lower.contains("teeth")
+                            || title_lower.contains("tooth")
+                            || title_lower.contains("caries")
+                            || title_lower.contains("orthodontic")
+                            || title_lower.contains("endodontic")
+                            || title_lower.contains("periodontal")
+                            || title_lower.contains("maxillofacial")
+                            || title_lower.contains("implant")
+                            || desc_lower.contains("dental")
+                            || desc_lower.contains("teeth")
+                            || tags_lower.iter().any(|t| t.contains("dental") || t.contains("dentistry"))
+                    }
+                    "physics_astronomy" | "physics" => {
+                        item.category == "physics_astronomy"
+                            || item.category == "physics"
+                            || item.source_id.contains("astro")
+                            || item.source_id.contains("quant")
+                            || title_lower.contains("physics")
+                            || title_lower.contains("astrophysics")
+                            || title_lower.contains("quantum")
+                            || title_lower.contains("cosmology")
+                            || title_lower.contains("black hole")
+                            || title_lower.contains("dark matter")
+                            || title_lower.contains("particle")
+                            || desc_lower.contains("astrophysics")
+                            || desc_lower.contains("quantum")
+                    }
+                    "chemistry_materials" | "chemistry" => {
+                        item.category == "chemistry_materials"
+                            || item.category == "chemistry"
+                            || item.source_id.contains("chem")
+                            || item.source_id.contains("material")
+                            || title_lower.contains("chemistry")
+                            || title_lower.contains("catalysis")
+                            || title_lower.contains("nanomaterial")
+                            || title_lower.contains("polymer")
+                            || title_lower.contains("graphene")
+                            || title_lower.contains("biochemistry")
+                            || desc_lower.contains("chemistry")
+                    }
+                    "biology_genetics" | "biology" => {
+                        item.category == "biology_genetics"
+                            || item.category == "biology"
+                            || item.source_id.contains("qbio")
+                            || item.source_id.contains("bio")
+                            || title_lower.contains("genomics")
+                            || title_lower.contains("crispr")
+                            || title_lower.contains("gene")
+                            || title_lower.contains("cellular")
+                            || title_lower.contains("microbiology")
+                            || title_lower.contains("immunology")
+                            || desc_lower.contains("biology")
+                    }
+                    "engineering" => {
+                        item.category == "engineering"
+                            || title_lower.contains("engineering")
+                            || title_lower.contains("aerospace")
+                            || title_lower.contains("semiconductor")
+                            || title_lower.contains("renewable")
+                            || title_lower.contains("biomedical engineering")
+                            || desc_lower.contains("engineering")
+                    }
+                    "neuroscience" => {
+                        item.category == "neuroscience"
+                            || title_lower.contains("neuroscience")
+                            || title_lower.contains("brain")
+                            || title_lower.contains("fmri")
+                            || title_lower.contains("bci")
+                            || title_lower.contains("neural")
+                            || title_lower.contains("alzheimer")
+                            || desc_lower.contains("neuroscience")
+                    }
+                    "computer_science" | "cs" | "ai" => {
+                        item.category == "computer_science"
+                            || item.category == "ai"
+                            || item.category == "cs"
+                            || item.source_id.contains("arxiv")
+                            || title_lower.contains("artificial intelligence")
+                            || title_lower.contains("machine learning")
+                            || title_lower.contains("deep learning")
+                            || title_lower.contains("computer vision")
+                            || title_lower.contains("llm")
+                            || title_lower.contains("neural network")
+                    }
+                    "medicine" | "medical_cv" | "health" => {
+                        item.category == "medicine"
+                            || item.category == "medical_cv"
+                            || item.category == "health"
+                            || item.source_id == "medpage"
+                            || item.source_id == "nature"
+                            || item.source_id == "science_mag"
+                            || title_lower.contains("clinical")
+                            || title_lower.contains("medical")
+                            || title_lower.contains("radiology")
+                            || title_lower.contains("pathology")
+                            || title_lower.contains("surgical")
+                            || title_lower.contains("oncology")
+                            || title_lower.contains("patient")
+                            || title_lower.contains("disease")
+                    }
+                    "science" => {
+                        item.source_id == "nature"
+                            || item.source_id == "science_mag"
+                            || item.category == "science"
+                            || item.category == "physics_astronomy"
+                            || item.category == "chemistry_materials"
+                            || item.category == "biology_genetics"
+                    }
+                    other => item.category.to_lowercase() == other || tags_lower.iter().any(|t| t == other),
                 };
                 if !cat_match {
                     return false;
