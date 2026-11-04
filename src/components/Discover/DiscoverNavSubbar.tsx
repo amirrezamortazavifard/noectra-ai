@@ -14,6 +14,7 @@ import {
   RefreshCw,
   RotateCcw,
   SlidersHorizontal,
+  Flame,
 } from 'lucide-react';
 import { IntelligenceFeedMode } from '@/lib/services/discover/types';
 import { cn } from '@/lib/utils';
@@ -51,6 +52,7 @@ export const DiscoverNavSubbar: React.FC<DiscoverNavSubbarProps> = ({
 }) => {
   const modes: { key: IntelligenceFeedMode; label: string; icon: React.ReactNode; badge?: number }[] = [
     { key: 'for_you', label: 'For You', icon: <Sparkles size={14} className="text-cyan-500" /> },
+    { key: 'live_buzz', label: 'Live Buzz', icon: <Flame size={14} className="text-orange-500 fill-orange-500/30" /> },
     { key: 'latest', label: 'Latest', icon: <Zap size={14} className="text-amber-500" /> },
     { key: 'following', label: 'Following', icon: <Star size={14} className="text-yellow-500" /> },
     { key: 'high_signal', label: 'High Signal', icon: <Radio size={14} className="text-emerald-500" /> },

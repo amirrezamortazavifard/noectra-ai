@@ -64,6 +64,7 @@ import { DailyBriefingModal } from '@/components/Discover/Modals/DailyBriefingMo
 import { DiscoverCommandPalette } from '@/components/Discover/Modals/DiscoverCommandPalette';
 import ArticleReaderModal from '@/components/Discover/ArticleReaderModal';
 import DiscoverApiKeysModal from '@/components/Discover/DiscoverApiKeysModal';
+import { LiveBuzzDashboard } from '@/components/Discover/LiveBuzz/LiveBuzzDashboard';
 import { useNavigate } from 'react-router-dom';
 
 // Categories for Category Filter
@@ -198,6 +199,11 @@ export const DiscoverPage: React.FC = () => {
     setLoading(true);
 
     try {
+      if (feedMode === 'live_buzz') {
+        setLoading(false);
+        return;
+      }
+
       if (feedMode === 'saved') {
         const saved = await fetchSavedItems();
         if (currentFetchId === fetchIdRef.current) {
@@ -336,6 +342,52 @@ export const DiscoverPage: React.FC = () => {
       ]);
       toast.success('Added to reading queue');
     }
+  };
+
+  const handleSaveLiveBuzzItem = async (liveItem: any, sourceName: string) => {
+    const item: DiscoverFeedItem = {
+      id: `live_${liveItem.id || liveItem.url}`,
+      itemType: 'news',
+      title: liveItem.title,
+      description: liveItem.snippet || '',
+      url: liveItem.url,
+      source: sourceName,
+      sourceId: 'live_buzz',
+      publishedAt: liveItem.publishedAt || new Date().toISOString(),
+      category: 'tech',
+      authors: liveItem.author ? [liveItem.author] : [],
+      openAccess: true,
+      peerReviewed: false,
+      readingTimeMin: 2,
+      tags: [sourceName, 'Live Buzz'],
+      whyRelevant: ['Saved from Live Buzz trending radar'],
+      relevanceScore: 95,
+      alternateSources: [],
+    };
+    await handleToggleQueue(item);
+  };
+
+  const handleOpenLiveBuzzArticle = (title: string, url: string, snippet?: string) => {
+    const item: DiscoverFeedItem = {
+      id: `live_${url}`,
+      itemType: 'news',
+      title: title,
+      description: snippet || '',
+      url: url,
+      source: 'Live Buzz',
+      sourceId: 'live_buzz',
+      publishedAt: new Date().toISOString(),
+      category: 'tech',
+      authors: [],
+      openAccess: true,
+      peerReviewed: false,
+      readingTimeMin: 3,
+      tags: ['Live Buzz'],
+      whyRelevant: ['Trending radar story'],
+      relevanceScore: 90,
+      alternateSources: [],
+    };
+    setSelectedArticle(item);
   };
 
   const handleToggleQueueReadStatus = async (id: string, isRead: boolean) => {
@@ -566,14 +618,22 @@ export const DiscoverPage: React.FC = () => {
       </div>
 
       {/* ----------------------------------------------------------------- */}
-      {/* Main 3-Zone Architecture Layout Grid                              */}
+      {/* Main Layout: Live Buzz Dashboard OR 3-Zone Intelligence Feed      */}
       {/* ----------------------------------------------------------------- */}
-      <div
-        className={cn(
-          'grid grid-cols-1 gap-8 pt-6 transition-all duration-300',
-          isSidebarCollapsed ? 'grid-cols-1' : 'xl:grid-cols-12'
-        )}
-      >
+      {feedMode === 'live_buzz' ? (
+        <div className="w-full pt-4">
+          <LiveBuzzDashboard
+            onOpenArticleReader={handleOpenLiveBuzzArticle}
+            onSaveItem={handleSaveLiveBuzzItem}
+          />
+        </div>
+      ) : (
+        <div
+          className={cn(
+            'grid grid-cols-1 gap-8 pt-6 transition-all duration-300',
+            isSidebarCollapsed ? 'grid-cols-1' : 'xl:grid-cols-12'
+          )}
+        >
         {/* Zone B: Central Intelligence Feed (Columns 1-8 or 12) */}
         <main className={cn('flex flex-col gap-6', isSidebarCollapsed ? 'col-span-1' : 'xl:col-span-8 2xl:col-span-9')}>
           {loading ? (
@@ -726,6 +786,7 @@ export const DiscoverPage: React.FC = () => {
           </div>
         )}
       </div>
+      )}
 
       {/* ----------------------------------------------------------------- */}
       {/* Modal Dialogs                                                     */}

@@ -29,6 +29,7 @@ export type DiscoverMode = 'news' | 'papers';
 
 export type IntelligenceFeedMode =
   | 'for_you'
+  | 'live_buzz'
   | 'latest'
   | 'following'
   | 'high_signal'

@@ -1,5 +1,6 @@
 pub mod discover;
 pub mod reader;
+pub mod live_buzz;
 
 use crate::agents::media::{search_images, search_videos};
 use crate::agents::researcher::run_research_agent;
@@ -81,6 +82,9 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/discover/feedback", post(discover::record_feedback_handler))
         .route("/api/discover/briefing", post(discover::post_briefing_handler))
         .route("/api/discover/compare", post(discover::post_compare_papers_handler))
+        // NewsNow Real-Time Trending Radar (Live Buzz)
+        .route("/api/discover/live-buzz/sources", get(live_buzz::get_live_buzz_sources_handler))
+        .route("/api/discover/live-buzz/stream", get(live_buzz::get_live_buzz_stream_handler))
         .route("/api/open_url", post(post_open_url))
         .route("/api/article", post(post_article_content))
         .route("/api/proxy_article", get(get_proxy_article))
