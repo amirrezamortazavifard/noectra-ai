@@ -240,3 +240,4 @@ fn htmlescape_simple(s: &str) -> String {
         .replace("&gt;", ">")
         .replace("\n", " ")
 }
+

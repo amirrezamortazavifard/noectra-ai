@@ -190,3 +190,4 @@ export const ArticleTranslatorModal: React.FC<ArticleTranslatorModalProps> = ({
 };
 
 export default ArticleTranslatorModal;
+

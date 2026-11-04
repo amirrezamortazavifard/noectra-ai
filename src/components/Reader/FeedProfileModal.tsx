@@ -220,3 +220,4 @@ export const FeedProfileModal: React.FC<FeedProfileModalProps> = ({
 };
 
 export default FeedProfileModal;
+

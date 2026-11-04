@@ -78,3 +78,4 @@ export const CodeBlockHighlighter: React.FC<CodeBlockHighlighterProps> = ({
 };
 
 export default CodeBlockHighlighter;
+
