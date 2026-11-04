@@ -159,3 +159,4 @@ export const ModelReleaseCard: React.FC<ModelReleaseCardProps> = ({
 };
 
 export default ModelReleaseCard;
+

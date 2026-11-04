@@ -155,11 +155,91 @@ impl Database {
                  meta TEXT NOT NULL DEFAULT '{}',
                  createdAt TEXT NOT NULL
              );
-             CREATE INDEX IF NOT EXISTS idx_discover_feedback_itemId ON discover_user_feedback (itemId);",
+             CREATE INDEX IF NOT EXISTS idx_discover_feedback_itemId ON discover_user_feedback (itemId);
+
+             -- RSS & Fluent Reader Tables
+             CREATE TABLE IF NOT EXISTS feed_sources (
+                 id TEXT PRIMARY KEY,
+                 url TEXT NOT NULL,
+                 name TEXT NOT NULL,
+                 iconUrl TEXT,
+                 openTarget TEXT NOT NULL DEFAULT 'local',
+                 unreadCount INTEGER NOT NULL DEFAULT 0,
+                 lastFetched TEXT,
+                 fetchFrequency INTEGER NOT NULL DEFAULT 0,
+                 textDir TEXT NOT NULL DEFAULT 'ltr',
+                 hidden INTEGER NOT NULL DEFAULT 0,
+                 serviceRef TEXT
+             );
+             CREATE INDEX IF NOT EXISTS idx_feed_sources_url ON feed_sources (url);
+
+             CREATE TABLE IF NOT EXISTS feed_groups (
+                 id TEXT PRIMARY KEY,
+                 name TEXT NOT NULL,
+                 expanded INTEGER NOT NULL DEFAULT 1,
+                 isMultiple INTEGER NOT NULL DEFAULT 1,
+                 sids TEXT NOT NULL DEFAULT '[]'
+             );
+
+             CREATE TABLE IF NOT EXISTS feed_items (
+                 id TEXT PRIMARY KEY,
+                 sourceId TEXT NOT NULL,
+                 guid TEXT,
+                 title TEXT NOT NULL,
+                 link TEXT NOT NULL,
+                 author TEXT,
+                 content TEXT,
+                 snippet TEXT,
+                 thumbUrl TEXT,
+                 pubDate TEXT,
+                 hasRead INTEGER NOT NULL DEFAULT 0,
+                 starred INTEGER NOT NULL DEFAULT 0,
+                 hidden INTEGER NOT NULL DEFAULT 0,
+                 notify INTEGER NOT NULL DEFAULT 0,
+                 serviceRef TEXT,
+                 FOREIGN KEY(sourceId) REFERENCES feed_sources(id) ON DELETE CASCADE
+             );
+             CREATE INDEX IF NOT EXISTS idx_feed_items_sourceId ON feed_items (sourceId);
+             CREATE INDEX IF NOT EXISTS idx_feed_items_pubDate ON feed_items (pubDate DESC);
+             CREATE INDEX IF NOT EXISTS idx_feed_items_hasRead ON feed_items (hasRead);
+             CREATE INDEX IF NOT EXISTS idx_feed_items_starred ON feed_items (starred);
+
+             CREATE TABLE IF NOT EXISTS feed_rules (
+                 id TEXT PRIMARY KEY,
+                 targetType TEXT NOT NULL,
+                 targetId TEXT NOT NULL,
+                 filterField TEXT NOT NULL,
+                 pattern TEXT NOT NULL,
+                 matchType INTEGER NOT NULL DEFAULT 1,
+                 actions TEXT NOT NULL DEFAULT '[]'
+             );
+
+             CREATE TABLE IF NOT EXISTS feed_logs (
+                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                 logType TEXT NOT NULL,
+                 title TEXT NOT NULL,
+                 details TEXT,
+                 createdAt TEXT NOT NULL
+             );
+             CREATE INDEX IF NOT EXISTS idx_feed_logs_createdAt ON feed_logs (createdAt DESC);
+
+             CREATE TABLE IF NOT EXISTS feed_sync_services (
+                 serviceType TEXT PRIMARY KEY,
+                 enabled INTEGER NOT NULL DEFAULT 0,
+                 endpoint TEXT,
+                 username TEXT,
+                 password TEXT,
+                 apiKey TEXT,
+                 lastSynced TEXT
+             );",
         )?;
         Ok(Self {
             conn: Arc::new(Mutex::new(conn)),
         })
+    }
+
+    pub fn conn(&self) -> Arc<Mutex<Connection>> {
+        self.conn.clone()
     }
 
     pub fn get_chats(&self) -> Result<Vec<ChatRecord>> {

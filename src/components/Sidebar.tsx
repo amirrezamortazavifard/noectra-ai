@@ -9,6 +9,7 @@ import {
   FileText,
   Plus,
   User,
+  Rss,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useSelectedLayoutSegments } from 'next/navigation';
@@ -42,6 +43,12 @@ const Sidebar = ({ children }: { children: React.ReactNode }) => {
       href: '/discover',
       active: segments.includes('discover'),
       label: 'Discover',
+    },
+    {
+      icon: Rss,
+      href: '/reader',
+      active: segments.includes('reader'),
+      label: 'Reader',
     },
     {
       icon: FileText,

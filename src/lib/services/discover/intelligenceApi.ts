@@ -325,3 +325,4 @@ export async function generatePaperComparison(papers: any[]): Promise<string> {
   const data = await res.json();
   return data.comparisonMarkdown || '';
 }
+

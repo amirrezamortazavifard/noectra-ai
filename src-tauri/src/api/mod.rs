@@ -1,4 +1,5 @@
 pub mod discover;
+pub mod reader;
 
 use crate::agents::media::{search_images, search_videos};
 use crate::agents::researcher::run_research_agent;
@@ -14,7 +15,7 @@ use axum::{
     extract::{Path as AxumPath, Query, State},
     http::{header, HeaderValue, StatusCode},
     response::Response,
-    routing::{delete, get, post},
+    routing::{delete, get, patch, post},
     Json, Router,
 };
 use reqwest::Client;
@@ -86,6 +87,27 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/images", post(post_images))
         .route("/api/videos", post(post_videos))
         .route("/api/uploads", post(post_uploads))
+        // Fluent Reader RSS & Intelligence Feeds Engine
+        .route("/api/reader/sources", get(reader::get_sources_handler).post(reader::add_source_handler))
+        .route("/api/reader/sources/refresh", post(reader::refresh_all_sources_handler))
+        .route("/api/reader/sources/:id", patch(reader::update_source_handler).delete(reader::delete_source_handler))
+        .route("/api/reader/sources/:id/refresh", post(reader::refresh_single_source_handler))
+        .route("/api/reader/groups", get(reader::get_groups_handler).post(reader::create_group_handler))
+        .route("/api/reader/groups/:id", patch(reader::update_group_handler).delete(reader::delete_group_handler))
+        .route("/api/reader/items", get(reader::get_items_handler))
+        .route("/api/reader/items/:id/status", patch(reader::update_item_status_handler))
+        .route("/api/reader/items/mark-all-read", post(reader::mark_all_read_handler))
+        .route("/api/reader/rules", get(reader::get_rules_handler).post(reader::save_rule_handler))
+        .route("/api/reader/rules/test", post(reader::test_rule_handler))
+        .route("/api/reader/rules/:id", delete(reader::delete_rule_handler))
+        .route("/api/reader/logs", get(reader::get_logs_handler).delete(reader::clear_logs_handler))
+        .route("/api/reader/opml/import", post(reader::import_opml_handler))
+        .route("/api/reader/opml/export", get(reader::export_opml_handler))
+        .route("/api/reader/backup/export", get(reader::export_backup_handler))
+        .route("/api/reader/backup/import", post(reader::import_backup_handler))
+        .route("/api/reader/services", get(reader::get_services_handler))
+        .route("/api/reader/services/:type", post(reader::save_service_handler))
+        .route("/api/reader/services/:type/sync", post(reader::sync_service_now_handler))
         .layer(cors)
         .with_state(state)
 }

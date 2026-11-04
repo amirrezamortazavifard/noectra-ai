@@ -255,3 +255,4 @@ export const ScientificPaperCard: React.FC<ScientificPaperCardProps> = ({
 };
 
 export default ScientificPaperCard;
+

@@ -154,3 +154,4 @@ export const DailyBriefingModal: React.FC<DailyBriefingModalProps> = ({
 };
 
 export default DailyBriefingModal;
+

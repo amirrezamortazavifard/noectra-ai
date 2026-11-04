@@ -199,3 +199,4 @@ export const DiscoverCommandPalette: React.FC<DiscoverCommandPaletteProps> = ({
 };
 
 export default DiscoverCommandPalette;
+

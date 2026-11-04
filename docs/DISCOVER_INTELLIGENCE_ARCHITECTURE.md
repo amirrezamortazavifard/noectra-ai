@@ -160,3 +160,4 @@ CREATE INDEX IF NOT EXISTS idx_discover_feedback_itemId ON discover_user_feedbac
 - No personal reading histories, bookmarks, or API keys leave the local device.
 - All database operations are purely local (`vane.db` in `%LOCALAPPDATA%\Noectra AI\data\`).
 - Web external links strictly invoke `openExternalLink()` to protect the desktop webview boundary.
+

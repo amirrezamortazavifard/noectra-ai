@@ -172,3 +172,4 @@ export const PaperComparisonModal: React.FC<PaperComparisonModalProps> = ({
 };
 
 export default PaperComparisonModal;
+
