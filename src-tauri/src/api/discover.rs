@@ -264,6 +264,55 @@ const REGISTERED_FEEDS: &[FeedDefinition] = &[
         default_item_type: "news",
         peer_reviewed: false,
     },
+    // Social & Community Intelligence (Reddit & Hacker News)
+    FeedDefinition {
+        id: "reddit_machinelearning",
+        name: "Reddit r/MachineLearning",
+        url: "https://www.reddit.com/r/MachineLearning/hot.rss",
+        default_category: "computer_science",
+        default_item_type: "social",
+        peer_reviewed: false,
+    },
+    FeedDefinition {
+        id: "reddit_localllama",
+        name: "Reddit r/LocalLLaMA",
+        url: "https://www.reddit.com/r/LocalLLaMA/hot.rss",
+        default_category: "computer_science",
+        default_item_type: "social",
+        peer_reviewed: false,
+    },
+    FeedDefinition {
+        id: "reddit_artificial",
+        name: "Reddit r/artificial",
+        url: "https://www.reddit.com/r/artificial/hot.rss",
+        default_category: "computer_science",
+        default_item_type: "social",
+        peer_reviewed: false,
+    },
+    FeedDefinition {
+        id: "reddit_tech",
+        name: "Reddit r/technology",
+        url: "https://www.reddit.com/r/technology/hot.rss",
+        default_category: "computer_science",
+        default_item_type: "social",
+        peer_reviewed: false,
+    },
+    FeedDefinition {
+        id: "reddit_science",
+        name: "Reddit r/science",
+        url: "https://www.reddit.com/r/science/hot.rss",
+        default_category: "medicine",
+        default_item_type: "social",
+        peer_reviewed: false,
+    },
+    FeedDefinition {
+        id: "hackernews",
+        name: "Hacker News (Y Combinator)",
+        url: "https://news.ycombinator.com/rss",
+        default_category: "computer_science",
+        default_item_type: "social",
+        peer_reviewed: false,
+    },
 ];
 
 // ---------------------------------------------------------------------------
@@ -472,6 +521,22 @@ fn get_topic_keywords(topic_str: &str) -> Vec<String> {
 
     // Universal Multi-Disciplinary Curated Mappings
     match topic_str {
+        // Social & Community Intelligence
+        "reddit_ai_ml" => {
+            for kw in ["reddit", "machinelearning", "localllama", "artificial", "model", "weights", "llm", "inference", "quantization", "subreddit"] {
+                keywords.push(kw.to_string());
+            }
+        }
+        "hacker_news" => {
+            for kw in ["hacker news", "y combinator", "hn", "ask hn", "show hn", "startup", "yc"] {
+                keywords.push(kw.to_string());
+            }
+        }
+        "x_twitter_ai" => {
+            for kw in ["twitter", "x.com", "tweet", "nitter", "bluesky", "threads", "announcement"] {
+                keywords.push(kw.to_string());
+            }
+        }
         // Dentistry & Oral Health
         "dentistry" | "digital_dentistry" => {
             for kw in ["dental", "dentistry", "cbct", "teeth", "tooth", "caries", "intraoral", "cad/cam", "dental ai", "enamel", "dentin"] {
@@ -782,6 +847,9 @@ pub async fn get_discover_feed_handler(
                 return true;
             }
             if category_param != "all" && !category_param.is_empty() {
+                if category_param == "social" || mode == "social" {
+                    return feed.default_item_type == "social" || feed.id.contains("reddit") || feed.id == "hackernews";
+                }
                 if category_param == "dentistry" {
                     return feed.default_category == "dentistry" || feed.id.contains("dental") || feed.id.contains("bdj");
                 }
@@ -836,7 +904,10 @@ pub async fn get_discover_feed_handler(
             let resp = client
                 .get(feed_url)
                 .timeout(std::time::Duration::from_secs(8))
-                .header("User-Agent", "Noectra-Intelligence/1.2")
+                .header(
+                    "User-Agent",
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Noectra-Intelligence/1.2",
+                )
                 .send()
                 .await;
 
@@ -921,6 +992,17 @@ pub async fn get_discover_feed_handler(
                             relevance_score += 15.0;
                             break;
                         }
+                    }
+                }
+
+                if feed_type == "social" {
+                    if !tags.contains(&"Social Intelligence".to_string()) {
+                        tags.push("Social Intelligence".to_string());
+                    }
+                    if feed_id.contains("reddit") && !tags.contains(&"Reddit".to_string()) {
+                        tags.push("Reddit".to_string());
+                    } else if feed_id == "hackernews" && !tags.contains(&"Hacker News".to_string()) {
+                        tags.push("Hacker News".to_string());
                     }
                 }
 

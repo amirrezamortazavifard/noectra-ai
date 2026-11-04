@@ -14,7 +14,16 @@ import {
   Check,
   RefreshCw,
   Folder,
+  Sparkles,
+  MessageSquare,
+  Share2,
+  Compass,
 } from 'lucide-react';
+import {
+  resolveSocialInput,
+  POPULAR_SOCIAL_PRESETS,
+  PopularSocialPreset,
+} from '@/lib/services/socialResolver';
 import {
   FeedGroup,
   FeedRule,
@@ -134,24 +143,50 @@ export default function ReaderSettingsModal({
 
   if (!isOpen) return null;
 
-  // Add Source Handler
+  // Add Source Handler with smart social resolver
   const handleAddSource = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newSourceUrl.trim()) return;
     setIsAddingSource(true);
     try {
+      const resolved = resolveSocialInput(newSourceUrl);
+      const targetUrl = resolved.isSocial ? resolved.feedUrl : newSourceUrl.trim();
+      const targetName = newSourceName.trim() || (resolved.isSocial ? resolved.suggestedTitle : undefined);
+
       await addSource({
-        url: newSourceUrl.trim(),
-        name: newSourceName.trim() || undefined,
+        url: targetUrl,
+        name: targetName,
         openTarget: newSourceOpenTarget,
         textDir: newSourceTextDir,
       });
-      toast.success('Feed subscription added successfully');
+      toast.success(
+        resolved.isSocial
+          ? `Subscribed to ${resolved.platformName} channel!`
+          : 'Feed subscription added successfully'
+      );
       setNewSourceUrl('');
       setNewSourceName('');
       onRefreshData();
     } catch (err: any) {
       toast.error(err.message || 'Failed to add feed');
+    } finally {
+      setIsAddingSource(false);
+    }
+  };
+
+  const handleSubscribePreset = async (preset: PopularSocialPreset) => {
+    setIsAddingSource(true);
+    try {
+      await addSource({
+        url: preset.feedUrl,
+        name: preset.name,
+        openTarget: 'local',
+        textDir: 'ltr',
+      });
+      toast.success(`Subscribed to ${preset.name}!`);
+      onRefreshData();
+    } catch (err: any) {
+      toast.error(err.message || `Failed to subscribe to ${preset.name}`);
     } finally {
       setIsAddingSource(false);
     }
@@ -464,21 +499,35 @@ export default function ReaderSettingsModal({
               <div className="space-y-6">
                 {/* Add Feed Form */}
                 <div className="p-4 rounded-2xl bg-black/[0.02] dark:bg-white/[0.03] border border-black/[0.06] dark:border-white/[0.08] space-y-3">
-                  <h4 className="font-semibold text-slate-900 dark:text-white">
-                    Subscribe to New Feed
-                  </h4>
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-semibold text-slate-900 dark:text-white flex items-center gap-1.5">
+                      <Rss size={15} className="text-sky-500" />
+                      <span>Subscribe to Feed or Social Stream</span>
+                    </h4>
+                    <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">
+                      Supports RSS, Atom, Reddit (r/...), X/Twitter, Bluesky
+                    </span>
+                  </div>
+
                   <form onSubmit={handleAddSource} className="space-y-3">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       <div>
                         <label className="block text-[11px] text-black/50 dark:text-white/50 mb-1">
-                          Feed URL (RSS, Atom, JSONFeed)
+                          Feed URL or Social Handle
                         </label>
                         <input
-                          type="url"
+                          type="text"
                           required
                           value={newSourceUrl}
-                          onChange={(e) => setNewSourceUrl(e.target.value)}
-                          placeholder="https://example.com/feed.xml"
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setNewSourceUrl(val);
+                            const res = resolveSocialInput(val);
+                            if (res.isSocial && !newSourceName) {
+                              setNewSourceName(res.suggestedTitle);
+                            }
+                          }}
+                          placeholder="e.g. r/MachineLearning, x.com/OpenAI, or https://..."
                           className="w-full px-3 py-2 rounded-xl bg-white dark:bg-black/20 border border-black/10 dark:border-white/10 text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-sky-500"
                         />
                       </div>
@@ -495,6 +544,28 @@ export default function ReaderSettingsModal({
                         />
                       </div>
                     </div>
+
+                    {/* Live Social Resolution Badge */}
+                    {(() => {
+                      const res = resolveSocialInput(newSourceUrl);
+                      if (!res.isSocial) return null;
+                      return (
+                        <div className="flex items-center justify-between p-2 rounded-xl bg-gradient-to-r from-cyan-500/10 via-sky-500/10 to-transparent border border-cyan-500/20 text-xs">
+                          <div className="flex items-center gap-2 truncate">
+                            <Sparkles size={13} className="text-cyan-500 shrink-0 animate-pulse" />
+                            <span className="font-semibold text-cyan-700 dark:text-cyan-300">
+                              {res.platformName} detected:
+                            </span>
+                            <span className="text-slate-600 dark:text-slate-300 font-mono text-[11px] truncate">
+                              {res.feedUrl}
+                            </span>
+                          </div>
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-cyan-500/20 text-cyan-700 dark:text-cyan-300">
+                            Auto-Bridged
+                          </span>
+                        </div>
+                      );
+                    })()}
 
                     <div className="flex items-center justify-between pt-2">
                       <div className="flex items-center space-x-4">
@@ -528,13 +599,85 @@ export default function ReaderSettingsModal({
                       <button
                         type="submit"
                         disabled={isAddingSource}
-                        className="flex items-center space-x-1.5 px-4 py-2 rounded-xl bg-sky-500 text-white font-semibold hover:bg-sky-600 transition-all disabled:opacity-50"
+                        className="flex items-center space-x-1.5 px-4 py-2 rounded-xl bg-sky-500 text-white font-semibold hover:bg-sky-600 transition-all disabled:opacity-50 active:scale-95 shadow-sm"
                       >
                         <Plus size={14} />
                         <span>{isAddingSource ? 'Subscribing...' : 'Add Feed'}</span>
                       </button>
                     </div>
                   </form>
+                </div>
+
+                {/* Popular Social Intelligence Channels (1-Click Subscribe) */}
+                <div className="p-4 rounded-2xl bg-gradient-to-br from-cyan-500/5 via-violet-500/5 to-transparent border border-black/[0.06] dark:border-white/[0.08] space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Sparkles size={15} className="text-cyan-500" />
+                      <h4 className="font-semibold text-slate-900 dark:text-white text-xs">
+                        Popular Social Intelligence Channels
+                      </h4>
+                    </div>
+                    <span className="text-[10px] text-slate-400">
+                      1-Click Instant Subscription
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                    {POPULAR_SOCIAL_PRESETS.map((preset) => {
+                      const isAlreadySubbed = sources.some(
+                        (s) => s.url === preset.feedUrl || s.name === preset.name
+                      );
+
+                      return (
+                        <div
+                          key={preset.id}
+                          className="flex flex-col justify-between p-2.5 rounded-xl bg-white dark:bg-[#111622] border border-black/[0.06] dark:border-white/[0.08] hover:border-cyan-500/30 transition-all"
+                        >
+                          <div>
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="font-semibold text-[11px] text-slate-900 dark:text-white truncate">
+                                {preset.name}
+                              </span>
+                              <span
+                                className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase ${
+                                  preset.platform === 'reddit'
+                                    ? 'bg-orange-500/10 text-orange-600 dark:text-orange-400'
+                                    : preset.platform === 'x'
+                                    ? 'bg-slate-900/10 text-slate-900 dark:bg-white/10 dark:text-white'
+                                    : preset.platform === 'bluesky'
+                                    ? 'bg-sky-500/10 text-sky-600 dark:text-sky-400'
+                                    : 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
+                                }`}
+                              >
+                                {preset.platform}
+                              </span>
+                            </div>
+                            <p className="text-[10px] text-slate-500 dark:text-slate-400 line-clamp-2 leading-relaxed">
+                              {preset.description}
+                            </p>
+                          </div>
+
+                          <div className="pt-2 mt-2 border-t border-black/[0.04] dark:border-white/[0.04] flex items-center justify-between">
+                            <span className="text-[9px] text-slate-400 font-medium">
+                              {preset.category}
+                            </span>
+                            <button
+                              type="button"
+                              disabled={isAlreadySubbed || isAddingSource}
+                              onClick={() => handleSubscribePreset(preset)}
+                              className={`px-2.5 py-1 rounded-lg text-[10px] font-semibold transition-all ${
+                                isAlreadySubbed
+                                  ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 cursor-default'
+                                  : 'bg-sky-500 text-white hover:bg-sky-600 active:scale-95'
+                              }`}
+                            >
+                              {isAlreadySubbed ? 'Subscribed' : 'Subscribe'}
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
 
                 {/* OPML & Full Backup Utilities */}

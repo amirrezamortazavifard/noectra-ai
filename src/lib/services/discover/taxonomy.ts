@@ -41,6 +41,39 @@ export interface StoryTopicItem {
 // ---------------------------------------------------------------------------
 
 export const UNIVERSAL_DISCIPLINES: UniversalDiscipline[] = [
+  // Social & Community Intelligence
+  {
+    id: 'social',
+    name: 'Social & Community Intelligence',
+    icon: '💬',
+    description: 'Reddit research communities, Hacker News, X / Twitter tech debates, and developer forums.',
+    topics: [
+      {
+        id: 'reddit_ai_ml',
+        name: 'Reddit Machine Learning & AI',
+        description: 'r/MachineLearning, r/LocalLLaMA, and r/artificial discussions and releases.',
+        icon: '👾',
+        keywords: ['reddit', 'machinelearning', 'localllama', 'artificial', 'subreddit', 'upvote'],
+        isHot: true,
+      },
+      {
+        id: 'hacker_news',
+        name: 'Hacker News Community',
+        description: 'Top tech, startup insights, and programming debates from news.ycombinator.com.',
+        icon: '🟧',
+        keywords: ['hacker news', 'y combinator', 'hn', 'ask hn', 'show hn'],
+        isHot: true,
+      },
+      {
+        id: 'x_twitter_ai',
+        name: 'X (Twitter) & Bluesky',
+        description: 'Pioneering researcher insights from X / Nitter and Bluesky announcements.',
+        icon: '🐦',
+        keywords: ['twitter', 'x.com', 'tweet', 'nitter', 'bluesky', 'threads'],
+        isHot: true,
+      },
+    ],
+  },
   // 1. Medicine & Clinical Healthcare
   {
     id: 'medicine',

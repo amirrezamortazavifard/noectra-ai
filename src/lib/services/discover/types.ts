@@ -72,7 +72,8 @@ export type IntelligenceItemType =
   | 'breakthrough'
   | 'model'
   | 'dataset'
-  | 'conference';
+  | 'conference'
+  | 'social';
 
 export interface AlternateSourceRef {
   source: string;

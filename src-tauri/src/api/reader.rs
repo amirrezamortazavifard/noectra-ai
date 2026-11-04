@@ -174,7 +174,10 @@ pub async fn fetch_and_store_feed(
     let client = &state.http_client;
     let res = client
         .get(url)
-        .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Noectra-AI-Reader/1.1")
+        .header(
+            "User-Agent",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Noectra-AI-Reader/1.1",
+        )
         .timeout(std::time::Duration::from_secs(18))
         .send()
         .await

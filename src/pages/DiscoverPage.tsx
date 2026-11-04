@@ -58,6 +58,7 @@ import { FeaturedIntelligenceCard } from '@/components/Discover/Cards/FeaturedIn
 import { ScientificPaperCard } from '@/components/Discover/Cards/ScientificPaperCard';
 import { BreakingNewsCard } from '@/components/Discover/Cards/BreakingNewsCard';
 import { ModelReleaseCard } from '@/components/Discover/Cards/ModelReleaseCard';
+import { SocialPostCard } from '@/components/Discover/Cards/SocialPostCard';
 import { AiExplainModal } from '@/components/Discover/Modals/AiExplainModal';
 import { PaperComparisonModal } from '@/components/Discover/Modals/PaperComparisonModal';
 import { DailyBriefingModal } from '@/components/Discover/Modals/DailyBriefingModal';
@@ -70,6 +71,7 @@ import { useNavigate } from 'react-router-dom';
 // Universal Knowledge Domains & Disciplines
 const categoryOptions: DiscoverCategory[] = [
   { key: 'all', display: 'All Knowledge Disciplines', icon: '🌐' },
+  { key: 'social', display: 'Social Intelligence & Reddit', icon: '💬' },
   { key: 'medicine', display: 'Medicine & Healthcare', icon: '🩺' },
   { key: 'dentistry', display: 'Dentistry & Oral Health', icon: '🦷' },
   { key: 'computer_science', display: 'Computer Science & AI', icon: '💻' },
@@ -82,7 +84,13 @@ const categoryOptions: DiscoverCategory[] = [
 
 // Universal Verified Feeds Catalog
 const sourceOptions: DiscoverSource[] = [
-  { key: 'all', display: 'All Verified Feeds (20+ Sources)', type: 'rss' },
+  { key: 'all', display: 'All Verified Feeds (25+ Sources)', type: 'rss' },
+  { key: 'reddit_machinelearning', display: 'Reddit r/MachineLearning', type: 'rss' },
+  { key: 'reddit_localllama', display: 'Reddit r/LocalLLaMA', type: 'rss' },
+  { key: 'reddit_artificial', display: 'Reddit r/artificial', type: 'rss' },
+  { key: 'reddit_tech', display: 'Reddit r/technology', type: 'rss' },
+  { key: 'reddit_science', display: 'Reddit r/science', type: 'rss' },
+  { key: 'hackernews', display: 'Hacker News (Y Combinator)', type: 'rss' },
   { key: 'nature', display: 'Nature International Journal', type: 'academic' },
   { key: 'science_mag', display: 'Science Magazine', type: 'academic' },
   { key: 'nature_bdj', display: 'British Dental Journal (Nature BDJ)', type: 'academic' },
@@ -707,6 +715,28 @@ export const DiscoverPage: React.FC = () => {
                           onDiscuss={(name) => {
                             navigate(`/chat?q=${encodeURIComponent(`Let's discuss the architecture and training recipe of model "${name}".`)}`);
                           }}
+                        />
+                      );
+                    }
+
+                    if (
+                      item.itemType === 'social' ||
+                      item.source.toLowerCase().includes('reddit') ||
+                      item.source.toLowerCase().includes('hacker news') ||
+                      item.source.toLowerCase().includes('twitter') ||
+                      item.source.toLowerCase().includes('bluesky')
+                    ) {
+                      return (
+                        <SocialPostCard
+                          key={item.id}
+                          item={item}
+                          isSaved={isSaved}
+                          isInQueue={isInQueue}
+                          onSave={handleToggleSave}
+                          onAddToQueue={handleToggleQueue}
+                          onOpenArticle={(it) => setSelectedArticle(it)}
+                          onExplainAi={(it) => setSelectedExplainItem(it)}
+                          onDiscussAi={handleDiscussInChat}
                         />
                       );
                     }
