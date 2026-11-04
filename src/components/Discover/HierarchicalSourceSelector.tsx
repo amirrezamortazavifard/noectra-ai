@@ -25,12 +25,14 @@ import { cn } from '@/lib/utils';
 interface HierarchicalSourceSelectorProps {
   activeSource: string;
   onSelectSource: (sourceId: string) => void;
+  onOpenRedditExplorer?: () => void;
   className?: string;
 }
 
 export const HierarchicalSourceSelector: React.FC<HierarchicalSourceSelectorProps> = ({
   activeSource,
   onSelectSource,
+  onOpenRedditExplorer,
   className,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -357,6 +359,39 @@ export const HierarchicalSourceSelector: React.FC<HierarchicalSourceSelectorProp
                       )}
                     </div>
 
+                    {/* Reddit Community Explorer Shortcut */}
+                    {subgroup.id === 'reddit_ai_communities' && onOpenRedditExplorer && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsOpen(false);
+                          onOpenRedditExplorer();
+                        }}
+                        className="w-full mb-3 p-2.5 rounded-2xl bg-gradient-to-r from-orange-500/10 via-amber-500/10 to-transparent border border-orange-500/25 hover:border-orange-500/50 hover:bg-orange-500/15 transition-all text-left flex items-center justify-between group cursor-pointer"
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-xl bg-orange-500/20 border border-orange-500/30 flex items-center justify-center text-base shrink-0">
+                            👾
+                          </div>
+                          <div>
+                            <div className="font-semibold text-xs text-orange-700 dark:text-orange-300 flex items-center gap-1.5">
+                              <span>Search & Browse 40+ Reddit Communities</span>
+                              <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-orange-500/20 font-bold uppercase">
+                                Autocomplete
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                              Search subreddits with realistic autocomplete or connect any custom community.
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1 text-orange-600 dark:text-orange-400 font-semibold text-xs group-hover:translate-x-0.5 transition-transform shrink-0">
+                          <span>Open Explorer</span>
+                          <ArrowRight size={13} />
+                        </div>
+                      </button>
+                    )}
+
                     {/* Sources Grid */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
                       {subgroup.sources.map((source) => {
@@ -444,3 +479,4 @@ export const HierarchicalSourceSelector: React.FC<HierarchicalSourceSelectorProp
 };
 
 export default HierarchicalSourceSelector;
+

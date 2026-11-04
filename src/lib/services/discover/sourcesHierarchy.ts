@@ -290,6 +290,19 @@ export const SOURCE_HIERARCHY_CATEGORIES: SourceCategoryGroup[] = [
         description: 'Fast discussions, model releases, quantization configs, and paper reviews.',
         sources: [
           {
+            id: 'reddit_stream',
+            name: 'All Reddit Communities (Multi-Stream)',
+            type: 'social',
+            typeLabel: 'Multi-Community',
+            icon: '🔥',
+            description: 'Combined real-time stream across 15+ science, AI, medicine, and technology subreddits.',
+            url: 'https://www.reddit.com/r/MachineLearning+LocalLLaMA+artificial+technology+science/hot.rss',
+            subgroupId: 'reddit_ai_communities',
+            subgroupName: 'Reddit AI & Open Weights',
+            categoryId: 'social_community',
+            categoryName: 'Social & Community Intelligence',
+          },
+          {
             id: 'reddit_machinelearning',
             name: 'Reddit r/MachineLearning',
             type: 'social',
@@ -539,5 +552,26 @@ export function findSourceById(id: string): SourceItem | undefined {
       }
     }
   }
+
+  // Handle dynamic subreddits selected from search / explorer
+  if (id.startsWith('reddit_')) {
+    const rawSub = id.replace('reddit_', '');
+    const cleanSub = rawSub.charAt(0).toUpperCase() + rawSub.slice(1);
+    return {
+      id,
+      name: `Reddit r/${cleanSub}`,
+      type: 'social',
+      typeLabel: 'Reddit Community',
+      icon: '👾',
+      description: `Live hot discussions and submissions from r/${cleanSub} on Reddit.`,
+      url: `https://www.reddit.com/r/${cleanSub}/hot.rss`,
+      subgroupId: 'reddit_ai_communities',
+      subgroupName: 'Reddit Communities',
+      categoryId: 'social_community',
+      categoryName: 'Social & Community Intelligence',
+    };
+  }
+
   return undefined;
 }
+

@@ -65,6 +65,7 @@ import { DailyBriefingModal } from '@/components/Discover/Modals/DailyBriefingMo
 import { DiscoverCommandPalette } from '@/components/Discover/Modals/DiscoverCommandPalette';
 import ArticleReaderModal from '@/components/Discover/ArticleReaderModal';
 import DiscoverApiKeysModal from '@/components/Discover/DiscoverApiKeysModal';
+import { RedditCommunityExplorerModal } from '@/components/Discover/Modals/RedditCommunityExplorerModal';
 import { LiveBuzzDashboard } from '@/components/Discover/LiveBuzz/LiveBuzzDashboard';
 import { useNavigate } from 'react-router-dom';
 
@@ -148,6 +149,7 @@ export const DiscoverPage: React.FC = () => {
   const [isBriefingModalOpen, setIsBriefingModalOpen] = useState<boolean>(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState<boolean>(false);
   const [isKeysModalOpen, setIsKeysModalOpen] = useState<boolean>(false);
+  const [isRedditExplorerOpen, setIsRedditExplorerOpen] = useState<boolean>(false);
 
   const fetchIdRef = useRef<number>(0);
 
@@ -605,6 +607,7 @@ export const DiscoverPage: React.FC = () => {
           activeSource={activeSource}
           onSelectSource={(src) => setActiveSource(src)}
           sourceItems={sourceDropdownItems}
+          onOpenRedditExplorer={() => setIsRedditExplorerOpen(true)}
           activeTopic={activeTopic}
           onResetTopic={() => setActiveTopic('all')}
           itemCount={items.length}
@@ -858,6 +861,16 @@ export const DiscoverPage: React.FC = () => {
         isOpen={isKeysModalOpen}
         onClose={() => setIsKeysModalOpen(false)}
         onSaved={loadFeed}
+      />
+
+      {/* Reddit Community Explorer & Realistic Subreddit Autocomplete Modal */}
+      <RedditCommunityExplorerModal
+        isOpen={isRedditExplorerOpen}
+        onClose={() => setIsRedditExplorerOpen(false)}
+        onSelectSubreddit={(subSourceId) => {
+          setActiveSource(subSourceId);
+          toast.success(`Active feed set to ${subSourceId.replace('reddit_', 'r/')}`);
+        }}
       />
     </div>
   );

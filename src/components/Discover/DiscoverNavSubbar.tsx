@@ -42,6 +42,7 @@ interface DiscoverNavSubbarProps {
   activeSource: string;
   onSelectSource: (src: string) => void;
   sourceItems?: DropdownItem[];
+  onOpenRedditExplorer?: () => void;
 
   activeTopic: string;
   onResetTopic: () => void;
@@ -72,6 +73,7 @@ export const DiscoverNavSubbar: React.FC<DiscoverNavSubbarProps> = ({
   activeSource,
   onSelectSource,
   sourceItems,
+  onOpenRedditExplorer,
   activeTopic,
   onResetTopic,
   itemCount,
@@ -324,7 +326,21 @@ export const DiscoverNavSubbar: React.FC<DiscoverNavSubbarProps> = ({
             <HierarchicalSourceSelector
               activeSource={activeSource}
               onSelectSource={onSelectSource}
+              onOpenRedditExplorer={onOpenRedditExplorer}
             />
+
+            {/* Quick Reddit Community Explorer Trigger */}
+            {onOpenRedditExplorer && (
+              <button
+                type="button"
+                onClick={onOpenRedditExplorer}
+                title="Search 40+ subreddits or enter any custom community with realistic autocomplete"
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium border border-orange-500/20 bg-orange-500/5 hover:bg-orange-500/10 text-orange-700 dark:text-orange-400 transition-all shadow-sm cursor-pointer"
+              >
+                <span className="text-sm leading-none">👾</span>
+                <span className="font-semibold hidden sm:inline">Reddit Explorer</span>
+              </button>
+            )}
 
             {/* Active Sub-Topic Chip */}
             {activeTopic && activeTopic !== 'all' && (
