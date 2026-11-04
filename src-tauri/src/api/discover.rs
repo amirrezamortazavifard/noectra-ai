@@ -358,6 +358,114 @@ pub struct DiscoverQueryParams {
     pub offset: Option<usize>,
 }
 
+fn get_topic_keywords(topic_str: &str) -> Vec<String> {
+    let clean = topic_str.replace('_', " ").trim().to_lowercase();
+    let mut keywords = Vec::new();
+
+    // Specific curated mappings for quick and precise matching
+    match topic_str {
+        "radiology_ai" => {
+            for kw in [
+                "radiology", "radiological", "radiologist", "x-ray", "radiograph", "ct", "computed tomography",
+                "mri", "magnetic resonance", "ultrasound", "sonography", "mammography", "cxr", "imaging",
+                "lesion", "lung", "chest", "scan", "neuroimaging", "cardiac mri", "pocus"
+            ] {
+                keywords.push(kw.to_string());
+            }
+        }
+        "computational_pathology" => {
+            for kw in [
+                "pathology", "histopathology", "histology", "whole slide", "wsi", "biopsy", "cell",
+                "nuclei", "tissue", "microscopy", "cancer", "tumor", "slide", "staining", "h&e", "cellular"
+            ] {
+                keywords.push(kw.to_string());
+            }
+        }
+        "surgical_cv" => {
+            for kw in [
+                "surgical", "surgery", "laparoscopy", "laparoscopic", "endoscopy", "endoscopic",
+                "surgical instrument", "robot-assisted", "robotic surgery", "surgical video", "procedure",
+                "intervention", "surgeon", "operating room", "minimally invasive", "catheter", "incision"
+            ] {
+                keywords.push(kw.to_string());
+            }
+        }
+        "medical_cv" => {
+            for kw in [
+                "medical", "clinical", "biomedical", "healthcare", "diagnostic", "patient", "disease",
+                "hospital", "physician", "doctor", "health", "radiology", "pathology", "surgical", "treatment"
+            ] {
+                keywords.push(kw.to_string());
+            }
+        }
+        "medical_foundation_models" => {
+            for kw in [
+                "foundation model", "foundation", "biomedclip", "med-gemini", "med-palm", "vision-language",
+                "vlm", "clinical llm", "multimodal", "clip", "pretraining", "pre-trained", "large language model"
+            ] {
+                keywords.push(kw.to_string());
+            }
+        }
+        "vision_transformers" => {
+            for kw in [
+                "vision transformer", "vit", "transformer", "attention", "swin", "self-attention",
+                "deit", "patch", "cross-attention", "token"
+            ] {
+                keywords.push(kw.to_string());
+            }
+        }
+        "medical_segmentation" => {
+            for kw in [
+                "segmentation", "segment", "u-net", "unet", "sam", "sam-med", "contour", "delineation",
+                "mask", "voxel", "organ boundary", "semantic segmentation"
+            ] {
+                keywords.push(kw.to_string());
+            }
+        }
+        "huggingface_models" => {
+            for kw in [
+                "hugging face", "huggingface", "model", "benchmark", "weights", "checkpoint",
+                "open-source", "open source", "sota", "github", "release"
+            ] {
+                keywords.push(kw.to_string());
+            }
+        }
+        _ => {}
+    }
+
+    // Check predefined taxonomy rules
+    let rules = get_taxonomy_rules();
+    for rule in rules {
+        let tag_lower = rule.tag.to_lowercase();
+        if tag_lower.contains(&clean)
+            || clean.contains(&tag_lower)
+            || rule
+                .keywords
+                .iter()
+                .any(|k| k.to_lowercase().contains(&clean) || clean.contains(&k.to_lowercase()))
+        {
+            for kw in rule.keywords {
+                keywords.push(kw.to_lowercase());
+            }
+            keywords.push(rule.tag.to_lowercase());
+        }
+    }
+
+    // Individual tokens (e.g. "radiology", "pathology", "surgical", "segmentation")
+    for token in clean.split_whitespace() {
+        if token.len() >= 3 && token != "and" && token != "the" && token != "for" {
+            keywords.push(token.to_string());
+        }
+    }
+
+    if keywords.is_empty() {
+        keywords.push(clean);
+    }
+    keywords.sort();
+    keywords.dedup();
+    keywords
+}
+
 pub async fn get_discover_feed_handler(
     State(state): State<AppState>,
     Query(params): Query<DiscoverQueryParams>,
@@ -387,6 +495,9 @@ pub async fn get_discover_feed_handler(
             if mode == "research_only" {
                 return feed.default_item_type == "paper" || feed.peer_reviewed;
             }
+            if !topic_param.is_empty() && topic_param != "all" {
+                return true;
+            }
             if category_param != "all" && !category_param.is_empty() {
                 if category_param == "medical_cv" {
                     return feed.default_category == "medical_cv" || feed.id.contains("arxiv") || feed.id == "medpage" || feed.id == "nature";
@@ -396,6 +507,9 @@ pub async fn get_discover_feed_handler(
                 }
                 if category_param == "science" {
                     return feed.default_category == "science" || feed.id == "nature" || feed.id == "science_mag";
+                }
+                if category_param == "health" {
+                    return feed.default_category == "health" || feed.id == "medpage" || feed.id == "nature";
                 }
             }
             true
@@ -657,10 +771,54 @@ pub async fn get_discover_feed_handler(
 
             // Topic filter
             if !topic_param.is_empty() && topic_param != "all" {
-                let matches_topic = item.tags.iter().any(|tag| tag.to_lowercase().contains(&topic_param))
-                    || item.title.to_lowercase().contains(&topic_param)
-                    || item.description.to_lowercase().contains(&topic_param);
+                let topic_keywords = get_topic_keywords(&topic_param);
+                let title_lower = item.title.to_lowercase();
+                let desc_lower = item.description.to_lowercase();
+                let tags_lower: Vec<String> = item.tags.iter().map(|t| t.to_lowercase()).collect();
+
+                let matches_topic = topic_keywords.iter().any(|kw| {
+                    title_lower.contains(kw)
+                        || desc_lower.contains(kw)
+                        || tags_lower.iter().any(|t| t.contains(kw))
+                });
                 if !matches_topic {
+                    return false;
+                }
+            }
+
+            // Category filter
+            if !category_param.is_empty() && category_param != "all" {
+                let cat_match = if category_param == "medical_cv" {
+                    item.category == "medical_cv"
+                        || item.category == "health"
+                        || item.tags.iter().any(|t| {
+                            let tl = t.to_lowercase();
+                            tl.contains("radiology")
+                                || tl.contains("medical")
+                                || tl.contains("pathology")
+                                || tl.contains("surgical")
+                                || tl.contains("segmentation")
+                                || tl.contains("clinical")
+                                || tl.contains("vision")
+                        })
+                } else if category_param == "ai" {
+                    item.category == "ai"
+                        || item.tags.iter().any(|t| {
+                            let tl = t.to_lowercase();
+                            tl.contains("artificial intelligence") || tl.contains("ai") || tl.contains("learning")
+                        })
+                } else if category_param == "cs" {
+                    item.category == "cs" || item.category == "ai" || item.source_id.contains("arxiv")
+                } else if category_param == "science" {
+                    item.category == "science" || item.source_id == "nature" || item.source_id == "science_mag"
+                } else if category_param == "health" {
+                    item.category == "health" || item.category == "medical_cv"
+                } else if category_param == "tech" {
+                    item.category == "tech" || item.category == "ai" || item.category == "cs"
+                } else {
+                    item.category.to_lowercase() == category_param
+                };
+                if !cat_match {
                     return false;
                 }
             }

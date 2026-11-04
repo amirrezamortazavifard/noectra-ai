@@ -469,44 +469,46 @@ export const DiscoverPage: React.FC = () => {
   }));
 
   return (
-    <div className="w-full min-h-screen px-4 lg:px-8 pt-6 pb-24 max-w-[1680px] mx-auto select-text">
+    <div className="w-full min-h-screen px-4 lg:px-8 pt-4 pb-24 max-w-[1680px] mx-auto select-text">
       {/* ----------------------------------------------------------------- */}
-      {/* Header Bar: NOECTRA INTELLIGENCE Brand & Live Telemetry Badge     */}
+      {/* Header Bar: Sleek Command Center & Action Toolbar                 */}
       {/* ----------------------------------------------------------------- */}
-      <div className="flex flex-col gap-6 pb-6 border-b border-slate-200/80 dark:border-white/[0.08]">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3.5">
-            <div className="p-3 rounded-2xl bg-gradient-to-tr from-cyan-500/20 to-blue-500/20 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30 shadow-[0_0_20px_rgba(6,182,212,0.25)]">
-              <Globe2 size={32} />
+      <div className="flex flex-col gap-4 pb-4 border-b border-slate-200/80 dark:border-white/[0.08]">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          {/* Brand & Live Status */}
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-gradient-to-tr from-cyan-500/20 to-blue-500/20 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30 shadow-[0_0_16px_rgba(6,182,212,0.2)]">
+              <Globe2 size={24} />
             </div>
             <div>
-              <div className="flex items-center gap-2.5">
+              <div className="flex items-center gap-2">
                 <h1
-                  className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white tracking-tight"
+                  className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight"
                   style={{ fontFamily: 'PP Editorial, Georgia, serif' }}
                 >
                   NOECTRA INTELLIGENCE
                 </h1>
-                <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-mono font-semibold px-2.5 py-0.5 rounded-full bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 border border-cyan-500/30">
+                <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 border border-cyan-500/30">
                   <Activity size={10} className="animate-pulse text-cyan-500" />
-                  <span>Command Center</span>
+                  <span>12 Active Streams</span>
                 </span>
               </div>
-              <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-                Your Personal Global Research & Intelligence Network • Medical AI, Computer Vision & Scientific Preprints
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                Global Research Radar • Medical AI, Computer Vision & Scientific Preprints
               </p>
             </div>
           </div>
 
+          {/* Unified Action Controls */}
           <div className="flex items-center gap-2 self-stretch sm:self-auto">
-            {/* Compare Floating Button if Papers Selected */}
+            {/* Compare Matrix Button (appears if 2+ papers selected) */}
             {comparingPapers.length >= 2 && (
               <button
                 type="button"
                 onClick={() => setIsCompareModalOpen(true)}
-                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-semibold shadow-md hover:shadow-lg transition-all animate-bounce"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-semibold shadow-md hover:shadow-lg transition-all animate-bounce"
               >
-                <Layers size={14} />
+                <Layers size={13} />
                 <span>Compare Matrix ({comparingPapers.length})</span>
               </button>
             )}
@@ -515,20 +517,30 @@ export const DiscoverPage: React.FC = () => {
             <button
               type="button"
               onClick={() => setIsBriefingModalOpen(true)}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white text-xs font-semibold shadow-sm hover:shadow transition-all active:scale-95"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white text-xs font-semibold shadow-sm hover:shadow transition-all active:scale-95"
             >
-              <Sparkles size={14} />
-              <span className="hidden sm:inline">Daily Briefing</span>
+              <Sparkles size={13} />
+              <span>Daily Briefing</span>
             </button>
 
-            {/* News API Keys Settings Trigger */}
+            {/* API Keys Configuration */}
             <button
               type="button"
               onClick={() => setIsKeysModalOpen(true)}
-              title="Configure API Keys"
-              className="p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/[0.06] dark:hover:bg-white/[0.1] border border-slate-200/80 dark:border-white/10 text-slate-700 dark:text-white transition-colors"
+              title="Configure News & Model API Keys"
+              className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/[0.06] dark:hover:bg-white/[0.1] border border-slate-200/80 dark:border-white/10 text-slate-700 dark:text-white transition-colors"
             >
-              <Key size={16} />
+              <Key size={15} />
+            </button>
+
+            {/* Command Palette Trigger */}
+            <button
+              type="button"
+              onClick={() => setIsCommandPaletteOpen(true)}
+              title="Open Command Palette (Ctrl+K)"
+              className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/[0.06] dark:hover:bg-white/[0.1] border border-slate-200/80 dark:border-white/10 text-slate-700 dark:text-white transition-colors hidden sm:flex"
+            >
+              <SlidersHorizontal size={15} />
             </button>
 
             {/* Toggle Sidebar Collapse */}
@@ -536,28 +548,25 @@ export const DiscoverPage: React.FC = () => {
               type="button"
               onClick={() => setIsSidebarCollapsed((prev) => !prev)}
               title={isSidebarCollapsed ? 'Expand Intelligence Panel' : 'Collapse Intelligence Panel'}
-              className="p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/[0.06] dark:hover:bg-white/[0.1] border border-slate-200/80 dark:border-white/10 text-slate-700 dark:text-white transition-colors hidden xl:flex"
+              className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/[0.06] dark:hover:bg-white/[0.1] border border-slate-200/80 dark:border-white/10 text-slate-700 dark:text-white transition-colors hidden xl:flex"
             >
-              {isSidebarCollapsed ? <SidebarOpen size={16} /> : <SidebarClose size={16} />}
+              {isSidebarCollapsed ? <SidebarOpen size={15} /> : <SidebarClose size={15} />}
             </button>
           </div>
         </div>
 
         {/* --------------------------------------------------------------- */}
-        {/* Instagram-Style Topic Discovery Strip (Zone B Top)              */}
+        {/* Sleek Topic Capsule Pill Bar                                    */}
         {/* --------------------------------------------------------------- */}
         <TopicStoriesStrip
           activeTopic={activeTopic}
-          onSelectTopic={(topicId, category) => {
+          onSelectTopic={(topicId) => {
             setActiveTopic(topicId);
-            if (category !== 'all') {
-              setActiveCategory(category);
-            }
           }}
         />
 
         {/* --------------------------------------------------------------- */}
-        {/* Mode Selector & Search Controls Subbar                          */}
+        {/* Unified 2-Tier Mode Selector, Search & Combobox Deck             */}
         {/* --------------------------------------------------------------- */}
         <DiscoverNavSubbar
           currentMode={feedMode}
@@ -573,48 +582,16 @@ export const DiscoverPage: React.FC = () => {
           onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
           activeFilterCount={activeFilterCount}
           onResetFilters={handleResetFilters}
+          activeCategory={activeCategory}
+          onSelectCategory={(cat) => setActiveCategory(cat)}
+          categoryItems={categoryDropdownItems}
+          activeSource={activeSource}
+          onSelectSource={(src) => setActiveSource(src)}
+          sourceItems={sourceDropdownItems}
+          activeTopic={activeTopic}
+          onResetTopic={() => setActiveTopic('all')}
+          itemCount={items.length}
         />
-
-        {/* Dropdown Filters Toolbar */}
-        <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
-          <div className="flex flex-wrap items-center gap-2.5">
-            <GlassDropdown
-              label="Select Discipline"
-              prefix="Category"
-              icon={<Layers size={14} className="text-cyan-500" />}
-              items={categoryDropdownItems}
-              selectedKey={activeCategory}
-              onSelect={(key) => setActiveCategory(key)}
-              widthClass="min-w-[210px]"
-            />
-
-            <GlassDropdown
-              label="Select Verified Source"
-              prefix="Source"
-              icon={<Radio size={14} className="text-violet-500" />}
-              items={sourceDropdownItems}
-              selectedKey={activeSource}
-              onSelect={(key) => setActiveSource(key)}
-              widthClass="min-w-[240px]"
-            />
-          </div>
-
-          {activeFilterCount > 0 && (
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-mono text-slate-500 dark:text-slate-400">
-                {items.length} discoveries found
-              </span>
-              <button
-                type="button"
-                onClick={handleResetFilters}
-                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-medium text-slate-500 hover:text-black dark:text-slate-400 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
-              >
-                <RotateCcw size={12} />
-                <span>Reset Filters</span>
-              </button>
-            </div>
-          )}
-        </div>
       </div>
 
       {/* ----------------------------------------------------------------- */}
