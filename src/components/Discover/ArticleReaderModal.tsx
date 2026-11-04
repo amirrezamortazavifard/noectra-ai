@@ -19,12 +19,12 @@ import {
   ShieldAlert,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { NewsItem } from '@/lib/services/discover/types';
+import { NewsItem, DiscoverFeedItem } from '@/lib/services/discover/types';
 import { openExternalLink } from '@/lib/openExternal';
 import { formatTimeDifference } from '@/lib/utils';
 
 interface ArticleReaderModalProps {
-  item: NewsItem | null;
+  item: NewsItem | DiscoverFeedItem | null;
   isOpen: boolean;
   onClose: () => void;
 }
@@ -248,10 +248,10 @@ export const ArticleReaderModal: React.FC<ArticleReaderModalProps> = ({
               </h1>
 
               {/* Hero Image if available */}
-              {item.imageUrl && !imageError && (
+              {(item.imageUrl || item.thumbnail) && !imageError && (
                 <div className="w-full max-h-96 rounded-2xl overflow-hidden border border-white/[0.08] bg-black/40 relative">
                   <img
-                    src={item.imageUrl}
+                    src={item.imageUrl || item.thumbnail}
                     alt={item.title}
                     className="w-full h-full object-cover"
                     referrerPolicy="no-referrer"

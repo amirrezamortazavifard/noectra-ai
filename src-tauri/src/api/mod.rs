@@ -1,3 +1,5 @@
+pub mod discover;
+
 use crate::agents::media::{search_images, search_videos};
 use crate::agents::researcher::run_research_agent;
 use crate::agents::suggestions::generate_suggestions;
@@ -63,7 +65,21 @@ pub fn create_router(state: AppState) -> Router {
         // Suggestions & widgets
         .route("/api/suggestions", post(post_suggestions))
         .route("/api/weather", post(post_weather))
-        .route("/api/discover", get(get_discover))
+        // Discover Intelligence Command Center
+        .route("/api/discover", get(discover::get_discover_feed_handler))
+        .route("/api/discover/status", get(discover::get_discover_status_handler))
+        .route("/api/discover/trending", get(discover::get_discover_trending_handler))
+        .route("/api/discover/huggingface", get(discover::get_huggingface_trending_handler))
+        .route("/api/discover/saved", get(discover::get_saved_items_handler).post(discover::save_item_handler))
+        .route("/api/discover/saved/:id", delete(discover::delete_saved_item_handler))
+        .route("/api/discover/queue", get(discover::get_reading_queue_handler).post(discover::add_to_reading_queue_handler))
+        .route("/api/discover/queue/:id", delete(discover::delete_from_reading_queue_handler).patch(discover::update_reading_queue_status_handler))
+        .route("/api/discover/topics", get(discover::get_followed_topics_handler))
+        .route("/api/discover/topics/follow", post(discover::follow_topic_handler))
+        .route("/api/discover/topics/unfollow/:id", delete(discover::unfollow_topic_handler))
+        .route("/api/discover/feedback", post(discover::record_feedback_handler))
+        .route("/api/discover/briefing", post(discover::post_briefing_handler))
+        .route("/api/discover/compare", post(discover::post_compare_papers_handler))
         .route("/api/open_url", post(post_open_url))
         .route("/api/article", post(post_article_content))
         .route("/api/proxy_article", get(get_proxy_article))
@@ -619,6 +635,7 @@ async fn get_proxy_article(
     Ok(response)
 }
 
+#[allow(dead_code)]
 async fn get_discover(
     State(state): State<AppState>,
     Query(params): Query<HashMap<String, String>>,

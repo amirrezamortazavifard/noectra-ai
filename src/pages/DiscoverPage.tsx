@@ -16,304 +16,366 @@ import {
   Radio,
   RotateCcw,
   ChevronDown,
+  Activity,
+  SlidersHorizontal,
+  Bookmark,
+  SidebarClose,
+  SidebarOpen,
 } from 'lucide-react';
 import { GlassDropdown, DropdownItem } from '@/components/Discover/GlassDropdown';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { NewsItem, ResearchPaper, DiscoverMode, DiscoverCategory, DiscoverSource } from '@/lib/services/discover/types';
 import {
-  fetchOpenAlexPapers,
-  fetchSemanticScholarPapers,
-  fetchPubMedPapers,
-  fetchCrossrefPapers,
-} from '@/lib/services/discover/academicApi';
+  DiscoverFeedItem,
+  IntelligenceFeedMode,
+  SourceStatusInfo,
+  TrendingTopicStat,
+  SavedDiscoverItem,
+  QueueDiscoverItem,
+  FollowedTopic,
+  DiscoverCategory,
+  DiscoverSource,
+} from '@/lib/services/discover/types';
 import {
-  fetchNewsFromBackend,
-  fetchGNews,
-  fetchNewsData,
-  fetchCurrents,
-  fetchNewsApiOrg,
-  getStoredApiKeys,
-} from '@/lib/services/discover/newsApi';
-import SmallNewsCard from '@/components/Discover/SmallNewsCard';
-import MajorNewsCard from '@/components/Discover/MajorNewsCard';
-import ResearchPaperCard from '@/components/Discover/ResearchPaperCard';
-import DiscoverApiKeysModal from '@/components/Discover/DiscoverApiKeysModal';
+  fetchDiscoverFeed,
+  fetchDiscoverStatus,
+  fetchDiscoverTrending,
+  fetchSavedItems,
+  saveDiscoverItem,
+  deleteSavedItem,
+  fetchReadingQueue,
+  addToReadingQueue,
+  updateQueueStatus,
+  removeFromReadingQueue,
+  fetchFollowedTopics,
+  followTopic,
+  unfollowTopic,
+} from '@/lib/services/discover/intelligenceApi';
+import { TopicStoriesStrip } from '@/components/Discover/TopicStoriesStrip';
+import { DiscoverNavSubbar } from '@/components/Discover/DiscoverNavSubbar';
+import { IntelligencePulseSidebar } from '@/components/Discover/IntelligencePulseSidebar';
+import { FeaturedIntelligenceCard } from '@/components/Discover/Cards/FeaturedIntelligenceCard';
+import { ScientificPaperCard } from '@/components/Discover/Cards/ScientificPaperCard';
+import { BreakingNewsCard } from '@/components/Discover/Cards/BreakingNewsCard';
+import { ModelReleaseCard } from '@/components/Discover/Cards/ModelReleaseCard';
+import { AiExplainModal } from '@/components/Discover/Modals/AiExplainModal';
+import { PaperComparisonModal } from '@/components/Discover/Modals/PaperComparisonModal';
+import { DailyBriefingModal } from '@/components/Discover/Modals/DailyBriefingModal';
+import { DiscoverCommandPalette } from '@/components/Discover/Modals/DiscoverCommandPalette';
 import ArticleReaderModal from '@/components/Discover/ArticleReaderModal';
+import DiscoverApiKeysModal from '@/components/Discover/DiscoverApiKeysModal';
+import { useNavigate } from 'react-router-dom';
 
-// Categories for News Mode
-const newsCategories: DiscoverCategory[] = [
-  { key: 'all', display: 'All News', icon: '🌐', keyword: 'latest' },
-  { key: 'tech', display: 'Tech & AI', icon: '💻', keyword: 'technology' },
-  { key: 'business', display: 'Business & Finance', icon: '📈', keyword: 'business' },
-  { key: 'science', display: 'Science & Space', icon: '🚀', keyword: 'science' },
-  { key: 'health', display: 'Health & Medicine', icon: '🧬', keyword: 'health' },
-  { key: 'sports', display: 'Sports', icon: '⚽', keyword: 'sports' },
-  { key: 'entertainment', display: 'Entertainment', icon: '🎬', keyword: 'entertainment' },
-  { key: 'world', display: 'World & Politics', icon: '🌍', keyword: 'world' },
+// Categories for Category Filter
+const categoryOptions: DiscoverCategory[] = [
+  { key: 'all', display: 'All Disciplines', icon: '🌐' },
+  { key: 'medical_cv', display: 'Medical AI & CV', icon: '🩺' },
+  { key: 'ai', display: 'Artificial Intelligence', icon: '🤖' },
+  { key: 'cs', display: 'Computer Science', icon: '💻' },
+  { key: 'science', display: 'Science & Physics', icon: '🚀' },
+  { key: 'health', display: 'Healthcare & Clinical', icon: '🧬' },
+  { key: 'tech', display: 'Industry Technology', icon: '⚡' },
 ];
 
-// Sources for News Mode
-const newsSources: DiscoverSource[] = [
-  { key: 'all', display: 'All Sources', type: 'rss' },
-  { key: 'techcrunch', display: 'TechCrunch', type: 'rss' },
-  { key: 'verge', display: 'The Verge', type: 'rss' },
-  { key: 'wired', display: 'Wired', type: 'rss' },
+// Sources for Source Filter
+const sourceOptions: DiscoverSource[] = [
+  { key: 'all', display: 'All Verified Feeds', type: 'rss' },
+  { key: 'arxiv_cv', display: 'arXiv Computer Vision (cs.CV)', type: 'academic' },
+  { key: 'arxiv_ai', display: 'arXiv Artificial Intelligence', type: 'academic' },
+  { key: 'nature', display: 'Nature Journal', type: 'academic' },
+  { key: 'science_mag', display: 'Science Magazine', type: 'academic' },
+  { key: 'medpage', display: 'MedPage Today', type: 'rss' },
+  { key: 'sciencedaily_ai', display: 'ScienceDaily AI', type: 'rss' },
+  { key: 'mit_tech', display: 'MIT Tech Review', type: 'rss' },
+  { key: 'techcrunch', display: 'TechCrunch AI', type: 'rss' },
+  { key: 'wired', display: 'Wired AI & Science', type: 'rss' },
   { key: 'arstechnica', display: 'Ars Technica', type: 'rss' },
-  { key: 'nature', display: 'Nature News', type: 'rss' },
-  { key: 'yahoo_finance', display: 'Yahoo Finance', type: 'rss' },
-  { key: 'espn', display: 'ESPN', type: 'rss' },
-  { key: 'gnews', display: 'GNews API', type: 'api', requiresKey: true },
-  { key: 'newsdata', display: 'NewsData.io', type: 'api', requiresKey: true },
-  { key: 'currents', display: 'Currents API', type: 'api', requiresKey: true },
-  { key: 'newsapi', display: 'NewsAPI.org', type: 'api', requiresKey: true },
 ];
 
-// Categories for Academic Papers Mode
-const paperCategories: DiscoverCategory[] = [
-  { key: 'all', display: 'All Disciplines', icon: '📚', keyword: 'research' },
-  {
-    key: 'cs',
-    display: 'Computer Science',
-    icon: '💻',
-    keyword: 'computer science',
-    openAlexConceptId: 'C41008148',
-    semanticScholarField: 'Computer Science',
-  },
-  {
-    key: 'ai',
-    display: 'Artificial Intelligence',
-    icon: '🤖',
-    keyword: 'artificial intelligence machine learning',
-    openAlexConceptId: 'C154945302',
-    semanticScholarField: 'Computer Science',
-  },
-  {
-    key: 'medicine',
-    display: 'Medicine & Health',
-    icon: '🩺',
-    keyword: 'medicine clinical healthcare',
-    openAlexConceptId: 'C71924100',
-    semanticScholarField: 'Medicine',
-  },
-  {
-    key: 'biology',
-    display: 'Biology & Genetics',
-    icon: '🧬',
-    keyword: 'biology genetics molecular',
-    openAlexConceptId: 'C86803240',
-    semanticScholarField: 'Biology',
-  },
-  {
-    key: 'physics',
-    display: 'Physics & Quantum',
-    icon: '⚛️',
-    keyword: 'quantum physics cosmology',
-    openAlexConceptId: 'C121332964',
-    semanticScholarField: 'Physics',
-  },
-  {
-    key: 'engineering',
-    display: 'Engineering & Robotics',
-    icon: '⚙️',
-    keyword: 'engineering robotics automation',
-    openAlexConceptId: 'C127413603',
-    semanticScholarField: 'Engineering',
-  },
-  {
-    key: 'economics',
-    display: 'Economics & Markets',
-    icon: '📊',
-    keyword: 'economics finance econometrics',
-    openAlexConceptId: 'C162324750',
-    semanticScholarField: 'Economics',
-  },
-  {
-    key: 'psychology',
-    display: 'Psychology & Neuroscience',
-    icon: '🧠',
-    keyword: 'psychology neuroscience cognition',
-    openAlexConceptId: 'C15744967',
-    semanticScholarField: 'Psychology',
-  },
-];
+export const DiscoverPage: React.FC = () => {
+  const navigate = useNavigate();
 
-// Sources for Academic Papers Mode
-const paperSources: DiscoverSource[] = [
-  { key: 'openalex', display: 'OpenAlex (250M+ Papers)', type: 'academic', description: 'Open scholarly catalog' },
-  { key: 'semantic_scholar', display: 'Semantic Scholar', type: 'academic', description: 'AI literature graph' },
-  { key: 'pubmed', display: 'NCBI PubMed', type: 'academic', description: 'Biomedical & health sciences' },
-  { key: 'crossref', display: 'Crossref Registry', type: 'academic', description: 'Official DOI metadata' },
-  { key: 'arxiv', display: 'arXiv Preprints', type: 'rss', description: 'CS, AI, and Physics preprints' },
-];
-
-const trendingTopics = [
-  'Artificial Intelligence',
-  'Quantum Computing',
-  'CRISPR Gene Editing',
-  'Large Language Models',
-  'Renewable Fusion Energy',
-  'Neuroscience',
-];
-
-const DiscoverPage: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<DiscoverMode>('news');
+  // Core Feed State
+  const [feedMode, setFeedMode] = useState<IntelligenceFeedMode>('for_you');
   const [activeCategory, setActiveCategory] = useState<string>('all');
+  const [activeTopic, setActiveTopic] = useState<string>('all');
   const [activeSource, setActiveSource] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [submittedQuery, setSubmittedQuery] = useState<string>('');
 
-  const [newsItems, setNewsItems] = useState<NewsItem[]>([]);
-  const [papers, setPapers] = useState<ResearchPaper[]>([]);
+  // Feed Items & Pagination
+  const [items, setItems] = useState<DiscoverFeedItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
-  const [isKeysModalOpen, setIsKeysModalOpen] = useState<boolean>(false);
-  const [selectedArticle, setSelectedArticle] = useState<NewsItem | null>(null);
-  const [visibleCount, setVisibleCount] = useState<number>(10);
+  const [visibleCount, setVisibleCount] = useState<number>(16);
 
-  useEffect(() => {
-    setVisibleCount(10);
-  }, [activeCategory, activeSource, submittedQuery, activeTab]);
+  // Persistence State
+  const [savedItems, setSavedItems] = useState<SavedDiscoverItem[]>([]);
+  const [readingQueue, setReadingQueue] = useState<QueueDiscoverItem[]>([]);
+  const [followedTopics, setFollowedTopics] = useState<FollowedTopic[]>([]);
+
+  // Telemetry & Trends
+  const [sourcesStatus, setSourcesStatus] = useState<SourceStatusInfo[]>([]);
+  const [onlineCount, setOnlineCount] = useState<number>(0);
+  const [totalSources, setTotalSources] = useState<number>(0);
+  const [trendingTopics, setTrendingTopics] = useState<TrendingTopicStat[]>([]);
+
+  // Modals & Panels
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
+  const [selectedArticle, setSelectedArticle] = useState<DiscoverFeedItem | null>(null);
+  const [selectedExplainItem, setSelectedExplainItem] = useState<DiscoverFeedItem | null>(null);
+  const [comparingPapers, setComparingPapers] = useState<DiscoverFeedItem[]>([]);
+  const [isCompareModalOpen, setIsCompareModalOpen] = useState<boolean>(false);
+  const [isBriefingModalOpen, setIsBriefingModalOpen] = useState<boolean>(false);
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState<boolean>(false);
+  const [isKeysModalOpen, setIsKeysModalOpen] = useState<boolean>(false);
 
   const fetchIdRef = useRef<number>(0);
 
-  const currentCategories = activeTab === 'news' ? newsCategories : paperCategories;
-  const currentSources = activeTab === 'news' ? newsSources : paperSources;
+  // ---------------------------------------------------------------------------
+  // Keyboard Shortcuts (Ctrl+K, R, Esc)
+  // ---------------------------------------------------------------------------
+  useEffect(() => {
+    const handleGlobalKeys = (e: KeyboardEvent) => {
+      // Ignore if user is currently typing inside an input or textarea
+      const target = e.target as HTMLElement;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) {
+        return;
+      }
 
-  // Primary Fetch Function
-  const loadDiscoverContent = useCallback(async () => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setIsCommandPaletteOpen((prev) => !prev);
+      } else if (e.key.toLowerCase() === 'r' && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        loadFeed();
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalKeys);
+    return () => window.removeEventListener('keydown', handleGlobalKeys);
+  }, []);
+
+  // ---------------------------------------------------------------------------
+  // Load Saved Items, Reading Queue, Followed Topics & Telemetry
+  // ---------------------------------------------------------------------------
+  const refreshUserData = useCallback(async () => {
+    try {
+      const [saved, queue, topics, statusRes, trendRes] = await Promise.all([
+        fetchSavedItems().catch(() => []),
+        fetchReadingQueue().catch(() => []),
+        fetchFollowedTopics().catch(() => []),
+        fetchDiscoverStatus().catch(() => null),
+        fetchDiscoverTrending().catch(() => null),
+      ]);
+
+      setSavedItems(saved);
+      setReadingQueue(queue);
+      setFollowedTopics(topics);
+
+      if (statusRes) {
+        setSourcesStatus(statusRes.sources || []);
+        setOnlineCount(statusRes.onlineCount || 0);
+        setTotalSources(statusRes.totalCount || 0);
+      }
+
+      if (trendRes && trendRes.trends) {
+        setTrendingTopics(trendRes.trends);
+      }
+    } catch (err) {
+      console.warn('Telemetry fetch error:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshUserData();
+  }, [refreshUserData]);
+
+  // ---------------------------------------------------------------------------
+  // Main Feed Content Loader
+  // ---------------------------------------------------------------------------
+  const loadFeed = useCallback(async () => {
     const currentFetchId = ++fetchIdRef.current;
     setLoading(true);
 
     try {
-      if (activeTab === 'papers') {
-        // Find category metadata
-        const selectedCat = paperCategories.find((c) => c.key === activeCategory);
-        const queryTerm = submittedQuery.trim() || selectedCat?.keyword || 'research';
-
-        let results: ResearchPaper[] = [];
-
-        if (activeSource === 'openalex') {
-          results = await fetchOpenAlexPapers({
-            query: submittedQuery.trim() || undefined,
-            conceptId: selectedCat?.openAlexConceptId,
-            limit: 15,
-          });
-        } else if (activeSource === 'semantic_scholar') {
-          results = await fetchSemanticScholarPapers({
-            query: queryTerm,
-            fieldOfStudy: selectedCat?.semanticScholarField,
-            limit: 15,
-          });
-        } else if (activeSource === 'pubmed') {
-          results = await fetchPubMedPapers({
-            query: queryTerm,
-            limit: 15,
-          });
-        } else if (activeSource === 'crossref') {
-          results = await fetchCrossrefPapers({
-            query: queryTerm,
-            limit: 15,
-          });
-        } else if (activeSource === 'arxiv') {
-          const feedCategory = activeCategory === 'cs' ? 'arxiv_cs' : 'arxiv_ai';
-          const backendItems = await fetchNewsFromBackend({
-            category: 'ai',
-            source: feedCategory,
-            query: submittedQuery,
-          });
-          results = backendItems.map((b) => ({
-            id: b.url,
-            title: b.title,
-            abstract: b.description,
-            authors: ['arXiv Researchers'],
-            year: new Date(b.publishedAt).getFullYear() || 'Recent',
-            venue: 'arXiv Preprints',
-            fieldsOfStudy: ['Computer Science', 'AI'],
-            url: b.url,
-            source: 'arXiv',
-          }));
-        } else {
-          // Default: OpenAlex
-          results = await fetchOpenAlexPapers({
-            query: submittedQuery.trim() || undefined,
-            conceptId: selectedCat?.openAlexConceptId,
-            limit: 15,
-          });
-        }
-
+      if (feedMode === 'saved') {
+        const saved = await fetchSavedItems();
         if (currentFetchId === fetchIdRef.current) {
-          setPapers(results);
+          const feedItems: DiscoverFeedItem[] = saved.map((s) => s.dataJson || {
+            id: s.id,
+            itemType: s.itemType as any,
+            title: s.title,
+            description: '',
+            url: s.url,
+            source: s.source,
+            sourceId: 'saved',
+            publishedAt: s.savedAt,
+            category: 'saved',
+            authors: [],
+            openAccess: false,
+            peerReviewed: false,
+            readingTimeMin: 3,
+            tags: ['Saved'],
+            whyRelevant: ['Saved by you'],
+            relevanceScore: 100,
+          });
+          setItems(feedItems);
+          setLoading(false);
         }
-      } else {
-        // News Mode
-        const storedKeys = getStoredApiKeys();
-        const selectedCat = newsCategories.find((c) => c.key === activeCategory);
-        const categoryKey = selectedCat?.key === 'all' ? 'tech' : selectedCat?.key || 'tech';
+        return;
+      }
 
-        let items: NewsItem[] = [];
-
-        // Check if user selected a custom API source
-        if (activeSource === 'gnews' && storedKeys.gnews) {
-          items = await fetchGNews(storedKeys.gnews, {
-            category: categoryKey === 'tech' ? 'technology' : categoryKey,
-            query: submittedQuery || undefined,
-            limit: 15,
-          });
-        } else if (activeSource === 'newsdata' && storedKeys.newsdata) {
-          items = await fetchNewsData(storedKeys.newsdata, {
-            category: categoryKey === 'tech' ? 'technology' : categoryKey,
-            query: submittedQuery || undefined,
-          });
-        } else if (activeSource === 'currents' && storedKeys.currents) {
-          items = await fetchCurrents(storedKeys.currents, {
-            category: categoryKey === 'tech' ? 'technology' : categoryKey,
-            query: submittedQuery || undefined,
-          });
-        } else if (activeSource === 'newsapi' && storedKeys.newsapi) {
-          items = await fetchNewsApiOrg(storedKeys.newsapi, {
-            category: categoryKey === 'tech' ? 'technology' : categoryKey,
-            query: submittedQuery || undefined,
-          });
-        } else {
-          // If API key was selected but not present, show toast and fallback to RSS
-          if (['gnews', 'newsdata', 'currents', 'newsapi'].includes(activeSource)) {
-            toast.info(`No API key saved for ${activeSource.toUpperCase()}. Using curated feeds.`);
-          }
-
-          items = await fetchNewsFromBackend({
-            category: categoryKey,
-            source: activeSource === 'all' ? undefined : activeSource,
-            query: submittedQuery || undefined,
-          });
-        }
-
+      if (feedMode === 'queue') {
+        const queue = await fetchReadingQueue();
         if (currentFetchId === fetchIdRef.current) {
-          setNewsItems(items);
+          const feedItems: DiscoverFeedItem[] = queue.map((q) => q.dataJson || {
+            id: q.id,
+            itemType: q.itemType as any,
+            title: q.title,
+            description: '',
+            url: q.url,
+            source: q.source,
+            sourceId: 'queue',
+            publishedAt: q.addedAt,
+            category: 'queue',
+            authors: [],
+            openAccess: false,
+            peerReviewed: false,
+            readingTimeMin: 3,
+            tags: [q.isRead ? 'Completed' : 'Queued'],
+            whyRelevant: ['In your reading queue'],
+            relevanceScore: 100,
+          });
+          setItems(feedItems);
+          setLoading(false);
         }
+        return;
+      }
+
+      const res = await fetchDiscoverFeed({
+        mode: feedMode,
+        category: activeCategory !== 'all' ? activeCategory : undefined,
+        topic: activeTopic !== 'all' ? activeTopic : undefined,
+        source: activeSource !== 'all' ? activeSource : undefined,
+        query: submittedQuery.trim() || undefined,
+        limit: 40,
+        offset: 0,
+      });
+
+      if (currentFetchId === fetchIdRef.current) {
+        setItems(res.items);
       }
     } catch (err: any) {
       if (currentFetchId === fetchIdRef.current) {
         console.error('Discover fetch error:', err);
-        toast.error(err.message || 'Failed to fetch content');
+        toast.error(err.message || 'Failed to load intelligence feed');
       }
     } finally {
       if (currentFetchId === fetchIdRef.current) {
         setLoading(false);
       }
     }
-  }, [activeTab, activeCategory, activeSource, submittedQuery]);
+  }, [feedMode, activeCategory, activeTopic, activeSource, submittedQuery]);
 
   useEffect(() => {
-    loadDiscoverContent();
-  }, [loadDiscoverContent]);
+    loadFeed();
+  }, [loadFeed]);
 
-  const handleTabChange = (tab: DiscoverMode) => {
-    if (tab === activeTab) return;
-    setActiveTab(tab);
-    setActiveCategory('all');
-    setActiveSource(tab === 'news' ? 'all' : 'openalex');
-    setSubmittedQuery('');
-    setSearchQuery('');
+  // Reset pagination on filter changes
+  useEffect(() => {
+    setVisibleCount(16);
+  }, [feedMode, activeCategory, activeTopic, activeSource, submittedQuery]);
+
+  // ---------------------------------------------------------------------------
+  // User Actions (Save, Queue, Compare, Chat)
+  // ---------------------------------------------------------------------------
+  const handleToggleSave = async (item: DiscoverFeedItem) => {
+    const isSaved = savedItems.some((s) => s.id === item.id);
+    if (isSaved) {
+      await deleteSavedItem(item.id);
+      setSavedItems((prev) => prev.filter((s) => s.id !== item.id));
+      toast.success('Removed from saved bookmarks');
+    } else {
+      await saveDiscoverItem(item);
+      setSavedItems((prev) => [
+        {
+          id: item.id,
+          itemType: item.itemType,
+          title: item.title,
+          source: item.source,
+          url: item.url,
+          dataJson: item,
+          savedAt: new Date().toISOString(),
+        },
+        ...prev,
+      ]);
+      toast.success('Saved to your intelligence bookmarks');
+    }
+  };
+
+  const handleToggleQueue = async (item: DiscoverFeedItem) => {
+    const inQueue = readingQueue.some((q) => q.id === item.id);
+    if (inQueue) {
+      await removeFromReadingQueue(item.id);
+      setReadingQueue((prev) => prev.filter((q) => q.id !== item.id));
+      toast.info('Removed from reading queue');
+    } else {
+      await addToReadingQueue(item);
+      setReadingQueue((prev) => [
+        {
+          id: item.id,
+          itemType: item.itemType,
+          title: item.title,
+          source: item.source,
+          url: item.url,
+          dataJson: item,
+          addedAt: new Date().toISOString(),
+          isRead: false,
+        },
+        ...prev,
+      ]);
+      toast.success('Added to reading queue');
+    }
+  };
+
+  const handleToggleQueueReadStatus = async (id: string, isRead: boolean) => {
+    await updateQueueStatus(id, isRead);
+    setReadingQueue((prev) =>
+      prev.map((q) => (q.id === id ? { ...q, isRead } : q))
+    );
+  };
+
+  const handleRemoveFromQueue = async (id: string) => {
+    await removeFromReadingQueue(id);
+    setReadingQueue((prev) => prev.filter((q) => q.id !== id));
+  };
+
+  const handleUnfollowTopic = async (topicId: string) => {
+    await unfollowTopic(topicId);
+    setFollowedTopics((prev) => prev.filter((t) => t.topicId !== topicId));
+    toast.info('Unfollowed topic');
+  };
+
+  const handleToggleComparePaper = (item: DiscoverFeedItem) => {
+    setComparingPapers((prev) => {
+      const exists = prev.some((p) => p.id === item.id);
+      if (exists) {
+        return prev.filter((p) => p.id !== item.id);
+      }
+      if (prev.length >= 4) {
+        toast.warning('You can compare up to 4 papers simultaneously.');
+        return prev;
+      }
+      toast.info(`Added "${item.title.slice(0, 30)}..." to comparison.`);
+      return [...prev, item];
+    });
+  };
+
+  const handleDiscussInChat = (item: DiscoverFeedItem) => {
+    const chatPrompt = encodeURIComponent(
+      `Let's analyze this research item from Noectra Intelligence:\n\nTitle: "${item.title}"\nSource: ${item.source}\nDOI/URL: ${item.doi ? `https://doi.org/${item.doi}` : item.url}\n\nAbstract/Summary:\n${item.description}\n\nPlease explain the methodology, evaluate reported findings, and explore clinical or practical implications.`
+    );
+    navigate(`/chat?q=${chatPrompt}`);
   };
 
   const handleSearchSubmit = (e: React.FormEvent) => {
@@ -321,358 +383,404 @@ const DiscoverPage: React.FC = () => {
     setSubmittedQuery(searchQuery.trim());
   };
 
-  const clearSearch = () => {
+  const handleClearSearch = () => {
     setSearchQuery('');
     setSubmittedQuery('');
   };
 
-  const handleTrendingClick = (topic: string) => {
-    setSearchQuery(topic);
-    setSubmittedQuery(topic);
+  const handleResetFilters = () => {
+    setActiveCategory('all');
+    setActiveTopic('all');
+    setActiveSource('all');
+    setSearchQuery('');
+    setSubmittedQuery('');
+    setFeedMode('for_you');
   };
 
-  const categoryDropdownItems: DropdownItem[] = currentCategories.map((cat) => ({
+  const activeFilterCount =
+    (activeCategory !== 'all' ? 1 : 0) +
+    (activeTopic !== 'all' ? 1 : 0) +
+    (activeSource !== 'all' ? 1 : 0) +
+    (submittedQuery ? 1 : 0) +
+    (feedMode !== 'for_you' ? 1 : 0);
+
+  const categoryDropdownItems: DropdownItem[] = categoryOptions.map((cat) => ({
     key: cat.key,
     label: cat.display,
     icon: cat.icon,
   }));
 
-  const sourceDropdownItems: DropdownItem[] = currentSources.map((src) => ({
+  const sourceDropdownItems: DropdownItem[] = sourceOptions.map((src) => ({
     key: src.key,
     label: src.display,
-    description: src.description,
-    icon: src.type === 'academic' ? '🎓' : src.type === 'api' ? '⚡' : '📰',
+    icon: src.type === 'academic' ? '🎓' : '📰',
   }));
 
-  const trendingDropdownItems: DropdownItem[] = [
-    { key: '', label: 'All Topics (Clear Query)', icon: '✨' },
-    ...trendingTopics.map((topic) => ({
-      key: topic,
-      label: topic,
-      icon: '🔥',
-    })),
-  ];
-
   return (
-    <div className="w-full min-h-screen px-4 lg:px-8 pt-8 pb-20 max-w-7xl mx-auto">
-      {/* Header Bar */}
-      <div className="flex flex-col gap-5 pb-6 border-b border-light-200/40 dark:border-white/[0.08]">
+    <div className="w-full min-h-screen px-4 lg:px-8 pt-6 pb-24 max-w-[1680px] mx-auto select-text">
+      {/* ----------------------------------------------------------------- */}
+      {/* Header Bar: NOECTRA INTELLIGENCE Brand & Live Telemetry Badge     */}
+      {/* ----------------------------------------------------------------- */}
+      <div className="flex flex-col gap-6 pb-6 border-b border-slate-200/80 dark:border-white/[0.08]">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-2xl bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border border-cyan-500/20">
+          <div className="flex items-center gap-3.5">
+            <div className="p-3 rounded-2xl bg-gradient-to-tr from-cyan-500/20 to-blue-500/20 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30 shadow-[0_0_20px_rgba(6,182,212,0.25)]">
               <Globe2 size={32} />
             </div>
             <div>
-              <h1
-                className="text-3xl sm:text-4xl font-light text-black dark:text-white tracking-tight"
-                style={{ fontFamily: 'PP Editorial, Georgia, serif' }}
-              >
-                Discover
-              </h1>
-              <p className="text-xs sm:text-sm text-black/50 dark:text-white/50">
-                Live global news, scholarly publications, and deep research papers
+              <div className="flex items-center gap-2.5">
+                <h1
+                  className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white tracking-tight"
+                  style={{ fontFamily: 'PP Editorial, Georgia, serif' }}
+                >
+                  NOECTRA INTELLIGENCE
+                </h1>
+                <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-mono font-semibold px-2.5 py-0.5 rounded-full bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 border border-cyan-500/30">
+                  <Activity size={10} className="animate-pulse text-cyan-500" />
+                  <span>Command Center</span>
+                </span>
+              </div>
+              <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+                Your Personal Global Research & Intelligence Network • Medical AI, Computer Vision & Scientific Preprints
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2 self-stretch sm:self-auto">
-            {/* Mode Switcher */}
-            <div className="flex p-1 bg-light-secondary dark:bg-[#15161a] rounded-xl border border-light-200 dark:border-white/10 shadow-sm flex-1 sm:flex-initial">
+            {/* Compare Floating Button if Papers Selected */}
+            {comparingPapers.length >= 2 && (
               <button
-                onClick={() => handleTabChange('news')}
-                className={cn(
-                  'flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all duration-200',
-                  activeTab === 'news'
-                    ? 'bg-white dark:bg-[#202227] text-black dark:text-white shadow-sm font-semibold'
-                    : 'text-black/60 dark:text-white/60 hover:text-black dark:hover:text-white'
-                )}
+                type="button"
+                onClick={() => setIsCompareModalOpen(true)}
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-semibold shadow-md hover:shadow-lg transition-all animate-bounce"
               >
-                <Newspaper size={15} />
-                <span>News & Events</span>
+                <Layers size={14} />
+                <span>Compare Matrix ({comparingPapers.length})</span>
               </button>
+            )}
 
-              <button
-                onClick={() => handleTabChange('papers')}
-                className={cn(
-                  'flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all duration-200',
-                  activeTab === 'papers'
-                    ? 'bg-white dark:bg-[#202227] text-black dark:text-white shadow-sm font-semibold'
-                    : 'text-black/60 dark:text-white/60 hover:text-black dark:hover:text-white'
-                )}
-              >
-                <BookOpen size={15} />
-                <span>Academic Papers</span>
-              </button>
-            </div>
-
-            {/* API Settings Modal Trigger */}
+            {/* AI Daily Briefing Button */}
             <button
-              onClick={() => setIsKeysModalOpen(true)}
-              title="Configure News API Keys"
-              className="p-2.5 rounded-xl bg-light-secondary dark:bg-[#15161a] border border-light-200 dark:border-white/10 text-black/60 dark:text-white/60 hover:text-black dark:hover:text-white hover:border-cyan-500/40 transition-colors shadow-sm"
+              type="button"
+              onClick={() => setIsBriefingModalOpen(true)}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white text-xs font-semibold shadow-sm hover:shadow transition-all active:scale-95"
             >
-              <Key size={17} />
+              <Sparkles size={14} />
+              <span className="hidden sm:inline">Daily Briefing</span>
+            </button>
+
+            {/* News API Keys Settings Trigger */}
+            <button
+              type="button"
+              onClick={() => setIsKeysModalOpen(true)}
+              title="Configure API Keys"
+              className="p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/[0.06] dark:hover:bg-white/[0.1] border border-slate-200/80 dark:border-white/10 text-slate-700 dark:text-white transition-colors"
+            >
+              <Key size={16} />
+            </button>
+
+            {/* Toggle Sidebar Collapse */}
+            <button
+              type="button"
+              onClick={() => setIsSidebarCollapsed((prev) => !prev)}
+              title={isSidebarCollapsed ? 'Expand Intelligence Panel' : 'Collapse Intelligence Panel'}
+              className="p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/[0.06] dark:hover:bg-white/[0.1] border border-slate-200/80 dark:border-white/10 text-slate-700 dark:text-white transition-colors hidden xl:flex"
+            >
+              {isSidebarCollapsed ? <SidebarOpen size={16} /> : <SidebarClose size={16} />}
             </button>
           </div>
         </div>
 
-        {/* Universal Search Bar */}
-        <form onSubmit={handleSearchSubmit} className="relative w-full">
-          <div className="relative flex items-center">
-            <Search
-              size={18}
-              className="absolute left-4 text-black/40 dark:text-white/40 pointer-events-none"
-            />
-            <input
-              type="text"
-              placeholder={
-                activeTab === 'news'
-                  ? 'Search global headlines, keywords, or topics (e.g. artificial intelligence, markets)...'
-                  : 'Search papers, topics, authors, or DOIs (e.g. quantum entanglement, transformers)...'
-              }
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-11 pr-24 py-3 rounded-2xl bg-light-secondary/80 dark:bg-[#131417] border border-light-200/80 dark:border-white/[0.08] text-sm text-black dark:text-white placeholder:text-black/40 dark:placeholder:text-white/40 focus:outline-none focus:border-cyan-500 transition-colors shadow-inner"
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={clearSearch}
-                className="absolute right-16 p-1 text-black/40 dark:text-white/40 hover:text-black dark:hover:text-white transition-colors"
-              >
-                <X size={16} />
-              </button>
-            )}
-            <button
-              type="submit"
-              className="absolute right-2 px-3.5 py-1.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-medium transition-colors shadow-sm"
-            >
-              Search
-            </button>
-          </div>
-        </form>
+        {/* --------------------------------------------------------------- */}
+        {/* Instagram-Style Topic Discovery Strip (Zone B Top)              */}
+        {/* --------------------------------------------------------------- */}
+        <TopicStoriesStrip
+          activeTopic={activeTopic}
+          onSelectTopic={(topicId, category) => {
+            setActiveTopic(topicId);
+            if (category !== 'all') {
+              setActiveCategory(category);
+            }
+          }}
+        />
 
-        {/* Glassmorphic Combobox Toolbar: Category, Source & Trending */}
+        {/* --------------------------------------------------------------- */}
+        {/* Mode Selector & Search Controls Subbar                          */}
+        {/* --------------------------------------------------------------- */}
+        <DiscoverNavSubbar
+          currentMode={feedMode}
+          onSelectMode={(mode) => setFeedMode(mode)}
+          savedCount={savedItems.length}
+          queueCount={readingQueue.length}
+          searchQuery={searchQuery}
+          onSearchChange={(q) => setSearchQuery(q)}
+          onSearchSubmit={handleSearchSubmit}
+          onClearSearch={handleClearSearch}
+          onRefresh={loadFeed}
+          isLoading={loading}
+          onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
+          activeFilterCount={activeFilterCount}
+          onResetFilters={handleResetFilters}
+        />
+
+        {/* Dropdown Filters Toolbar */}
         <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
           <div className="flex flex-wrap items-center gap-2.5">
-            {/* Category Combobox */}
             <GlassDropdown
-              label="Select Category"
+              label="Select Discipline"
               prefix="Category"
               icon={<Layers size={14} className="text-cyan-500" />}
               items={categoryDropdownItems}
               selectedKey={activeCategory}
               onSelect={(key) => setActiveCategory(key)}
-              widthClass="min-w-[220px]"
+              widthClass="min-w-[210px]"
             />
 
-            {/* Source Combobox */}
             <GlassDropdown
-              label="Select Source"
+              label="Select Verified Source"
               prefix="Source"
-              icon={<Radio size={14} className="text-fuchsia-500" />}
+              icon={<Radio size={14} className="text-violet-500" />}
               items={sourceDropdownItems}
               selectedKey={activeSource}
               onSelect={(key) => setActiveSource(key)}
               widthClass="min-w-[240px]"
             />
-
-            {/* Trending Topics Combobox */}
-            <GlassDropdown
-              label="Trending Topics"
-              prefix="Trending"
-              icon={<Sparkles size={14} className="text-amber-500" />}
-              items={trendingDropdownItems}
-              selectedKey={submittedQuery}
-              onSelect={(topic) => {
-                setSearchQuery(topic);
-                setSubmittedQuery(topic);
-              }}
-              widthClass="min-w-[230px]"
-            />
           </div>
 
-          {/* Active Filter Indicators & Reset Button */}
-          {(activeCategory !== 'all' ||
-            activeSource !== (activeTab === 'news' ? 'all' : 'openalex') ||
-            submittedQuery) && (
-            <button
-              onClick={() => {
-                setActiveCategory('all');
-                setActiveSource(activeTab === 'news' ? 'all' : 'openalex');
-                setSearchQuery('');
-                setSubmittedQuery('');
-              }}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-black/50 dark:text-white/50 hover:text-black dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 border border-transparent hover:border-light-200 dark:hover:border-white/10 transition-all shadow-sm"
-            >
-              <RotateCcw size={12} />
-              <span>Reset Filters</span>
-            </button>
-          )}
-        </div>
-
-        {/* Quick Category Chips */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pt-1 pb-0.5 select-none scrollbar-none">
-          {currentCategories.slice(0, 8).map((cat) => {
-            const isActive = activeCategory === cat.key;
-            return (
+          {activeFilterCount > 0 && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-mono text-slate-500 dark:text-slate-400">
+                {items.length} discoveries found
+              </span>
               <button
-                key={cat.key}
-                onClick={() => setActiveCategory(cat.key)}
-                className={cn(
-                  'flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-all duration-200 border',
-                  isActive
-                    ? 'bg-cyan-500/15 border-cyan-500/40 text-cyan-700 dark:text-cyan-300 shadow-[0_0_12px_rgba(56,189,248,0.2)]'
-                    : 'bg-black/[0.03] dark:bg-white/[0.04] border-black/[0.06] dark:border-white/[0.06] text-black/60 dark:text-white/60 hover:text-black dark:hover:text-white hover:bg-black/[0.06] dark:hover:bg-white/[0.08]'
-                )}
+                type="button"
+                onClick={handleResetFilters}
+                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-medium text-slate-500 hover:text-black dark:text-slate-400 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
               >
-                <span className="text-xs">{cat.icon}</span>
-                <span>{cat.display}</span>
+                <RotateCcw size={12} />
+                <span>Reset Filters</span>
               </button>
-            );
-          })}
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Content Rendering */}
-      {loading ? (
-        <div className="flex flex-col items-center justify-center py-28 gap-4">
-          <div className="w-9 h-9 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin" />
-          <p className="text-xs text-black/50 dark:text-white/50 font-mono">
-            Fetching verified {activeTab === 'news' ? 'news' : 'academic papers'} from {activeSource}...
-          </p>
-        </div>
-      ) : activeTab === 'papers' ? (
-        /* Academic Papers Grid */
-        <div className="pt-6">
-          {papers.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-24 text-center">
-              <BookOpen size={48} className="text-black/20 dark:text-white/20 mb-3" />
-              <h3 className="text-base font-semibold text-black/70 dark:text-white/70 mb-1">
-                No academic papers found
+      {/* ----------------------------------------------------------------- */}
+      {/* Main 3-Zone Architecture Layout Grid                              */}
+      {/* ----------------------------------------------------------------- */}
+      <div
+        className={cn(
+          'grid grid-cols-1 gap-8 pt-6 transition-all duration-300',
+          isSidebarCollapsed ? 'grid-cols-1' : 'xl:grid-cols-12'
+        )}
+      >
+        {/* Zone B: Central Intelligence Feed (Columns 1-8 or 12) */}
+        <main className={cn('flex flex-col gap-6', isSidebarCollapsed ? 'col-span-1' : 'xl:col-span-8 2xl:col-span-9')}>
+          {loading ? (
+            <div className="flex flex-col items-center justify-center py-32 gap-4">
+              <div className="w-10 h-10 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin" />
+              <p className="text-xs text-slate-500 dark:text-slate-400 font-mono">
+                Monitoring global research feeds and verifying publications...
+              </p>
+            </div>
+          ) : items.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-24 text-center rounded-3xl bg-white/40 dark:bg-white/[0.01] border border-black/5 dark:border-white/5 p-8">
+              <Globe2 size={48} className="text-slate-300 dark:text-slate-600 mb-3" />
+              <h3 className="text-base font-semibold text-slate-800 dark:text-slate-200 mb-1">
+                No discoveries match your current filter
               </h3>
-              <p className="text-xs text-black/50 dark:text-white/50 max-w-sm mb-4">
-                Try refining your keyword query or switching the database provider to OpenAlex or Semantic Scholar.
+              <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mb-5">
+                Try selecting &apos;All Disciplines&apos;, clearing search keywords, or switching to the &apos;For You&apos; feed.
               </p>
               <button
-                onClick={() => {
-                  setSearchQuery('');
-                  setSubmittedQuery('');
-                  setActiveCategory('all');
-                  setActiveSource('openalex');
-                }}
-                className="px-4 py-2 rounded-xl text-xs font-medium bg-cyan-600 text-white hover:bg-cyan-500 transition-colors"
+                type="button"
+                onClick={handleResetFilters}
+                className="px-5 py-2 rounded-xl text-xs font-semibold bg-cyan-600 text-white hover:bg-cyan-500 transition-colors shadow-sm"
               >
-                Reset Filters
-              </button>
-            </div>
-          ) : (
-            <div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                {papers.slice(0, visibleCount).map((paper) => (
-                  <ResearchPaperCard key={paper.id} paper={paper} />
-                ))}
-              </div>
-
-              {visibleCount < papers.length && (
-                <div className="flex justify-center pt-8">
-                  <button
-                    type="button"
-                    onClick={() => setVisibleCount((prev) => prev + 8)}
-                    className="inline-flex items-center gap-2 px-6 py-2.5 rounded-2xl bg-white/70 dark:bg-[#131620]/80 backdrop-blur-md border border-black/[0.08] dark:border-white/[0.09] hover:border-cyan-500/40 text-xs font-semibold text-black dark:text-white shadow-sm hover:shadow-md transition-all active:scale-95 group"
-                  >
-                    <span>Show More Papers</span>
-                    <ChevronDown size={14} className="text-cyan-500 group-hover:translate-y-0.5 transition-transform" />
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-500 dark:text-cyan-400 border border-cyan-500/20 font-mono">
-                      +{papers.length - visibleCount}
-                    </span>
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      ) : (
-        /* News Mode Rendering */
-        <div className="pt-6">
-          {newsItems.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-24 text-center">
-              <Newspaper size={48} className="text-black/20 dark:text-white/20 mb-3" />
-              <h3 className="text-base font-semibold text-black/70 dark:text-white/70 mb-1">
-                No news articles found
-              </h3>
-              <p className="text-xs text-black/50 dark:text-white/50 max-w-sm mb-4">
-                Try selecting &apos;All Sources&apos; or changing your search keyword.
-              </p>
-              <button
-                onClick={() => {
-                  setSearchQuery('');
-                  setSubmittedQuery('');
-                  setActiveCategory('all');
-                  setActiveSource('all');
-                }}
-                className="px-4 py-2 rounded-xl text-xs font-medium bg-cyan-600 text-white hover:bg-cyan-500 transition-colors"
-              >
-                Reset Filters
+                Reset All Filters
               </button>
             </div>
           ) : (
             <div className="flex flex-col gap-6">
-              {/* Featured Top Card */}
-              {newsItems.length > 0 && (
-                <MajorNewsCard
-                  item={newsItems[0]}
-                  isLeft={true}
-                  onSelectArticle={(item) => setSelectedArticle(item)}
+              {/* Hero Top Featured Card (Only on discovery feeds) */}
+              {feedMode !== 'saved' && feedMode !== 'queue' && items.length > 0 && (
+                <FeaturedIntelligenceCard
+                  item={items[0]}
+                  isSaved={savedItems.some((s) => s.id === items[0].id)}
+                  isInQueue={readingQueue.some((q) => q.id === items[0].id)}
+                  onSave={handleToggleSave}
+                  onAddToQueue={handleToggleQueue}
+                  onOpenArticle={(it) => setSelectedArticle(it)}
+                  onExplainAi={(it) => setSelectedExplainItem(it)}
+                  onDiscussAi={handleDiscussInChat}
+                  isComparing={comparingPapers.some((p) => p.id === items[0].id)}
+                  onToggleCompare={handleToggleComparePaper}
                 />
               )}
 
-              {/* Grid of Remaining Cards */}
-              {newsItems.length > 1 && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-                  {newsItems.slice(1, visibleCount).map((item, idx) => (
-                    <SmallNewsCard
-                      key={item.id || idx}
-                      item={item}
-                      onSelectArticle={(it) => setSelectedArticle(it)}
-                    />
-                  ))}
-                </div>
-              )}
+              {/* Feed Grid of Remaining Items */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                {(feedMode === 'saved' || feedMode === 'queue' ? items : items.slice(1))
+                  .slice(0, visibleCount)
+                  .map((item) => {
+                    const isSaved = savedItems.some((s) => s.id === item.id);
+                    const isInQueue = readingQueue.some((q) => q.id === item.id);
+                    const isComparing = comparingPapers.some((p) => p.id === item.id);
 
-              {/* Show More Stories Button */}
-              {visibleCount < newsItems.length && (
-                <div className="flex justify-center pt-4">
+                    if (item.itemType === 'paper' || item.itemType === 'breakthrough') {
+                      return (
+                        <ScientificPaperCard
+                          key={item.id}
+                          paper={item}
+                          isSaved={isSaved}
+                          isInQueue={isInQueue}
+                          onSave={handleToggleSave}
+                          onAddToQueue={handleToggleQueue}
+                          onExplainAi={(it) => setSelectedExplainItem(it)}
+                          onDiscussAi={handleDiscussInChat}
+                          isComparing={isComparing}
+                          onToggleCompare={handleToggleComparePaper}
+                        />
+                      );
+                    }
+
+                    if (item.itemType === 'model' || item.itemType === 'dataset') {
+                      return (
+                        <ModelReleaseCard
+                          key={item.id}
+                          item={{
+                            id: item.title,
+                            modelId: item.title,
+                            description: item.description,
+                            pipeline_tag: item.tags[0],
+                            tags: item.tags,
+                            isDataset: item.itemType === 'dataset',
+                          }}
+                          isSaved={isSaved}
+                          onSave={() => handleToggleSave(item)}
+                          onDiscuss={(name) => {
+                            navigate(`/chat?q=${encodeURIComponent(`Let's discuss the architecture and training recipe of model "${name}".`)}`);
+                          }}
+                        />
+                      );
+                    }
+
+                    return (
+                      <BreakingNewsCard
+                        key={item.id}
+                        item={item}
+                        isSaved={isSaved}
+                        isInQueue={isInQueue}
+                        onSave={handleToggleSave}
+                        onAddToQueue={handleToggleQueue}
+                        onOpenArticle={(it) => setSelectedArticle(it)}
+                        onExplainAi={(it) => setSelectedExplainItem(it)}
+                        onDiscussAi={handleDiscussInChat}
+                      />
+                    );
+                  })}
+              </div>
+
+              {/* Show More Pagination Button */}
+              {visibleCount < items.length && (
+                <div className="flex justify-center pt-6">
                   <button
                     type="button"
-                    onClick={() => setVisibleCount((prev) => prev + 9)}
-                    className="inline-flex items-center gap-2 px-6 py-2.5 rounded-2xl bg-white/70 dark:bg-[#131620]/80 backdrop-blur-md border border-black/[0.08] dark:border-white/[0.09] hover:border-cyan-500/40 text-xs font-semibold text-black dark:text-white shadow-sm hover:shadow-md transition-all active:scale-95 group"
+                    onClick={() => setVisibleCount((prev) => prev + 12)}
+                    className="inline-flex items-center gap-2 px-6 py-2.5 rounded-2xl bg-white/80 dark:bg-[#111520]/80 backdrop-blur-md border border-slate-200 dark:border-white/10 hover:border-cyan-500/40 text-xs font-semibold text-slate-800 dark:text-white shadow-sm hover:shadow-md transition-all active:scale-95 group"
                   >
-                    <span>Show More Stories</span>
+                    <span>Show More Discoveries</span>
                     <ChevronDown size={14} className="text-cyan-500 group-hover:translate-y-0.5 transition-transform" />
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-500 dark:text-cyan-400 border border-cyan-500/20 font-mono">
-                      +{newsItems.length - visibleCount}
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-600 dark:text-cyan-300 font-mono font-bold">
+                      +{items.length - visibleCount}
                     </span>
                   </button>
                 </div>
               )}
             </div>
           )}
-        </div>
-      )}
+        </main>
 
-      {/* In-App News Reader & Browser Modal */}
+        {/* Zone C: Right Intelligence Panel (Columns 9-12) */}
+        {!isSidebarCollapsed && (
+          <div className="xl:col-span-4 2xl:col-span-3">
+            <IntelligencePulseSidebar
+              sourcesStatus={sourcesStatus}
+              onlineCount={onlineCount}
+              totalSources={totalSources}
+              trendingTopics={trendingTopics}
+              readingQueue={readingQueue}
+              followedTopics={followedTopics}
+              onSelectTopic={(topic) => {
+                setSearchQuery(topic);
+                setSubmittedQuery(topic);
+              }}
+              onOpenBriefingModal={() => setIsBriefingModalOpen(true)}
+              onToggleQueueRead={handleToggleQueueReadStatus}
+              onRemoveFromQueue={handleRemoveFromQueue}
+              onUnfollowTopic={handleUnfollowTopic}
+              onOpenItem={(it) => setSelectedArticle(it)}
+              isCollapsed={isSidebarCollapsed}
+              onToggleCollapse={() => setIsSidebarCollapsed(true)}
+            />
+          </div>
+        )}
+      </div>
+
+      {/* ----------------------------------------------------------------- */}
+      {/* Modal Dialogs                                                     */}
+      {/* ----------------------------------------------------------------- */}
+      {/* In-App Full Article Reader */}
       <ArticleReaderModal
         item={selectedArticle}
         isOpen={!!selectedArticle}
         onClose={() => setSelectedArticle(null)}
       />
 
-      {/* API Keys Modal */}
+      {/* AI Structured Explain Modal */}
+      <AiExplainModal
+        item={selectedExplainItem}
+        isOpen={!!selectedExplainItem}
+        onClose={() => setSelectedExplainItem(null)}
+      />
+
+      {/* Literature Comparison Matrix Modal */}
+      <PaperComparisonModal
+        papers={comparingPapers}
+        isOpen={isCompareModalOpen}
+        onClose={() => setIsCompareModalOpen(false)}
+        onRemovePaper={(id) => setComparingPapers((prev) => prev.filter((p) => p.id !== id))}
+        onClearAll={() => setComparingPapers([])}
+      />
+
+      {/* Daily Briefing Modal */}
+      <DailyBriefingModal
+        isOpen={isBriefingModalOpen}
+        onClose={() => setIsBriefingModalOpen(false)}
+        focusTopics={followedTopics.map((t) => t.displayName)}
+      />
+
+      {/* Command Palette (Ctrl+K) */}
+      <DiscoverCommandPalette
+        isOpen={isCommandPaletteOpen}
+        onClose={() => setIsCommandPaletteOpen(false)}
+        onSelectAction={(type, value) => {
+          if (type === 'mode') {
+            setFeedMode(value as any);
+          } else if (type === 'topic') {
+            setActiveTopic(value);
+          } else if (type === 'query') {
+            setSearchQuery(value);
+            setSubmittedQuery(value);
+          }
+        }}
+      />
+
+      {/* API Keys Configuration Modal */}
       <DiscoverApiKeysModal
         isOpen={isKeysModalOpen}
         onClose={() => setIsKeysModalOpen(false)}
-        onSaved={loadDiscoverContent}
+        onSaved={loadFeed}
       />
     </div>
   );

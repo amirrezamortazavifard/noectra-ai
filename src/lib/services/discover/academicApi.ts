@@ -258,3 +258,48 @@ export async function fetchPubMedPapers(params: {
     };
   });
 }
+
+// 5. Europe PMC (Biomedical & Life Sciences Literature)
+export async function fetchEuropePmcPapers(params: {
+  query?: string;
+  limit?: number;
+}): Promise<ResearchPaper[]> {
+  const { query = 'medical imaging', limit = 12 } = params;
+  const searchParams = new URLSearchParams();
+  searchParams.set('query', query.trim() || 'medical imaging');
+  searchParams.set('pageSize', String(limit));
+  searchParams.set('format', 'json');
+  searchParams.set('resultType', 'core');
+
+  const res = await fetch(`https://www.ebi.ac.uk/europepmc/webservices/rest/search?${searchParams.toString()}`, {
+    headers: { Accept: 'application/json' },
+  });
+
+  if (!res.ok) {
+    throw new Error(`Europe PMC API error: ${res.statusText}`);
+  }
+
+  const data = await res.json();
+  const results = data.resultList?.result || [];
+
+  return results.map((item: any): ResearchPaper => {
+    const authors = item.authorString ? item.authorString.split(',').map((a: string) => a.trim()).filter(Boolean) : ['Europe PMC Authors'];
+    const pdfUrl = item.hasPDF === 'Y' && item.pmcid ? `https://europepmc.org/articles/${item.pmcid}?pdf=render` : undefined;
+
+    return {
+      id: item.id || item.doi || String(Math.random()),
+      title: item.title?.replace(/<[^>]*>/g, '') || 'Biomedical Publication',
+      abstract: item.abstractText?.replace(/<[^>]*>/g, '') || `Research indexed in Europe PMC. Published in ${item.journalTitle || 'Academic Venue'}.`,
+      authors: authors.slice(0, 5),
+      year: item.pubYear || 'Recent',
+      venue: item.journalTitle || 'Europe PMC Repository',
+      pdfUrl,
+      fieldsOfStudy: ['Life Sciences', 'Medicine', 'Bio-imaging'],
+      citationCount: item.citedByCount,
+      doi: item.doi,
+      url: item.doi ? `https://doi.org/${item.doi}` : `https://europepmc.org/article/${item.source}/${item.id}`,
+      source: 'Europe PMC',
+    };
+  });
+}
+
