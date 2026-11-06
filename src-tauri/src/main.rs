@@ -5,6 +5,7 @@ mod agents;
 mod api;
 mod config;
 mod db;
+mod knowledge_store;
 mod models;
 mod ocr;
 mod scraper;
@@ -244,7 +245,9 @@ async fn main() {
         http_client,
     };
 
-    let router = api::create_router(state);
+    let knowledge_state = knowledge_store::KnowledgeStoreState::new(&data_dir, None);
+    let router = api::create_router(state)
+        .merge(knowledge_store::create_knowledge_router(knowledge_state));
 
     // Spawn local Axum API server on 127.0.0.1:3001
     tokio::spawn(async move {

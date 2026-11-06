@@ -10,6 +10,7 @@ import DiscoverPage from '@/pages/DiscoverPage';
 import PdfReaderPage from '@/pages/PdfReaderPage';
 import LibraryPage from '@/pages/LibraryPage';
 import ReaderPage from '@/pages/ReaderPage';
+import KnowledgeStorePage from '@/pages/KnowledgeStorePage';
 import SetupWizard from '@/components/Setup/SetupWizard';
 import SplashScreen from '@/components/SplashScreen';
 import { ChatProvider } from '@/lib/hooks/useChat';
@@ -203,6 +204,7 @@ export default function App() {
                       <Route path="/reader" element={<ReaderPage />} />
                       <Route path="/pdf" element={<PdfReaderPage />} />
                       <Route path="/library" element={<LibraryPage />} />
+                      <Route path="/knowledge" element={<KnowledgeStorePage />} />
                       <Route path="/tray" element={<TrayHub />} />
                     </Routes>
                   </Sidebar>
