@@ -110,3 +110,4 @@ pub struct ZimLibraryItem {
     pub main_page_url: Option<String>,
     pub is_external: bool,
 }
+

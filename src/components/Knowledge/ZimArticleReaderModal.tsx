@@ -225,3 +225,4 @@ export const ZimArticleReaderModal: React.FC<Props> = ({ archiveId, onClose }) =
     </div>
   );
 };
+

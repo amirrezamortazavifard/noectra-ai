@@ -101,12 +101,44 @@ impl LibraryManager {
     }
 
     pub async fn import_file(&self, source_path_str: &str, copy: bool) -> Result<ZimLibraryItem, String> {
-        let source_path = PathBuf::from(source_path_str);
+        let clean_str = source_path_str.trim().trim_matches('"').trim_matches('\'').trim();
+        let mut source_path = PathBuf::from(clean_str);
+
+        // 1. If exact path does not exist, try with .zim extension
         if !source_path.exists() {
-            return Err("File does not exist".to_string());
+            let with_zim = source_path.with_extension("zim");
+            if with_zim.exists() {
+                source_path = with_zim;
+            } else if let Some(parent) = source_path.parent() {
+                // Try fuzzy prefix match in parent directory
+                if parent.exists() {
+                    let file_stem = source_path
+                        .file_name()
+                        .map(|f| f.to_string_lossy().to_string())
+                        .unwrap_or_default();
+
+                    if let Ok(dir_entries) = std::fs::read_dir(parent) {
+                        for entry in dir_entries.flatten() {
+                            let p = entry.path();
+                            if p.is_file() && p.extension().map(|e| e == "zim").unwrap_or(false) {
+                                let name = p.file_name().map(|f| f.to_string_lossy()).unwrap_or_default();
+                                if name.starts_with(&file_stem) {
+                                    source_path = p;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
-        if !source_path.extension().map(|e| e == "zim").unwrap_or(false) {
-            return Err("File must have a .zim extension".to_string());
+
+        if !source_path.exists() {
+            return Err(format!("File '{}' does not exist on disk.", clean_str));
+        }
+
+        if !source_path.extension().map(|e| e.eq_ignore_ascii_case("zim")).unwrap_or(false) {
+            return Err("Selected file must have a .zim extension".to_string());
         }
 
         if copy {
@@ -152,3 +184,4 @@ impl LibraryManager {
         Ok(())
     }
 }
+

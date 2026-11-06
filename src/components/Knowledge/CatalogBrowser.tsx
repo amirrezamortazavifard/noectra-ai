@@ -34,6 +34,7 @@ export const CatalogBrowser: React.FC<Props> = ({
   const [selectedLang, setSelectedLang] = useState<string>('all');
   const [selectedSize, setSelectedSize] = useState<number | undefined>(undefined);
   const [totalCount, setTotalCount] = useState<number>(0);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const formatBytes = (bytes: number) => {
     if (bytes === 0) return '0 B';
@@ -58,6 +59,7 @@ export const CatalogBrowser: React.FC<Props> = ({
 
   const searchCatalog = async () => {
     setLoading(true);
+    setErrorMessage(null);
     try {
       const params: CatalogFilterParams = {
         q: searchQuery.trim() || undefined,
@@ -70,6 +72,7 @@ export const CatalogBrowser: React.FC<Props> = ({
       setArchives(res.entries);
       setTotalCount(res.total);
     } catch (err: any) {
+      setErrorMessage(err.message || 'Failed to load catalog');
       toast.error(`Error loading catalog: ${err.message}`);
     } finally {
       setLoading(false);
@@ -216,6 +219,21 @@ export const CatalogBrowser: React.FC<Props> = ({
             Fetching OPDS Catalog from Kiwix Library...
           </p>
         </div>
+      ) : errorMessage ? (
+        <div className="p-8 text-center rounded-2xl bg-rose-500/10 border border-rose-500/20 space-y-3">
+          <p className="text-sm font-semibold text-rose-600 dark:text-rose-400">
+            {errorMessage}
+          </p>
+          <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md mx-auto">
+            Please make sure the Noectra AI backend server is running and port 3001 is active.
+          </p>
+          <button
+            onClick={searchCatalog}
+            className="px-4 py-2 rounded-xl bg-sky-500 hover:bg-sky-600 text-white text-xs font-semibold shadow-md shadow-sky-500/20"
+          >
+            Retry Connection
+          </button>
+        </div>
       ) : archives.length === 0 ? (
         <div className="p-12 text-center rounded-2xl bg-slate-50 dark:bg-white/[0.02] border border-black/[0.06] dark:border-white/[0.06] space-y-2">
           <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
@@ -345,3 +363,4 @@ export const CatalogBrowser: React.FC<Props> = ({
     </div>
   );
 };
+

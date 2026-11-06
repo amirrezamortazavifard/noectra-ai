@@ -11,6 +11,7 @@ use axum::{
     routing::{delete, get, post},
     Json, Router,
 };
+use tower_http::cors::{Any, CorsLayer};
 use catalog_client::KiwixCatalogClient;
 use download_manager::DownloadManager;
 use library_manager::LibraryManager;
@@ -43,6 +44,11 @@ impl KnowledgeStoreState {
 }
 
 pub fn create_knowledge_router(state: KnowledgeStoreState) -> Router {
+    let cors = CorsLayer::new()
+        .allow_origin(Any)
+        .allow_methods(Any)
+        .allow_headers(Any);
+
     Router::new()
         .route("/api/knowledge/catalog", get(get_catalog_handler))
         .route("/api/knowledge/categories", get(get_categories_handler))
@@ -58,6 +64,7 @@ pub fn create_knowledge_router(state: KnowledgeStoreState) -> Router {
         .route("/api/knowledge/downloads/:id/cancel", post(cancel_download_handler))
         .route("/api/knowledge/zim/:id/articles", get(get_zim_articles_handler))
         .route("/api/knowledge/zim/:id/article", get(get_zim_article_content_handler))
+        .layer(cors)
         .with_state(state)
 }
 

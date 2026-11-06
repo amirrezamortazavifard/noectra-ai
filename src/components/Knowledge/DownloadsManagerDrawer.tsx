@@ -156,3 +156,4 @@ export const DownloadsManagerDrawer: React.FC<Props> = ({ tasks, onTasksChanged,
     </div>
   );
 };
+

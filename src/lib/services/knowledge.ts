@@ -85,7 +85,30 @@ export interface ZimArticleContent {
 }
 
 export class KnowledgeService {
-  private static baseUrl = '/api/knowledge';
+  private static async apiFetch(endpoint: string, options?: RequestInit): Promise<Response> {
+    const isTauri =
+      typeof window !== 'undefined' &&
+      (window.location.protocol === 'tauri:' ||
+        window.location.hostname === 'tauri.localhost' ||
+        (window as any).__TAURI_INTERNALS__ !== undefined);
+
+    const primaryBase = isTauri ? 'http://127.0.0.1:3001/api/knowledge' : '/api/knowledge';
+    const fallbackBase = isTauri ? '/api/knowledge' : 'http://127.0.0.1:3001/api/knowledge';
+
+    try {
+      const res = await fetch(`${primaryBase}${endpoint}`, options);
+      return res;
+    } catch {
+      try {
+        const fallbackRes = await fetch(`${fallbackBase}${endpoint}`, options);
+        return fallbackRes;
+      } catch {
+        throw new Error(
+          'Cannot connect to backend engine on port 3001. Please make sure the Noectra AI backend server is active.'
+        );
+      }
+    }
+  }
 
   static async fetchCatalog(params: CatalogFilterParams = {}): Promise<CatalogResponse> {
     const query = new URLSearchParams();
@@ -98,7 +121,7 @@ export class KnowledgeService {
     if (params.start !== undefined) query.append('start', params.start.toString());
     if (params.count !== undefined) query.append('count', params.count.toString());
 
-    const res = await fetch(`${this.baseUrl}/catalog?${query.toString()}`);
+    const res = await this.apiFetch(`/catalog?${query.toString()}`);
     if (!res.ok) {
       throw new Error(`Failed to fetch catalog: ${res.statusText}`);
     }
@@ -106,19 +129,27 @@ export class KnowledgeService {
   }
 
   static async fetchCategories(): Promise<string[]> {
-    const res = await fetch(`${this.baseUrl}/categories`);
-    if (!res.ok) return [];
-    return res.json();
+    try {
+      const res = await this.apiFetch('/categories');
+      if (!res.ok) return [];
+      return res.json();
+    } catch {
+      return [];
+    }
   }
 
   static async fetchLanguages(): Promise<string[]> {
-    const res = await fetch(`${this.baseUrl}/languages`);
-    if (!res.ok) return [];
-    return res.json();
+    try {
+      const res = await this.apiFetch('/languages');
+      if (!res.ok) return [];
+      return res.json();
+    } catch {
+      return [];
+    }
   }
 
   static async fetchLibrary(): Promise<ZimLibraryItem[]> {
-    const res = await fetch(`${this.baseUrl}/library`);
+    const res = await this.apiFetch('/library');
     if (!res.ok) {
       throw new Error(`Failed to fetch local archives: ${res.statusText}`);
     }
@@ -126,7 +157,7 @@ export class KnowledgeService {
   }
 
   static async importLocalZim(filePath: string, copyToLibrary = false): Promise<ZimLibraryItem> {
-    const res = await fetch(`${this.baseUrl}/import`, {
+    const res = await this.apiFetch('/import', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ file_path: filePath, copy_to_library: copyToLibrary }),
@@ -139,23 +170,27 @@ export class KnowledgeService {
   }
 
   static async deleteArchive(id: string): Promise<boolean> {
-    const res = await fetch(`${this.baseUrl}/library/${encodeURIComponent(id)}`, {
+    const res = await this.apiFetch(`/library/${encodeURIComponent(id)}`, {
       method: 'DELETE',
     });
     return res.ok;
   }
 
   static async fetchDownloads(): Promise<DownloadTask[]> {
-    const res = await fetch(`${this.baseUrl}/downloads`);
-    if (!res.ok) return [];
-    return res.json();
+    try {
+      const res = await this.apiFetch('/downloads');
+      if (!res.ok) return [];
+      return res.json();
+    } catch {
+      return [];
+    }
   }
 
   static async startDownload(archive: ZimArchive): Promise<DownloadTask> {
     if (!archive.download_url) {
       throw new Error('No download link available for this archive');
     }
-    const res = await fetch(`${this.baseUrl}/download`, {
+    const res = await this.apiFetch('/download', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -174,21 +209,21 @@ export class KnowledgeService {
   }
 
   static async pauseDownload(id: string): Promise<boolean> {
-    const res = await fetch(`${this.baseUrl}/downloads/${encodeURIComponent(id)}/pause`, {
+    const res = await this.apiFetch(`/downloads/${encodeURIComponent(id)}/pause`, {
       method: 'POST',
     });
     return res.ok;
   }
 
   static async resumeDownload(id: string): Promise<boolean> {
-    const res = await fetch(`${this.baseUrl}/downloads/${encodeURIComponent(id)}/resume`, {
+    const res = await this.apiFetch(`/downloads/${encodeURIComponent(id)}/resume`, {
       method: 'POST',
     });
     return res.ok;
   }
 
   static async cancelDownload(id: string): Promise<boolean> {
-    const res = await fetch(`${this.baseUrl}/downloads/${encodeURIComponent(id)}/cancel`, {
+    const res = await this.apiFetch(`/downloads/${encodeURIComponent(id)}/cancel`, {
       method: 'POST',
     });
     return res.ok;
@@ -196,7 +231,7 @@ export class KnowledgeService {
 
   static async searchArticles(archiveId: string, q = '', limit = 60): Promise<ZimArticleSummary[]> {
     const params = new URLSearchParams({ q, limit: limit.toString() });
-    const res = await fetch(`${this.baseUrl}/zim/${encodeURIComponent(archiveId)}/articles?${params.toString()}`);
+    const res = await this.apiFetch(`/zim/${encodeURIComponent(archiveId)}/articles?${params.toString()}`);
     if (!res.ok) {
       throw new Error(`Failed to search articles: ${res.statusText}`);
     }
@@ -205,7 +240,7 @@ export class KnowledgeService {
 
   static async readArticle(archiveId: string, articleUrl: string): Promise<ZimArticleContent> {
     const params = new URLSearchParams({ url: articleUrl });
-    const res = await fetch(`${this.baseUrl}/zim/${encodeURIComponent(archiveId)}/article?${params.toString()}`);
+    const res = await this.apiFetch(`/zim/${encodeURIComponent(archiveId)}/article?${params.toString()}`);
     if (!res.ok) {
       const err = await res.text();
       throw new Error(err || 'Failed to load article content');
@@ -213,3 +248,4 @@ export class KnowledgeService {
     return res.json();
   }
 }
+

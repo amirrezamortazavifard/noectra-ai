@@ -156,3 +156,4 @@ impl KiwixCatalogClient {
         catalog.entries.into_iter().next().ok_or_else(|| "Entry not found in XML response".to_string())
     }
 }
+
