@@ -10,6 +10,8 @@ use crate::db::{
     LibraryCollectionRecord, SavedCatalogSearchRecord, ScanDirectoryRecord, StorageRootRecord,
     ArticleAnnotationRecord, ReadingHistoryRecord, ArticleBookmarkRecord, MedicalGlossaryRecord,
     ClinicalGuidelineRecord, ClinicalConflictRecord, ArchiveVersionRecord,
+    KnowledgeGraphEntityRecord, KnowledgeGraphRelationRecord, PersonalWorkspaceItemRecord,
+    OfflineModelRecord, ResearchDossierRecord,
 };
 use axum::{
     body::Body,
@@ -135,6 +137,23 @@ pub fn create_knowledge_router(state: KnowledgeStoreState) -> Router {
         .route("/api/knowledge/updates/check", get(check_archive_updates_handler))
         // AI-001 to AI-006: Local RAG Context Endpoint
         .route("/api/knowledge/ai/rag-context", post(ai_rag_context_handler))
+        // EXT-001: Knowledge Recommendations
+        .route("/api/knowledge/recommendations", get(get_knowledge_recommendations_handler))
+        // EXT-002: Knowledge Graph
+        .route("/api/knowledge/graph", get(get_knowledge_graph_handler))
+        // EXT-003: Cross-Archive Article Linking
+        .route("/api/knowledge/cross-links", get(get_cross_archive_links_handler))
+        // EXT-004: Personal Knowledge Workspace
+        .route("/api/knowledge/workspace/items", get(get_workspace_items_handler).post(save_workspace_item_handler))
+        .route("/api/knowledge/workspace/items/:id", delete(delete_workspace_item_handler))
+        // EXT-005: Exportable Research Dossier
+        .route("/api/knowledge/dossiers", get(get_research_dossiers_handler).post(save_research_dossier_handler))
+        // EXT-006: Offline Model Manager
+        .route("/api/knowledge/models", get(get_offline_models_handler))
+        .route("/api/knowledge/models/:id/status", post(update_model_status_handler))
+        // EXT-007: Knowledge Pack Export & Import
+        .route("/api/knowledge/pack/export", get(export_knowledge_pack_handler))
+        .route("/api/knowledge/pack/import", post(import_knowledge_pack_handler))
         .layer(cors)
         .with_state(state)
 }
@@ -1569,5 +1588,230 @@ async fn ai_rag_context_handler(
         "chunks_found": context_chunks.len(),
         "context_chunks": context_chunks,
         "citations": citations
+    })))
+}
+
+
+// ==========================================
+// Handlers for Items 71 to 81 (EXT-001 to EXT-007)
+// ==========================================
+
+async fn get_knowledge_recommendations_handler(
+    State(state): State<KnowledgeStoreState>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let library = state.library_manager.list_archives().await;
+    let catalog = state.catalog_client.fetch_entries(&models::CatalogQuery {
+        count: Some(60),
+        ..Default::default()
+    }).await.unwrap_or_else(|_| models::CatalogResponse {
+        total: 0,
+        start_index: 0,
+        items_per_page: 60,
+        entries: vec![],
+    });
+
+    let installed_ids: std::collections::HashSet<String> = library.into_iter().map(|a| a.title.to_lowercase()).collect();
+    let mut recommendations = Vec::new();
+
+    for entry in catalog.entries {
+        if !installed_ids.contains(&entry.title.to_lowercase()) {
+            recommendations.push(json!({
+                "id": entry.id,
+                "title": entry.title,
+                "description": entry.description,
+                "category": entry.category,
+                "language": entry.language,
+                "size_bytes": entry.size_bytes,
+                "download_url": entry.download_url,
+                "reason": "Popular companion archive for offline reference"
+            }));
+            if recommendations.len() >= 6 {
+                break;
+            }
+        }
+    }
+
+    Ok(Json(json!({
+        "enabled": true,
+        "count": recommendations.len(),
+        "recommendations": recommendations
+    })))
+}
+
+async fn get_knowledge_graph_handler(
+    State(state): State<KnowledgeStoreState>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let (entities, relations) = state.db.get_knowledge_graph()
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    Ok(Json(json!({
+        "entities": entities,
+        "relations": relations
+    })))
+}
+
+#[derive(Debug, Deserialize)]
+struct CrossLinkQuery {
+    title: String,
+}
+
+async fn get_cross_archive_links_handler(
+    State(state): State<KnowledgeStoreState>,
+    Query(query): Query<CrossLinkQuery>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let results = state.db.search_global_fts(&query.title, None, 10)
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    let mut links = Vec::new();
+    for r in results {
+        let link_type = if r.title.to_lowercase() == query.title.to_lowercase() {
+            "EXACT"
+        } else if r.title.to_lowercase().contains(&query.title.to_lowercase()) {
+            "TITLE_MATCH"
+        } else {
+            "SEMANTIC"
+        };
+
+        links.push(json!({
+            "archive_id": r.archive_id,
+            "archive_title": r.archive_title,
+            "article_path": r.article_path,
+            "title": r.title,
+            "link_type": link_type,
+            "snippet": r.snippet
+        }));
+    }
+
+    Ok(Json(json!({
+        "query": query.title,
+        "cross_links_count": links.len(),
+        "links": links
+    })))
+}
+
+async fn get_workspace_items_handler(
+    State(state): State<KnowledgeStoreState>,
+) -> Result<Json<Vec<PersonalWorkspaceItemRecord>>, (StatusCode, String)> {
+    let items = state.db.get_workspace_items().map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    Ok(Json(items))
+}
+
+async fn save_workspace_item_handler(
+    State(state): State<KnowledgeStoreState>,
+    Json(payload): Json<PersonalWorkspaceItemRecord>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    state.db.save_workspace_item(&payload).map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    Ok(Json(json!({ "success": true, "id": payload.id })))
+}
+
+async fn delete_workspace_item_handler(
+    State(state): State<KnowledgeStoreState>,
+    AxumPath(id): AxumPath<String>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    state.db.delete_workspace_item(&id).map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    Ok(Json(json!({ "success": true })))
+}
+
+async fn get_research_dossiers_handler(
+    State(state): State<KnowledgeStoreState>,
+) -> Result<Json<Vec<ResearchDossierRecord>>, (StatusCode, String)> {
+    let dossiers = state.db.get_research_dossiers().map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    Ok(Json(dossiers))
+}
+
+async fn save_research_dossier_handler(
+    State(state): State<KnowledgeStoreState>,
+    Json(payload): Json<ResearchDossierRecord>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    state.db.save_research_dossier(&payload).map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    Ok(Json(json!({ "success": true, "id": payload.id })))
+}
+
+async fn get_offline_models_handler(
+    State(state): State<KnowledgeStoreState>,
+) -> Result<Json<Vec<OfflineModelRecord>>, (StatusCode, String)> {
+    let models = state.db.get_offline_models().map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    Ok(Json(models))
+}
+
+#[derive(Debug, Deserialize)]
+struct UpdateModelStatusPayload {
+    status: String,
+}
+
+async fn update_model_status_handler(
+    State(state): State<KnowledgeStoreState>,
+    AxumPath(id): AxumPath<String>,
+    Json(payload): Json<UpdateModelStatusPayload>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    state.db.update_offline_model_status(&id, &payload.status).map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    Ok(Json(json!({ "success": true })))
+}
+
+async fn export_knowledge_pack_handler(
+    State(state): State<KnowledgeStoreState>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let collections = state.db.get_library_collections().unwrap_or_default();
+    let searches = state.db.get_saved_catalog_searches().unwrap_or_default();
+    let workspace = state.db.get_workspace_items().unwrap_or_default();
+    let dossiers = state.db.get_research_dossiers().unwrap_or_default();
+    let (entities, relations) = state.db.get_knowledge_graph().unwrap_or_default();
+
+    Ok(Json(json!({
+        "pack_name": "Noectra Knowledge Pack",
+        "exported_at": chrono::Utc::now().to_rfc3339(),
+        "schema_version": 2,
+        "collections": collections,
+        "saved_searches": searches,
+        "workspace_items": workspace,
+        "dossiers": dossiers,
+        "knowledge_graph": {
+            "entities": entities,
+            "relations": relations
+        }
+    })))
+}
+
+#[derive(Debug, Deserialize)]
+struct ImportKnowledgePackPayload {
+    collections: Option<Vec<LibraryCollectionRecord>>,
+    saved_searches: Option<Vec<SavedCatalogSearchRecord>>,
+    workspace_items: Option<Vec<PersonalWorkspaceItemRecord>>,
+    dossiers: Option<Vec<ResearchDossierRecord>>,
+}
+
+async fn import_knowledge_pack_handler(
+    State(state): State<KnowledgeStoreState>,
+    Json(payload): Json<ImportKnowledgePackPayload>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let mut imported = 0;
+
+    if let Some(cols) = payload.collections {
+        for c in cols {
+            let _ = state.db.save_library_collection(&c);
+            imported += 1;
+        }
+    }
+    if let Some(searches) = payload.saved_searches {
+        for s in searches {
+            let _ = state.db.save_catalog_search(&s);
+            imported += 1;
+        }
+    }
+    if let Some(items) = payload.workspace_items {
+        for item in items {
+            let _ = state.db.save_workspace_item(&item);
+            imported += 1;
+        }
+    }
+    if let Some(dos) = payload.dossiers {
+        for d in dos {
+            let _ = state.db.save_research_dossier(&d);
+            imported += 1;
+        }
+    }
+
+    Ok(Json(json!({
+        "success": true,
+        "imported_count": imported
     })))
 }

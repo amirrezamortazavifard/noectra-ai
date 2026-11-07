@@ -334,6 +334,98 @@ export interface RagContextResponse {
   citations: string[];
 }
 
+
+// ==========================================
+// Types for Items 71 to 81 (EXT-001 to EXT-007)
+// ==========================================
+
+export interface KnowledgeRecommendation {
+  id: string;
+  title: string;
+  description: string;
+  category: string;
+  language: string;
+  size_bytes: number;
+  download_url?: string;
+  reason: string;
+}
+
+export interface KnowledgeGraphEntity {
+  id: string;
+  archiveId: string;
+  articlePath: string;
+  entityType: string;
+  name: string;
+  confidence: number;
+  createdAt: string;
+}
+
+export interface KnowledgeGraphRelation {
+  id: string;
+  sourceEntity: string;
+  targetEntity: string;
+  relationType: string;
+  citation: string;
+  confidence: number;
+  createdAt: string;
+}
+
+export interface CrossArchiveLink {
+  archive_id: string;
+  archive_title: string;
+  article_path: string;
+  title: string;
+  link_type: 'EXACT' | 'REDIRECT' | 'TITLE_MATCH' | 'SEMANTIC';
+  snippet: string;
+}
+
+export interface PersonalWorkspaceItem {
+  id: string;
+  itemType: 'article' | 'note' | 'highlight' | 'pdf';
+  title: string;
+  content: string;
+  tags: string;
+  sourceRef: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ResearchDossier {
+  id: string;
+  title: string;
+  topic: string;
+  content: string;
+  citations: string;
+  createdAt: string;
+}
+
+export interface OfflineModelItem {
+  id: string;
+  name: string;
+  modelType: 'translation' | 'embedding' | 'reranker' | 'tts' | 'llm';
+  sizeBytes: number;
+  license: string;
+  languages: string;
+  status: 'installed' | 'available' | 'downloading';
+  downloadUrl?: string;
+  hardwareReqs: string;
+  updatedAt: string;
+}
+
+export interface KnowledgePackSnapshot {
+  pack_name: string;
+  exported_at: string;
+  schema_version: number;
+  collections: any[];
+  saved_searches: any[];
+  workspace_items: PersonalWorkspaceItem[];
+  dossiers: ResearchDossier[];
+  knowledge_graph: {
+    entities: KnowledgeGraphEntity[];
+    relations: KnowledgeGraphRelation[];
+  };
+}
+
 export class KnowledgeService {
   private static async apiFetch(endpoint: string, options?: RequestInit): Promise<Response> {
     const isTauri =
@@ -1107,5 +1199,136 @@ export class KnowledgeService {
     }
     return res.json();
   }
-}
 
+  // --- EXT-001: Knowledge Recommendations ---
+  static async fetchRecommendations(): Promise<KnowledgeRecommendation[]> {
+    try {
+      const res = await this.apiFetch('/recommendations');
+      if (!res.ok) return [];
+      const data = await res.json();
+      return data.recommendations || [];
+    } catch {
+      return [];
+    }
+  }
+
+  // --- EXT-002: Knowledge Graph ---
+  static async fetchKnowledgeGraph(): Promise<{ entities: KnowledgeGraphEntity[]; relations: KnowledgeGraphRelation[] }> {
+    try {
+      const res = await this.apiFetch('/graph');
+      if (!res.ok) return { entities: [], relations: [] };
+      return res.json();
+    } catch {
+      return { entities: [], relations: [] };
+    }
+  }
+
+  // --- EXT-003: Cross-Archive Article Linking ---
+  static async fetchCrossArchiveLinks(title: string): Promise<CrossArchiveLink[]> {
+    try {
+      const params = new URLSearchParams({ title });
+      const res = await this.apiFetch(`/cross-links?${params.toString()}`);
+      if (!res.ok) return [];
+      const data = await res.json();
+      return data.links || [];
+    } catch {
+      return [];
+    }
+  }
+
+  // --- EXT-004: Personal Knowledge Workspace ---
+  static async fetchWorkspaceItems(): Promise<PersonalWorkspaceItem[]> {
+    try {
+      const res = await this.apiFetch('/workspace/items');
+      if (!res.ok) return [];
+      return res.json();
+    } catch {
+      return [];
+    }
+  }
+
+  static async saveWorkspaceItem(item: Partial<PersonalWorkspaceItem>): Promise<{ success: boolean; id: string }> {
+    const res = await this.apiFetch('/workspace/items', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(item),
+    });
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(err || 'Failed to save workspace item');
+    }
+    return res.json();
+  }
+
+  static async deleteWorkspaceItem(id: string): Promise<boolean> {
+    const res = await this.apiFetch(`/workspace/items/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    return res.ok;
+  }
+
+  // --- EXT-005: Exportable Research Dossiers ---
+  static async fetchResearchDossiers(): Promise<ResearchDossier[]> {
+    try {
+      const res = await this.apiFetch('/dossiers');
+      if (!res.ok) return [];
+      return res.json();
+    } catch {
+      return [];
+    }
+  }
+
+  static async saveResearchDossier(dossier: Partial<ResearchDossier>): Promise<{ success: boolean; id: string }> {
+    const res = await this.apiFetch('/dossiers', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(dossier),
+    });
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(err || 'Failed to save research dossier');
+    }
+    return res.json();
+  }
+
+  // --- EXT-006: Offline Models Manager ---
+  static async fetchOfflineModels(): Promise<OfflineModelItem[]> {
+    try {
+      const res = await this.apiFetch('/models');
+      if (!res.ok) return [];
+      return res.json();
+    } catch {
+      return [];
+    }
+  }
+
+  static async updateOfflineModelStatus(id: string, status: string): Promise<boolean> {
+    const res = await this.apiFetch(`/models/${encodeURIComponent(id)}/status`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status }),
+    });
+    return res.ok;
+  }
+
+  // --- EXT-007: Knowledge Pack Export & Import ---
+  static async exportKnowledgePack(): Promise<KnowledgePackSnapshot> {
+    const res = await this.apiFetch('/pack/export');
+    if (!res.ok) {
+      throw new Error('Failed to generate Knowledge Pack');
+    }
+    return res.json();
+  }
+
+  static async importKnowledgePack(pack: any): Promise<{ success: boolean; imported_count: number }> {
+    const res = await this.apiFetch('/pack/import', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(pack),
+    });
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(err || 'Failed to import Knowledge Pack');
+    }
+    return res.json();
+  }
+
+}

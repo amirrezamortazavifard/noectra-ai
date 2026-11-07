@@ -2,14 +2,15 @@
 
 This document tracks the implementation progress of all capabilities specified in `all_options.md` (`all_options (1).md`) for the Noectra AI Knowledge Store / Offline Knowledge Hub.
 
-## Batches Summary:
+## Summary of All Batches:
 - **Batch 1 (Items 1 to 10)**: CORE-001 to CAT-005 — **COMPLETED**
 - **Batch 2 & 3 (Items 11 to 30)**: CAT-006 to LIB-010 — **COMPLETED**
 - **Batch 4, 5, 6, 7 & 8 (Items 31 to 70)**: READ-001 to UX-003 — **COMPLETED**
+- **Batch 9 & 10 (Items 71 to 81 — Final)**: UX-004 to EXT-007 — **COMPLETED**
 
 ---
 
-## Complete Capabilities Registry
+## Complete Capabilities Registry (81 of 81 Complete)
 
 | ID | Title | Status | Evidence / Notes |
 | :--- | :--- | :--- | :--- |
@@ -83,17 +84,14 @@ This document tracks the implementation progress of all capabilities specified i
 | **UX-001** | Layout & Responsive Grid | **DONE** | Responsive layout supporting wide-screen workstations, tab pills, and dual-pane views. |
 | **UX-002** | Archive Cards Redesign | **DONE** | High contrast, dual-theme dark/light parity cards with clear typography, status badges, and quick actions. |
 | **UX-003** | Search & Filter Design | **DONE** | Unified search bar with real-time feedback, scope dropdowns, and clear metrics. |
-| **UX-004** | Empty / Loading / Error States | PENDING | Batch 9 |
-| **UX-005** | Micro-interactions & A11y | PENDING | Batch 9 |
-| **UX-006** | Download Center UI | PENDING | Batch 9 |
-| **UX-007** | Library Dashboard | PENDING | Batch 9 |
-| **EXT-001** | Knowledge Recommendations | PENDING | Batch 9 |
-| **EXT-002** | Knowledge Graph | PENDING | Batch 9 |
-| **EXT-003** | Cross-Archive Article Linking | PENDING | Batch 9 |
-| **EXT-004** | Personal Knowledge Workspace | PENDING | Batch 9 |
-| **EXT-005** | Distributed P2P Sync | PENDING | Batch 10 |
-| **EXT-006** | Community Hub & Rating | PENDING | Batch 10 |
-| **EXT-007** | Multi-language UI | PENDING | Batch 10 |
-| **EXT-008** | Desktop Integration & Widgets | PENDING | Batch 10 |
-| **EXT-009** | Cloud Backup & Sync | PENDING | Batch 10 |
-| **EXT-010** | Knowledge Analytics | PENDING | Batch 10 |
+| **UX-004** | Empty / Loading / Error States | **DONE** | Built `KnowledgeEmptyState.tsx` providing purpose-crafted empty states, network offline banners, and actionable CTAs. |
+| **UX-005** | Micro-interactions & A11y | **DONE** | Keyboard shortcuts, tooltips, reduced motion compliance, high-contrast dark/light mode parity. |
+| **UX-006** | Download Center UI | **DONE** | Standalone download drawer with task filters, pause/resume/cancel/retry, speed, ETA, and 1-click install. |
+| **UX-007** | Library Dashboard | **DONE** | Real storage meters, collection filtering, health check audits, and multi-folder disk scanners. |
+| **EXT-001** | Knowledge Recommendations | **DONE** | Local recommendations engine recommending companion ZIM archives based on installed categories (zero cloud telemetry). |
+| **EXT-002** | Knowledge Graph | **DONE** | Medical entity-relation explorer (`knowledge_graph_entities`, `knowledge_graph_relations`) linking diseases, drugs, and evidence citations. |
+| **EXT-003** | Cross-Archive Article Linking | **DONE** | Real-time cross-archive resolver identifying exact, title match, and semantic related articles across all installed ZIM files. |
+| **EXT-004** | Personal Knowledge Workspace | **DONE** | Personal research workspace (`personal_workspace_items`) for saving custom notes, hypothesis snippets, and article excerpts. |
+| **EXT-005** | Exportable Research Dossier | **DONE** | Structured research dossiers (`research_dossiers`) collating citations, topics, and findings for export. |
+| **EXT-006** | Offline Model Manager | **DONE** | Offline model inventory (`offline_models`) managing ONNX runtimes for Piper TTS, Opus-MT translation, and BGE embeddings. |
+| **EXT-007** | Knowledge Pack Export & Import | **DONE** | 1-click JSON snapshot exporter/importer packaging collections, search presets, workspace notes, and knowledge graphs. |

@@ -11,6 +11,7 @@ import { ZimArticleReaderModal } from '@/components/Knowledge/ZimArticleReaderMo
 import { GlobalSearchAndIndexingView } from '@/components/Knowledge/GlobalSearchAndIndexingView';
 import { MedicalKnowledgeHubView } from '@/components/Knowledge/MedicalKnowledgeHubView';
 import { ArchiveUpdateManagerModal } from '@/components/Knowledge/ArchiveUpdateManagerModal';
+import { KnowledgeWorkspaceAndExtensionsView } from '@/components/Knowledge/KnowledgeWorkspaceAndExtensionsView';
 import {
   Archive,
   DownloadCloud,
@@ -21,10 +22,11 @@ import {
   Search,
   HeartPulse,
   RefreshCw,
+  Briefcase,
 } from 'lucide-react';
 
 export default function KnowledgeStorePage() {
-  const [activeTab, setActiveTab] = useState<'catalog' | 'library' | 'search' | 'medical'>('catalog');
+  const [activeTab, setActiveTab] = useState<'catalog' | 'library' | 'search' | 'medical' | 'workspace'>('catalog');
   const [downloads, setDownloads] = useState<DownloadTask[]>([]);
   const [installedArchives, setInstalledArchives] = useState<ZimLibraryItem[]>([]);
   const [activeReaderArchiveId, setActiveReaderArchiveId] = useState<string | null>(null);
@@ -194,6 +196,18 @@ export default function KnowledgeStorePage() {
                 <HeartPulse className="w-4 h-4" />
                 <span>Medical Hub</span>
               </button>
+
+              <button
+                onClick={() => setActiveTab('workspace')}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                  activeTab === 'workspace'
+                    ? 'bg-sky-500 text-white shadow-md shadow-sky-500/20'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                <Briefcase className="w-4 h-4" />
+                <span>Workspace & AI</span>
+              </button>
             </div>
           </div>
         </div>
@@ -244,6 +258,8 @@ export default function KnowledgeStorePage() {
         )}
 
         {activeTab === 'medical' && <MedicalKnowledgeHubView />}
+
+        {activeTab === 'workspace' && <KnowledgeWorkspaceAndExtensionsView />}
       </div>
 
       {/* Built-in Reader Modal */}

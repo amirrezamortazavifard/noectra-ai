@@ -341,6 +341,83 @@ pub struct GlobalSearchResultRecord {
     pub word_count: i64,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct KnowledgeGraphEntityRecord {
+    pub id: String,
+    #[serde(rename = "archiveId")]
+    pub archive_id: String,
+    #[serde(rename = "articlePath")]
+    pub article_path: String,
+    #[serde(rename = "entityType")]
+    pub entity_type: String,
+    pub name: String,
+    pub confidence: f64,
+    #[serde(rename = "createdAt")]
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct KnowledgeGraphRelationRecord {
+    pub id: String,
+    #[serde(rename = "sourceEntity")]
+    pub source_entity: String,
+    #[serde(rename = "targetEntity")]
+    pub target_entity: String,
+    #[serde(rename = "relationType")]
+    pub relation_type: String,
+    pub citation: String,
+    pub confidence: f64,
+    #[serde(rename = "createdAt")]
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PersonalWorkspaceItemRecord {
+    pub id: String,
+    #[serde(rename = "itemType")]
+    pub item_type: String, // article, note, highlight, pdf
+    pub title: String,
+    pub content: String,
+    pub tags: String,
+    #[serde(rename = "sourceRef")]
+    pub source_ref: String,
+    #[serde(rename = "createdAt")]
+    pub created_at: String,
+    #[serde(rename = "updatedAt")]
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OfflineModelRecord {
+    pub id: String,
+    pub name: String,
+    #[serde(rename = "modelType")]
+    pub model_type: String, // translation, embedding, reranker, tts, llm
+    #[serde(rename = "sizeBytes")]
+    pub size_bytes: i64,
+    pub license: String,
+    pub languages: String,
+    pub status: String, // installed, available, downloading
+    #[serde(rename = "downloadUrl")]
+    pub download_url: Option<String>,
+    #[serde(rename = "hardwareReqs")]
+    pub hardware_reqs: String,
+    #[serde(rename = "updatedAt")]
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ResearchDossierRecord {
+    pub id: String,
+    pub title: String,
+    pub topic: String,
+    pub content: String,
+    pub citations: String,
+    #[serde(rename = "createdAt")]
+    pub created_at: String,
+}
+
+
 #[derive(Clone)]
 pub struct Database {
     conn: Arc<Mutex<Connection>>,
@@ -784,7 +861,88 @@ impl Database {
              ('conf-2', 'Initial Fluid Resuscitation Volume in Sepsis', 'Critical Care', 'Surviving Sepsis Campaign', 'Recommends initial crystalloid fluid bolus of 30 mL/kg within 3 hours.', 'CLOVERS Trial (NEJM 2023)', 'Restrictive fluid strategy demonstrated equivalent 90-day mortality compared to liberal fluid protocol.', 'Weak Recommendation, Low Quality Evidence', 'High (Multicenter RCT)', 'Emerging Evidence Debate', datetime('now'));
 
              -- UPD-001 to UPD-003: Archive Version History
-             CREATE TABLE IF NOT EXISTS archive_version_history (
+             
+              -- EXT-002: Knowledge Graph Entities & Relations
+              CREATE TABLE IF NOT EXISTS knowledge_graph_entities (
+                  id TEXT PRIMARY KEY,
+                  archive_id TEXT NOT NULL,
+                  article_path TEXT NOT NULL,
+                  entity_type TEXT NOT NULL,
+                  name TEXT NOT NULL,
+                  confidence REAL NOT NULL DEFAULT 1.0,
+                  created_at TEXT NOT NULL
+              );
+              CREATE INDEX IF NOT EXISTS idx_kg_entities_name ON knowledge_graph_entities (name);
+
+              CREATE TABLE IF NOT EXISTS knowledge_graph_relations (
+                  id TEXT PRIMARY KEY,
+                  source_entity TEXT NOT NULL,
+                  target_entity TEXT NOT NULL,
+                  relation_type TEXT NOT NULL,
+                  citation TEXT NOT NULL,
+                  confidence REAL NOT NULL DEFAULT 1.0,
+                  created_at TEXT NOT NULL
+              );
+
+              -- Seed knowledge graph sample
+              INSERT OR IGNORE INTO knowledge_graph_entities (id, archive_id, article_path, entity_type, name, confidence, created_at)
+              VALUES
+              ('kg-e1', 'wikimed', 'A/Hypertension', 'Disease', 'Hypertension', 0.98, datetime('now')),
+              ('kg-e2', 'wikimed', 'A/Amlodipine', 'Drug', 'Amlodipine', 0.95, datetime('now')),
+              ('kg-e3', 'wikimed', 'A/Heart_failure', 'Disease', 'Heart Failure', 0.94, datetime('now')),
+              ('kg-e4', 'wikimed', 'A/Metformin', 'Drug', 'Metformin', 0.99, datetime('now')),
+              ('kg-e5', 'wikimed', 'A/Type_2_diabetes', 'Disease', 'Type 2 Diabetes', 0.97, datetime('now'));
+
+              INSERT OR IGNORE INTO knowledge_graph_relations (id, source_entity, target_entity, relation_type, citation, confidence, created_at)
+              VALUES
+              ('kg-r1', 'Amlodipine', 'Hypertension', 'TREATS', 'WikiMed: A/Hypertension (First-line CCB)', 0.96, datetime('now')),
+              ('kg-r2', 'Hypertension', 'Heart Failure', 'RISK_FACTOR_FOR', 'AHA Guidelines 2023', 0.92, datetime('now')),
+              ('kg-r3', 'Metformin', 'Type 2 Diabetes', 'FIRST_LINE_THERAPY', 'ADA Standards of Care 2024', 0.98, datetime('now'));
+
+              -- EXT-004: Personal Knowledge Workspace Items
+              CREATE TABLE IF NOT EXISTS personal_workspace_items (
+                  id TEXT PRIMARY KEY,
+                  item_type TEXT NOT NULL,
+                  title TEXT NOT NULL,
+                  content TEXT NOT NULL,
+                  tags TEXT NOT NULL DEFAULT '[]',
+                  source_ref TEXT NOT NULL,
+                  created_at TEXT NOT NULL,
+                  updated_at TEXT NOT NULL
+              );
+
+              -- EXT-005: Exportable Research Dossiers
+              CREATE TABLE IF NOT EXISTS research_dossiers (
+                  id TEXT PRIMARY KEY,
+                  title TEXT NOT NULL,
+                  topic TEXT NOT NULL,
+                  content TEXT NOT NULL,
+                  citations TEXT NOT NULL DEFAULT '[]',
+                  created_at TEXT NOT NULL
+              );
+
+              -- EXT-006: Offline Model Manager
+              CREATE TABLE IF NOT EXISTS offline_models (
+                  id TEXT PRIMARY KEY,
+                  name TEXT NOT NULL,
+                  model_type TEXT NOT NULL,
+                  size_bytes INTEGER NOT NULL,
+                  license TEXT NOT NULL,
+                  languages TEXT NOT NULL,
+                  status TEXT NOT NULL DEFAULT 'available',
+                  download_url TEXT,
+                  hardware_reqs TEXT NOT NULL,
+                  updated_at TEXT NOT NULL
+              );
+
+              INSERT OR IGNORE INTO offline_models (id, name, model_type, size_bytes, license, languages, status, download_url, hardware_reqs, updated_at)
+              VALUES
+              ('mod-tts-en', 'Piper TTS (en-US-lessac)', 'tts', 65000000, 'MIT', 'English', 'installed', NULL, 'CPU Compatible (Zero GPU requirement)', datetime('now')),
+              ('mod-trans-fa', 'Opus-MT (en-to-fa Fast)', 'translation', 290000000, 'Apache-2.0', 'English, Persian', 'installed', NULL, '2GB RAM, AVX2 CPU', datetime('now')),
+              ('mod-emb-bge', 'BGE-Small-EN-v1.5 ONNX', 'embedding', 133000000, 'MIT', 'English', 'available', 'https://huggingface.co/BAAI/bge-small-en-v1.5', '512MB RAM, CPU', datetime('now')),
+              ('mod-rerank-ms', 'bge-reranker-base ONNX', 'reranker', 440000000, 'MIT', 'Multilingual', 'available', 'https://huggingface.co/BAAI/bge-reranker-base', '1GB RAM, CPU', datetime('now'));
+
+              CREATE TABLE IF NOT EXISTS archive_version_history (
                  id TEXT PRIMARY KEY,
                  archive_id TEXT NOT NULL,
                  archive_title TEXT NOT NULL,
@@ -2153,4 +2311,133 @@ impl Database {
         )?;
         Ok(())
     }
+
+    // --- EXT-002: Knowledge Graph ---
+    pub fn get_knowledge_graph(&self) -> Result<(Vec<KnowledgeGraphEntityRecord>, Vec<KnowledgeGraphRelationRecord>)> {
+        let conn = self.conn.lock().unwrap();
+        let mut ent_stmt = conn.prepare("SELECT id, archive_id, article_path, entity_type, name, confidence, created_at FROM knowledge_graph_entities")?;
+        let entities = ent_stmt.query_map([], |row| {
+            Ok(KnowledgeGraphEntityRecord {
+                id: row.get(0)?,
+                archive_id: row.get(1)?,
+                article_path: row.get(2)?,
+                entity_type: row.get(3)?,
+                name: row.get(4)?,
+                confidence: row.get(5)?,
+                created_at: row.get(6)?,
+            })
+        })?.filter_map(|r| r.ok()).collect();
+
+        let mut rel_stmt = conn.prepare("SELECT id, source_entity, target_entity, relation_type, citation, confidence, created_at FROM knowledge_graph_relations")?;
+        let relations = rel_stmt.query_map([], |row| {
+            Ok(KnowledgeGraphRelationRecord {
+                id: row.get(0)?,
+                source_entity: row.get(1)?,
+                target_entity: row.get(2)?,
+                relation_type: row.get(3)?,
+                citation: row.get(4)?,
+                confidence: row.get(5)?,
+                created_at: row.get(6)?,
+            })
+        })?.filter_map(|r| r.ok()).collect();
+
+        Ok((entities, relations))
+    }
+
+    // --- EXT-004: Personal Knowledge Workspace ---
+    pub fn get_workspace_items(&self) -> Result<Vec<PersonalWorkspaceItemRecord>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare("SELECT id, item_type, title, content, tags, source_ref, created_at, updated_at FROM personal_workspace_items ORDER BY updated_at DESC")?;
+        let items = stmt.query_map([], |row| {
+            Ok(PersonalWorkspaceItemRecord {
+                id: row.get(0)?,
+                item_type: row.get(1)?,
+                title: row.get(2)?,
+                content: row.get(3)?,
+                tags: row.get(4)?,
+                source_ref: row.get(5)?,
+                created_at: row.get(6)?,
+                updated_at: row.get(7)?,
+            })
+        })?.filter_map(|r| r.ok()).collect();
+        Ok(items)
+    }
+
+    pub fn save_workspace_item(&self, record: &PersonalWorkspaceItemRecord) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "INSERT INTO personal_workspace_items (id, item_type, title, content, tags, source_ref, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+             ON CONFLICT(id) DO UPDATE SET
+             title=excluded.title, content=excluded.content, tags=excluded.tags, updated_at=excluded.updated_at",
+            params![record.id, record.item_type, record.title, record.content, record.tags, record.source_ref, record.created_at, record.updated_at],
+        )?;
+        Ok(())
+    }
+
+    pub fn delete_workspace_item(&self, id: &str) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute("DELETE FROM personal_workspace_items WHERE id = ?1", params![id])?;
+        Ok(())
+    }
+
+    // --- EXT-005: Exportable Research Dossiers ---
+    pub fn get_research_dossiers(&self) -> Result<Vec<ResearchDossierRecord>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare("SELECT id, title, topic, content, citations, created_at FROM research_dossiers ORDER BY created_at DESC")?;
+        let dossiers = stmt.query_map([], |row| {
+            Ok(ResearchDossierRecord {
+                id: row.get(0)?,
+                title: row.get(1)?,
+                topic: row.get(2)?,
+                content: row.get(3)?,
+                citations: row.get(4)?,
+                created_at: row.get(5)?,
+            })
+        })?.filter_map(|r| r.ok()).collect();
+        Ok(dossiers)
+    }
+
+    pub fn save_research_dossier(&self, record: &ResearchDossierRecord) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "INSERT INTO research_dossiers (id, title, topic, content, citations, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+             ON CONFLICT(id) DO UPDATE SET
+             title=excluded.title, topic=excluded.topic, content=excluded.content, citations=excluded.citations",
+            params![record.id, record.title, record.topic, record.content, record.citations, record.created_at],
+        )?;
+        Ok(())
+    }
+
+    // --- EXT-006: Offline Models Manager ---
+    pub fn get_offline_models(&self) -> Result<Vec<OfflineModelRecord>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare("SELECT id, name, model_type, size_bytes, license, languages, status, download_url, hardware_reqs, updated_at FROM offline_models")?;
+        let models = stmt.query_map([], |row| {
+            Ok(OfflineModelRecord {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                model_type: row.get(2)?,
+                size_bytes: row.get(3)?,
+                license: row.get(4)?,
+                languages: row.get(5)?,
+                status: row.get(6)?,
+                download_url: row.get(7)?,
+                hardware_reqs: row.get(8)?,
+                updated_at: row.get(9)?,
+            })
+        })?.filter_map(|r| r.ok()).collect();
+        Ok(models)
+    }
+
+    pub fn update_offline_model_status(&self, id: &str, status: &str) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "UPDATE offline_models SET status = ?2, updated_at = ?3 WHERE id = ?1",
+            params![id, status, chrono::Utc::now().to_rfc3339()],
+        )?;
+        Ok(())
+    }
+
 }
