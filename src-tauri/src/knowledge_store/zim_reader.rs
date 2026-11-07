@@ -84,6 +84,11 @@ impl ZimReader {
         zim_path: &Path,
         article_url: &str,
     ) -> Result<ZimArticleContent, String> {
+        let clean_url = article_url.trim_start_matches('/');
+        if clean_url.contains("..") {
+            return Err("Path traversal attempt detected in article URL".to_string());
+        }
+
         let zim = Zim::new(zim_path).map_err(|e| format!("Failed to open ZIM: {}", e))?;
 
         // Try namespaces: UserContent (modern 6.1+), then Articles (legacy)
@@ -141,6 +146,76 @@ impl ZimReader {
             text: markdown_text,
             mime_type: format!("{:?}", resolved.mime_type),
         })
+    }
+
+    pub fn read_resource(
+        zim_path: &Path,
+        resource_path: &str,
+    ) -> Result<(String, Vec<u8>), String> {
+        let clean_path = resource_path.trim_start_matches('/');
+        if clean_path.contains("..") {
+            return Err("Invalid path traversal detected in resource URL".to_string());
+        }
+
+        let zim = Zim::new(zim_path).map_err(|e| format!("Failed to open ZIM: {}", e))?;
+
+        let mut found_entry = None;
+        for ns in [Namespace::UserContent, Namespace::Articles] {
+            if let Ok(Some(entry)) = zim.get_by_path(ns, clean_path) {
+                found_entry = Some(entry);
+                break;
+            }
+        }
+
+        if found_entry.is_none() {
+            for entry_res in zim.iterate_by_urls() {
+                if let Ok(entry) = entry_res {
+                    if entry.url == clean_path || entry.title == clean_path {
+                        found_entry = Some(entry);
+                        break;
+                    }
+                }
+            }
+        }
+
+        let entry = found_entry.ok_or_else(|| format!("Resource '{}' not found in archive", clean_path))?;
+        let resolved = match zim.resolve(entry) {
+            Ok(r) => r,
+            Err(_) => {
+                zim.get_by_path(Namespace::UserContent, clean_path)
+                    .ok()
+                    .flatten()
+                    .ok_or_else(|| "Could not resolve resource".to_string())?
+            }
+        };
+
+        let content_handle = zim
+            .entry_content(&resolved)
+            .map_err(|e| format!("Failed to access content: {}", e))?
+            .ok_or_else(|| "Entry has no content body".to_string())?;
+
+        let raw_bytes = content_handle
+            .to_vec()
+            .map_err(|e| format!("Decompression error: {}", e))?;
+
+        let lower = clean_path.to_lowercase();
+        let mime = if lower.ends_with(".png") {
+            "image/png".to_string()
+        } else if lower.ends_with(".jpg") || lower.ends_with(".jpeg") {
+            "image/jpeg".to_string()
+        } else if lower.ends_with(".svg") {
+            "image/svg+xml".to_string()
+        } else if lower.ends_with(".webp") {
+            "image/webp".to_string()
+        } else if lower.ends_with(".css") {
+            "text/css".to_string()
+        } else if lower.ends_with(".js") {
+            "application/javascript".to_string()
+        } else {
+            "application/octet-stream".to_string()
+        };
+
+        Ok((mime, raw_bytes))
     }
 }
 

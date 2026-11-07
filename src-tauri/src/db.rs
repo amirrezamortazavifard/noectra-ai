@@ -84,6 +84,21 @@ pub struct DiscoverFeedbackRecord {
     pub created_at: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SavedCatalogSearchRecord {
+    pub id: String,
+    pub name: String,
+    pub query: String,
+    #[serde(rename = "filtersJson")]
+    pub filters_json: serde_json::Value,
+    #[serde(rename = "sortOrder")]
+    pub sort_order: i64,
+    #[serde(rename = "createdAt")]
+    pub created_at: String,
+    #[serde(rename = "updatedAt")]
+    pub updated_at: String,
+}
+
 #[derive(Clone)]
 pub struct Database {
     conn: Arc<Mutex<Connection>>,
@@ -231,6 +246,92 @@ impl Database {
                  password TEXT,
                  apiKey TEXT,
                  lastSynced TEXT
+             );
+
+             -- Knowledge Store & ZIM Core Tables
+             CREATE TABLE IF NOT EXISTS zim_archives (
+                 id TEXT PRIMARY KEY,
+                 zim_id TEXT,
+                 uuid TEXT,
+                 title TEXT NOT NULL,
+                 description TEXT NOT NULL DEFAULT '',
+                 language TEXT NOT NULL DEFAULT '',
+                 category TEXT NOT NULL DEFAULT '',
+                 tags TEXT NOT NULL DEFAULT '[]',
+                 file_path TEXT NOT NULL,
+                 file_size_bytes INTEGER NOT NULL DEFAULT 0,
+                 sha256 TEXT,
+                 source_catalog TEXT,
+                 acquisition_url TEXT,
+                 archive_date TEXT,
+                 added_at TEXT NOT NULL,
+                 updated_at TEXT NOT NULL,
+                 last_verified_at TEXT,
+                 status TEXT NOT NULL DEFAULT 'downloaded',
+                 link_type TEXT NOT NULL DEFAULT 'local',
+                 is_available INTEGER NOT NULL DEFAULT 1,
+                 article_count INTEGER,
+                 media_count INTEGER,
+                 index_status TEXT NOT NULL DEFAULT 'unindexed',
+                 index_version INTEGER NOT NULL DEFAULT 0
+             );
+             CREATE INDEX IF NOT EXISTS idx_zim_archives_status ON zim_archives (status);
+             CREATE INDEX IF NOT EXISTS idx_zim_archives_lang ON zim_archives (language);
+             CREATE INDEX IF NOT EXISTS idx_zim_archives_cat ON zim_archives (category);
+
+             CREATE TABLE IF NOT EXISTS download_tasks (
+                 id TEXT PRIMARY KEY,
+                 zim_id TEXT,
+                 title TEXT NOT NULL,
+                 source_url TEXT NOT NULL,
+                 target_path TEXT NOT NULL,
+                 temporary_path TEXT,
+                 status TEXT NOT NULL DEFAULT 'queued',
+                 bytes_downloaded INTEGER NOT NULL DEFAULT 0,
+                 total_bytes INTEGER NOT NULL DEFAULT 0,
+                 speed_bps INTEGER NOT NULL DEFAULT 0,
+                 progress_pct REAL NOT NULL DEFAULT 0.0,
+                 etag TEXT,
+                 last_modified TEXT,
+                 accept_ranges INTEGER NOT NULL DEFAULT 1,
+                 checksum_expected TEXT,
+                 checksum_actual TEXT,
+                 checksum_status TEXT,
+                 retry_count INTEGER NOT NULL DEFAULT 0,
+                 error_code TEXT,
+                 error_message TEXT,
+                 priority INTEGER NOT NULL DEFAULT 0,
+                 created_at TEXT NOT NULL,
+                 updated_at TEXT NOT NULL,
+                 completed_at TEXT
+             );
+             CREATE INDEX IF NOT EXISTS idx_download_tasks_status ON download_tasks (status);
+
+             CREATE TABLE IF NOT EXISTS saved_catalog_searches (
+                 id TEXT PRIMARY KEY,
+                 name TEXT NOT NULL,
+                 query TEXT NOT NULL DEFAULT '',
+                 filters_json TEXT NOT NULL DEFAULT '{}',
+                 sort_order INTEGER NOT NULL DEFAULT 0,
+                 created_at TEXT NOT NULL,
+                 updated_at TEXT NOT NULL
+             );
+             CREATE INDEX IF NOT EXISTS idx_saved_searches_created ON saved_catalog_searches (created_at DESC);
+
+             CREATE TABLE IF NOT EXISTS indexing_jobs (
+                 id TEXT PRIMARY KEY,
+                 archive_id TEXT NOT NULL,
+                 status TEXT NOT NULL DEFAULT 'pending',
+                 phase TEXT,
+                 items_total INTEGER NOT NULL DEFAULT 0,
+                 items_processed INTEGER NOT NULL DEFAULT 0,
+                 bytes_processed INTEGER NOT NULL DEFAULT 0,
+                 last_processed_item TEXT,
+                 error_count INTEGER NOT NULL DEFAULT 0,
+                 started_at TEXT NOT NULL,
+                 updated_at TEXT NOT NULL,
+                 completed_at TEXT,
+                 FOREIGN KEY(archive_id) REFERENCES zim_archives(id) ON DELETE CASCADE
              );",
         )?;
         Ok(Self {
@@ -565,5 +666,64 @@ impl Database {
             records.push(r?);
         }
         Ok(records)
+    }
+
+    // --- Knowledge Store: Saved Searches ---
+    pub fn get_saved_catalog_searches(&self) -> Result<Vec<SavedCatalogSearchRecord>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT id, name, query, filters_json, sort_order, created_at, updated_at FROM saved_catalog_searches ORDER BY created_at DESC",
+        )?;
+        let rows = stmt.query_map([], |row| {
+            let filters_str: String = row.get(3)?;
+            let filters_json: serde_json::Value = serde_json::from_str(&filters_str).unwrap_or(serde_json::json!({}));
+            Ok(SavedCatalogSearchRecord {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                query: row.get(2)?,
+                filters_json,
+                sort_order: row.get(4)?,
+                created_at: row.get(5)?,
+                updated_at: row.get(6)?,
+            })
+        })?;
+
+        let mut results = Vec::new();
+        for r in rows {
+            if let Ok(rec) = r {
+                results.push(rec);
+            }
+        }
+        Ok(results)
+    }
+
+    pub fn save_catalog_search(&self, record: &SavedCatalogSearchRecord) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "INSERT INTO saved_catalog_searches (id, name, query, filters_json, sort_order, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+             ON CONFLICT(id) DO UPDATE SET
+                name = excluded.name,
+                query = excluded.query,
+                filters_json = excluded.filters_json,
+                sort_order = excluded.sort_order,
+                updated_at = excluded.updated_at",
+            params![
+                record.id,
+                record.name,
+                record.query,
+                record.filters_json.to_string(),
+                record.sort_order,
+                record.created_at,
+                record.updated_at,
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn delete_saved_catalog_search(&self, id: &str) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute("DELETE FROM saved_catalog_searches WHERE id = ?1", params![id])?;
+        Ok(())
     }
 }

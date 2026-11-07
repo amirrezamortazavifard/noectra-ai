@@ -31,6 +31,7 @@ data/external_archives.json
 AGENT.md
 AGENTS.md
 CLAUDE.md
+all_options*.md
 .agents/
 scratch/
 

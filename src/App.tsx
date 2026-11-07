@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { BrowserRouter, Routes, Route, useNavigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useNavigate, Navigate } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import { ThemeProvider } from 'next-themes';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -206,6 +206,7 @@ export default function App() {
                       <Route path="/library" element={<LibraryPage />} />
                       <Route path="/knowledge" element={<KnowledgeStorePage />} />
                       <Route path="/tray" element={<TrayHub />} />
+                      <Route path="*" element={<Navigate to="/" replace />} />
                     </Routes>
                   </Sidebar>
                   <PodcastPlayerDock />

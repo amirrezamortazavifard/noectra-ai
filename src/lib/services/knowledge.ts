@@ -41,6 +41,22 @@ export interface CatalogFilterParams {
   count?: number;
 }
 
+export interface SavedCatalogSearch {
+  id: string;
+  name: string;
+  query: string;
+  filtersJson: CatalogFilterParams;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DiskSpaceInfo {
+  free_bytes: number;
+  total_bytes: number;
+  destination_path: string;
+}
+
 export type DownloadStatus =
   | 'queued'
   | 'downloading'
@@ -280,6 +296,48 @@ export class KnowledgeService {
       throw new Error(err || 'Failed to load article content');
     }
     return res.json();
+  }
+
+  static async fetchDiskSpace(): Promise<DiskSpaceInfo> {
+    const res = await this.apiFetch('/disk-space');
+    if (!res.ok) {
+      return { free_bytes: 0, total_bytes: 0, destination_path: '' };
+    }
+    return res.json();
+  }
+
+  static async fetchSavedSearches(): Promise<SavedCatalogSearch[]> {
+    try {
+      const res = await this.apiFetch('/saved-searches');
+      if (!res.ok) return [];
+      return res.json();
+    } catch {
+      return [];
+    }
+  }
+
+  static async saveSearch(
+    name: string,
+    query?: string,
+    filters: CatalogFilterParams = {}
+  ): Promise<SavedCatalogSearch> {
+    const res = await this.apiFetch('/saved-searches', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, query, filters }),
+    });
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(err || 'Failed to save search preset');
+    }
+    return res.json();
+  }
+
+  static async deleteSavedSearch(id: string): Promise<boolean> {
+    const res = await this.apiFetch(`/saved-searches/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    });
+    return res.ok;
   }
 }
 

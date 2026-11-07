@@ -240,12 +240,12 @@ async fn main() {
         .to_string();
 
     let state = AppState {
-        db,
+        db: db.clone(),
         config,
         http_client,
     };
 
-    let knowledge_state = knowledge_store::KnowledgeStoreState::new(&data_dir, None);
+    let knowledge_state = knowledge_store::KnowledgeStoreState::new(&data_dir, db, None);
     let router = api::create_router(state)
         .merge(knowledge_store::create_knowledge_router(knowledge_state));
 

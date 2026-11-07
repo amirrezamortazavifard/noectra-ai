@@ -5,9 +5,12 @@ pub mod models;
 pub mod opds_parser;
 pub mod zim_reader;
 
+use crate::db::{Database, SavedCatalogSearchRecord};
 use axum::{
+    body::Body,
     extract::{Path as AxumPath, Query, State},
-    http::StatusCode,
+    http::{header, HeaderValue, StatusCode},
+    response::Response,
     routing::{delete, get, post},
     Json, Router,
 };
@@ -31,14 +34,16 @@ pub struct KnowledgeStoreState {
     pub catalog_client: KiwixCatalogClient,
     pub download_manager: DownloadManager,
     pub library_manager: LibraryManager,
+    pub db: Database,
 }
 
 impl KnowledgeStoreState {
-    pub fn new(app_data_dir: &Path, catalog_url: Option<String>) -> Self {
+    pub fn new(app_data_dir: &Path, db: Database, catalog_url: Option<String>) -> Self {
         Self {
             catalog_client: KiwixCatalogClient::new(catalog_url),
             download_manager: DownloadManager::new(),
             library_manager: LibraryManager::new(app_data_dir),
+            db,
         }
     }
 }
@@ -66,6 +71,10 @@ pub fn create_knowledge_router(state: KnowledgeStoreState) -> Router {
         .route("/api/knowledge/downloads/:id/cancel", post(cancel_download_handler))
         .route("/api/knowledge/zim/:id/articles", get(get_zim_articles_handler))
         .route("/api/knowledge/zim/:id/article", get(get_zim_article_content_handler))
+        .route("/api/knowledge/zim/:id/resource", get(get_zim_resource_handler))
+        .route("/api/knowledge/saved-searches", get(get_saved_searches_handler).post(save_search_handler))
+        .route("/api/knowledge/saved-searches/:id", delete(delete_saved_search_handler))
+        .route("/api/knowledge/disk-space", get(get_disk_space_handler))
         .layer(cors)
         .with_state(state)
 }
@@ -327,4 +336,141 @@ async fn get_zim_article_content_handler(
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
 
     Ok(Json(content))
+}
+
+#[derive(Debug, Deserialize)]
+struct ReadResourceQuery {
+    path: String,
+}
+
+async fn get_zim_resource_handler(
+    State(state): State<KnowledgeStoreState>,
+    AxumPath(id): AxumPath<String>,
+    Query(params): Query<ReadResourceQuery>,
+) -> Result<Response, (StatusCode, String)> {
+    let archives = state.library_manager.list_archives().await;
+    let target = archives
+        .into_iter()
+        .find(|a| a.id == id || a.file_name == id || a.file_name == format!("{}.zim", id))
+        .ok_or_else(|| (StatusCode::NOT_FOUND, "ZIM archive not found".to_string()))?;
+
+    let path = PathBuf::from(&target.file_path);
+    let res_path = params.path;
+
+    let (mime, bytes) = tokio::task::spawn_blocking(move || {
+        ZimReader::read_resource(&path, &res_path)
+    })
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+    .map_err(|e| (StatusCode::NOT_FOUND, e))?;
+
+    let mut response = Response::new(Body::from(bytes));
+    if let Ok(val) = HeaderValue::from_str(&mime) {
+        response.headers_mut().insert(header::CONTENT_TYPE, val);
+    }
+    response.headers_mut().insert(
+        header::CACHE_CONTROL,
+        HeaderValue::from_static("public, max-age=86400"),
+    );
+
+    Ok(response)
+}
+
+// Saved Searches Handlers
+async fn get_saved_searches_handler(
+    State(state): State<KnowledgeStoreState>,
+) -> Result<Json<Vec<SavedCatalogSearchRecord>>, (StatusCode, String)> {
+    let items = state
+        .db
+        .get_saved_catalog_searches()
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    Ok(Json(items))
+}
+
+#[derive(Debug, Deserialize)]
+struct SaveSearchPayload {
+    name: String,
+    query: Option<String>,
+    filters: serde_json::Value,
+}
+
+async fn save_search_handler(
+    State(state): State<KnowledgeStoreState>,
+    Json(payload): Json<SaveSearchPayload>,
+) -> Result<Json<SavedCatalogSearchRecord>, (StatusCode, String)> {
+    let id = uuid::Uuid::new_v4().to_string();
+    let now = chrono::Utc::now().to_rfc3339();
+    let record = SavedCatalogSearchRecord {
+        id: id.clone(),
+        name: payload.name,
+        query: payload.query.unwrap_or_default(),
+        filters_json: payload.filters,
+        sort_order: 0,
+        created_at: now.clone(),
+        updated_at: now,
+    };
+    state
+        .db
+        .save_catalog_search(&record)
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    Ok(Json(record))
+}
+
+async fn delete_saved_search_handler(
+    State(state): State<KnowledgeStoreState>,
+    AxumPath(id): AxumPath<String>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    state
+        .db
+        .delete_saved_catalog_search(&id)
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    Ok(Json(json!({ "success": true })))
+}
+
+// Disk Space Check
+#[cfg(target_os = "windows")]
+fn get_available_disk_space(path: &Path) -> (u64, u64) {
+    use std::os::windows::ffi::OsStrExt;
+    let wide: Vec<u16> = path.as_os_str().encode_wide().chain(Some(0)).collect();
+    let mut free_bytes_available: u64 = 0;
+    let mut total_number_of_bytes: u64 = 0;
+    let mut total_number_of_free_bytes: u64 = 0;
+    unsafe {
+        #[link(name = "kernel32")]
+        extern "system" {
+            fn GetDiskFreeSpaceExW(
+                lpDirectoryName: *const u16,
+                lpBytesAvailableToCaller: *mut u64,
+                lpTotalNumberOfBytes: *mut u64,
+                lpTotalNumberOfFreeBytes: *mut u64,
+            ) -> i32;
+        }
+        if GetDiskFreeSpaceExW(
+            wide.as_ptr(),
+            &mut free_bytes_available,
+            &mut total_number_of_bytes,
+            &mut total_number_of_free_bytes,
+        ) != 0
+        {
+            return (free_bytes_available, total_number_of_bytes);
+        }
+    }
+    (0, 0)
+}
+
+#[cfg(not(target_os = "windows"))]
+fn get_available_disk_space(_path: &Path) -> (u64, u64) {
+    (100 * 1024 * 1024 * 1024, 500 * 1024 * 1024 * 1024)
+}
+
+async fn get_disk_space_handler(
+    State(state): State<KnowledgeStoreState>,
+) -> Json<serde_json::Value> {
+    let zim_dir = state.library_manager.zim_dir.clone();
+    let (free_bytes, total_bytes) = get_available_disk_space(&zim_dir);
+    Json(json!({
+        "free_bytes": free_bytes,
+        "total_bytes": total_bytes,
+        "destination_path": zim_dir.to_string_lossy().to_string()
+    }))
 }

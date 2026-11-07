@@ -4,6 +4,8 @@ import {
   ZimArticleSummary,
   ZimArticleContent,
 } from '@/lib/services/knowledge';
+import { sanitizeZimHtml } from '@/lib/services/zimSanitizer';
+import { openExternalLink } from '@/lib/openExternal';
 import {
   Search,
   X,
@@ -72,11 +74,34 @@ export const ZimArticleReaderModal: React.FC<Props> = ({ archiveId, onClose }) =
     setLoadingContent(true);
     try {
       const content = await KnowledgeService.readArticle(archiveId, url);
-      setArticleContent(content);
+      const sanitizedHtml = sanitizeZimHtml(content.html, { archiveId });
+      setArticleContent({
+        ...content,
+        html: sanitizedHtml,
+      });
     } catch (e: any) {
       toast.error(`Failed to read article: ${e.message}`);
     } finally {
       setLoadingContent(false);
+    }
+  };
+
+  const handleArticleBodyClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const target = (e.target as HTMLElement).closest('a');
+    if (!target) return;
+
+    if (target.getAttribute('data-zim-internal') === 'true') {
+      e.preventDefault();
+      const internalHref = target.getAttribute('data-internal-href') || target.getAttribute('href');
+      if (internalHref) {
+        loadArticle(internalHref);
+      }
+    } else {
+      const href = target.getAttribute('href');
+      if (href && (href.startsWith('http://') || href.startsWith('https://'))) {
+        e.preventDefault();
+        openExternalLink(href);
+      }
     }
   };
 
@@ -478,6 +503,7 @@ export const ZimArticleReaderModal: React.FC<Props> = ({ archiveId, onClose }) =
                   <div className={`max-w-4xl mx-auto ${fontSizeClasses[textSize]}`}>
                     {viewMode === 'rendered' ? (
                       <div
+                        onClick={handleArticleBodyClick}
                         className="zim-article-body prose dark:prose-invert max-w-none prose-slate"
                         dangerouslySetInnerHTML={{ __html: articleContent.html }}
                       />
