@@ -31,8 +31,6 @@ export const DownloadsManagerDrawer: React.FC<Props> = ({
 }) => {
   const [filterTab, setFilterTab] = useState<FilterTab>('all');
 
-  if (tasks.length === 0) return null;
-
   const formatBytes = (bytes: number) => {
     if (bytes === 0) return '0 B';
     const k = 1024;
@@ -104,6 +102,8 @@ export const DownloadsManagerDrawer: React.FC<Props> = ({
     if (filterTab === 'failed') return tasks.filter((t) => t.status === 'failed');
     return tasks;
   }, [tasks, filterTab]);
+
+  if (tasks.length === 0) return null;
 
   return (
     <div className="w-full mb-6 p-4 rounded-2xl bg-white/80 dark:bg-[#0c1017]/85 backdrop-blur-2xl border border-black/[0.08] dark:border-white/[0.08] shadow-[0_8px_30px_rgb(0,0,0,0.12)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.4)] transition-all space-y-3">
