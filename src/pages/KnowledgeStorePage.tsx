@@ -100,115 +100,117 @@ export default function KnowledgeStorePage() {
         {/* Page Header */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
-            <div className="flex items-center space-x-2 text-xs font-bold uppercase tracking-wider text-sky-600 dark:text-sky-400 mb-1">
-              <Archive className="w-4 h-4" />
-              <span>Offline Knowledge Hub</span>
-              <span className="text-slate-300 dark:text-white/20">•</span>
-              {/* Online / Catalog status pill */}
-              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                {isCatalogOnline === false ? 'Catalog Offline' : 'OPDS Catalog Online'}
+            <div className="flex items-center space-x-2 text-[11px] font-medium tracking-wide text-zinc-500 mb-1">
+              <Archive className="w-3.5 h-3.5 text-zinc-400" />
+              <span className="uppercase tracking-wider text-[10px] font-semibold text-zinc-400">Knowledge Store</span>
+              <span className="text-zinc-600">•</span>
+              {/* Streamlined muted status indicator */}
+              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-medium bg-white/5 text-zinc-400 border border-white/10">
+                <span className={`w-1.5 h-1.5 rounded-full ${isCatalogOnline === false ? 'bg-amber-400' : 'bg-emerald-400'}`} />
+                {isCatalogOnline === false ? 'Catalog Offline' : 'Catalog Online'}
               </span>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
               Knowledge Store & ZIM Archives
             </h1>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 max-w-2xl">
+            <p className="text-xs text-zinc-400 mt-1 max-w-2xl leading-relaxed">
               Discover, download, search with SQLite FTS5, and study offline Kiwix ZIM encyclopedias, medical guidelines, and reference libraries directly inside Noectra AI.
             </p>
           </div>
 
-          {/* Action buttons & Tab Pill Bar */}
-          <div className="flex flex-wrap items-center gap-2">
+          {/* Tab Bar with integrated Updates action */}
+          <div className="flex items-center p-1 rounded-2xl bg-[#0a0a0c]/90 backdrop-blur-xl border border-white/10 shadow-sm shrink-0 gap-1">
             <button
-              onClick={() => setShowUpdateModal(true)}
-              className="px-3 py-2 rounded-2xl bg-white/80 dark:bg-[#0c1017]/80 backdrop-blur-xl border border-slate-200 dark:border-white/10 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:text-sky-500 flex items-center space-x-1.5 shadow-sm transition"
-              title="Archive Updates (UPD-001 to UPD-003)"
+              onClick={() => setActiveTab('catalog')}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                activeTab === 'catalog'
+                  ? 'bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20'
+                  : 'text-zinc-400 hover:text-white hover:bg-white/5'
+              }`}
             >
-              <RefreshCw className="w-3.5 h-3.5 text-sky-500" />
-              <span>Updates</span>
+              <Globe2 className="w-4 h-4" />
+              <span>Catalog</span>
+              {activeDownloadCount > 0 && (
+                <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-amber-400 text-slate-950 animate-pulse">
+                  {activeDownloadCount}
+                </span>
+              )}
             </button>
 
-            <div className="flex items-center p-1 rounded-2xl bg-white/80 dark:bg-[#0c1017]/80 backdrop-blur-xl border border-black/[0.06] dark:border-white/[0.08] shadow-sm shrink-0">
-              <button
-                onClick={() => setActiveTab('catalog')}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
-                  activeTab === 'catalog'
-                    ? 'bg-sky-500 text-white shadow-md shadow-sky-500/20'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                <Globe2 className="w-4 h-4" />
-                <span>Catalog</span>
-                {activeDownloadCount > 0 && (
-                  <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-amber-400 text-slate-950 animate-pulse">
-                    {activeDownloadCount}
-                  </span>
-                )}
-              </button>
+            <button
+              onClick={() => {
+                setActiveTab('library');
+                fetchInstalled();
+              }}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all relative ${
+                activeTab === 'library'
+                  ? 'bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20'
+                  : 'text-zinc-400 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <HardDrive className="w-4 h-4" />
+              <span>My Library</span>
+              {installedArchives.length > 0 && (
+                <span
+                  className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full ${
+                    activeTab === 'library'
+                      ? 'bg-slate-950/20 text-slate-950'
+                      : 'bg-white/10 text-zinc-400'
+                  }`}
+                >
+                  {installedArchives.length}
+                </span>
+              )}
+            </button>
 
-              <button
-                onClick={() => {
-                  setActiveTab('library');
-                  fetchInstalled();
-                }}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all relative ${
-                  activeTab === 'library'
-                    ? 'bg-sky-500 text-white shadow-md shadow-sky-500/20'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                <HardDrive className="w-4 h-4" />
-                <span>My Library</span>
-                {installedArchives.length > 0 && (
-                  <span
-                    className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full ${
-                      activeTab === 'library'
-                        ? 'bg-white/20 text-white'
-                        : 'bg-black/5 dark:bg-white/10 text-slate-600 dark:text-slate-400'
-                    }`}
-                  >
-                    {installedArchives.length}
-                  </span>
-                )}
-              </button>
+            <button
+              onClick={() => setActiveTab('search')}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                activeTab === 'search'
+                  ? 'bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20'
+                  : 'text-zinc-400 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <Search className="w-4 h-4" />
+              <span>Global FTS</span>
+            </button>
 
-              <button
-                onClick={() => setActiveTab('search')}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
-                  activeTab === 'search'
-                    ? 'bg-sky-500 text-white shadow-md shadow-sky-500/20'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                <Search className="w-4 h-4" />
-                <span>Global FTS</span>
-              </button>
+            <button
+              onClick={() => setActiveTab('medical')}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                activeTab === 'medical'
+                  ? 'bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20'
+                  : 'text-zinc-400 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <HeartPulse className="w-4 h-4" />
+              <span>Medical Hub</span>
+            </button>
 
-              <button
-                onClick={() => setActiveTab('medical')}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
-                  activeTab === 'medical'
-                    ? 'bg-sky-500 text-white shadow-md shadow-sky-500/20'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                <HeartPulse className="w-4 h-4" />
-                <span>Medical Hub</span>
-              </button>
+            <button
+              onClick={() => setActiveTab('workspace')}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                activeTab === 'workspace'
+                  ? 'bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20'
+                  : 'text-zinc-400 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <Briefcase className="w-4 h-4" />
+              <span>Workspace & AI</span>
+            </button>
 
-              <button
-                onClick={() => setActiveTab('workspace')}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
-                  activeTab === 'workspace'
-                    ? 'bg-sky-500 text-white shadow-md shadow-sky-500/20'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                <Briefcase className="w-4 h-4" />
-                <span>Workspace & AI</span>
-              </button>
-            </div>
+            {/* Subtle Divider */}
+            <div className="h-4 w-px bg-white/10 mx-1" />
+
+            {/* Inline Updates Button */}
+            <button
+              onClick={() => setShowUpdateModal(true)}
+              className="p-1.5 rounded-xl text-zinc-400 hover:text-white border border-white/10 hover:border-white/20 hover:bg-white/5 transition flex items-center gap-1 text-xs"
+              title="Archive Updates (UPD-001 to UPD-003)"
+            >
+              <RefreshCw className="w-3.5 h-3.5 text-cyan-400" />
+              <span className="hidden sm:inline pr-1 text-[11px] font-medium">Updates</span>
+            </button>
           </div>
         </div>
 

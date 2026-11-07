@@ -586,7 +586,7 @@ export const CatalogBrowser: React.FC<Props> = ({
       const label = getLanguageLabel(code);
       return (
         <span
-          className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-500/20 truncate max-w-[120px]"
+          className="text-[10px] font-medium uppercase tracking-wider px-2 py-0.5 rounded-md bg-white/5 text-zinc-400 border border-white/10 truncate max-w-[100px]"
           title={label}
         >
           {label}
@@ -603,10 +603,10 @@ export const CatalogBrowser: React.FC<Props> = ({
         className="inline-flex items-center gap-1 cursor-help"
         title={`Supported languages (${codes.length}): ${allLabels}`}
       >
-        <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-500/20 truncate max-w-[80px]">
+        <span className="text-[10px] font-medium uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-white/5 text-zinc-400 border border-white/10 truncate max-w-[80px]">
           {primary}
         </span>
-        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-300">
+        <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-md bg-white/5 text-zinc-400 border border-white/10">
           +{remainingCount}
         </span>
       </div>
@@ -616,275 +616,297 @@ export const CatalogBrowser: React.FC<Props> = ({
   return (
     <div className="w-full space-y-6">
       {/* Search & Filter Command Panel */}
-      <div className="p-5 rounded-2xl bg-white/70 dark:bg-[#0c1017]/85 backdrop-blur-2xl border border-black/[0.06] dark:border-white/[0.08] shadow-[0_4px_20px_rgb(0,0,0,0.06)] dark:shadow-[0_4px_25px_rgb(0,0,0,0.25)] space-y-4">
-        {/* Search Input Bar */}
-        <form onSubmit={handleSearchSubmit} className="relative flex items-center gap-3">
-          <div className="relative flex-1">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search offline encyclopedias, medical libraries, guides (e.g. medicine, wikipedia, stackexchange)..."
-              className="w-full pl-11 pr-10 py-3 rounded-xl bg-slate-100/80 dark:bg-[#131823]/90 border border-black/[0.06] dark:border-white/[0.08] text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500/40 focus:border-sky-500/50 transition-all font-medium"
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => setSearchQuery('')}
-                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
-                title="Clear query"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </div>
-
-          {/* Save Search Button (CAT-004) */}
-          <button
-            type="button"
-            onClick={() => setIsSaveModalOpen(true)}
-            className="px-3.5 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-[#131823] dark:hover:bg-white/10 text-slate-700 dark:text-slate-300 border border-black/[0.06] dark:border-white/[0.08] text-xs font-semibold flex items-center gap-1.5 transition-colors shrink-0"
-            title="Save current search criteria preset"
-          >
-            <BookmarkPlus className="w-3.5 h-3.5 text-sky-500" />
-            <span className="hidden sm:inline">Save Search</span>
-          </button>
-
-          {/* Catalog Sources Button (CAT-006) */}
-          <button
-            type="button"
-            onClick={() => setIsSourcesModalOpen(true)}
-            className="px-3.5 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-[#131823] dark:hover:bg-white/10 text-slate-700 dark:text-slate-300 border border-black/[0.06] dark:border-white/[0.08] text-xs font-semibold flex items-center gap-1.5 transition-colors shrink-0"
-            title="Manage OPDS Catalog Sources (CAT-006)"
-          >
-            <Radio className="w-3.5 h-3.5 text-purple-500" />
-            <span className="hidden sm:inline">Sources ({catalogSources.length})</span>
-          </button>
-
-          {/* Download Bundles Button (DL-007) */}
-          <button
-            type="button"
-            onClick={() => setIsBundlesModalOpen(true)}
-            className={`px-3.5 py-3 rounded-xl border text-xs font-semibold flex items-center gap-1.5 transition-colors shrink-0 ${
-              selectedBundleArchiveIds.length > 0
-                ? 'bg-sky-500 text-white border-sky-400 shadow-sm'
-                : 'bg-slate-100 hover:bg-slate-200 dark:bg-[#131823] dark:hover:bg-white/10 text-slate-700 dark:text-slate-300 border-black/[0.06] dark:border-white/[0.08]'
-            }`}
-            title="Manage Download Bundles (DL-007)"
-          >
-            <Boxes className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Bundles</span>
-            {selectedBundleArchiveIds.length > 0 && (
-              <span className="px-1.5 py-0.2 bg-white/20 text-white rounded text-[10px] font-bold">
-                {selectedBundleArchiveIds.length}
-              </span>
-            )}
-          </button>
-
-          {/* Saved Searches Dropdown Trigger (CAT-004) */}
-          {savedSearches.length > 0 && (
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => setIsSavedSearchesOpen((prev) => !prev)}
-                className="px-3.5 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-[#131823] dark:hover:bg-white/10 text-slate-700 dark:text-slate-300 border border-black/[0.06] dark:border-white/[0.08] text-xs font-semibold flex items-center gap-1.5 transition-colors shrink-0"
-                title="View saved search presets"
-              >
-                <Bookmark className="w-3.5 h-3.5 text-amber-500" />
-                <span className="hidden sm:inline">Saved ({savedSearches.length})</span>
-                <ChevronDown className="w-3 h-3 text-slate-400" />
-              </button>
-
-              {isSavedSearchesOpen && (
-                <div className="absolute right-0 top-full mt-2 w-72 rounded-2xl bg-white dark:bg-[#0c1017] border border-black/[0.08] dark:border-white/[0.08] shadow-2xl p-2 z-50 animate-fadeIn">
-                  <div className="px-3 py-2 text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider border-b border-black/[0.04] dark:border-white/[0.06] flex items-center justify-between">
-                    <span>Saved Presets</span>
-                    <span className="font-normal text-[10px]">{savedSearches.length} items</span>
-                  </div>
-                  <div className="max-h-60 overflow-y-auto space-y-1 py-1">
-                    {savedSearches.map((s) => (
-                      <div
-                        key={s.id}
-                        onClick={() => handleApplySavedSearch(s)}
-                        className="group flex items-center justify-between p-2 rounded-xl text-xs hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer transition-colors"
-                      >
-                        <div className="min-w-0 pr-2">
-                          <p className="font-semibold text-slate-800 dark:text-slate-200 truncate">
-                            {s.name}
-                          </p>
-                          <p className="text-[10px] text-slate-400 truncate">
-                            {s.query ? `"${s.query}"` : 'All'} • {s.filtersJson.category || 'All categories'}
-                          </p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={(e) => handleDeleteSavedSearch(s.id, e)}
-                          className="p-1 rounded-lg text-slate-400 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-all shrink-0"
-                          title="Delete saved preset"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+      <div className="p-4 sm:p-5 rounded-2xl bg-[#0a0a0c]/90 backdrop-blur-2xl border border-white/10 shadow-[0_4px_25px_rgb(0,0,0,0.4)] space-y-3.5">
+        
+        {/* Row 1: Search Input directly adjacent to primary SEARCH CTA, plus subdued utilities on right */}
+        <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-2.5">
+          <form onSubmit={handleSearchSubmit} className="flex-1 flex items-center gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search offline encyclopedias, medical guides, textbooks..."
+                className="w-full pl-10 pr-9 py-2.5 rounded-xl bg-white/[0.03] border border-white/10 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-cyan-500/40 focus:border-cyan-500/50 transition-all font-medium"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchQuery('');
+                    setTimeout(() => searchCatalog(), 50);
+                  }}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white transition-colors"
+                  title="Clear query"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
               )}
             </div>
-          )}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="px-6 py-3 rounded-xl bg-sky-500 hover:bg-sky-600 text-white text-xs font-bold uppercase tracking-wider shadow-md shadow-sky-500/25 transition-all flex items-center justify-center gap-2 shrink-0 disabled:opacity-50"
-          >
-            {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
-            <span>Search</span>
-          </button>
-        </form>
+            {/* Direct contiguous Search CTA */}
+            <button
+              type="submit"
+              disabled={loading}
+              className="px-5 py-2.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 text-xs font-bold uppercase tracking-wider shadow-sm transition-all flex items-center justify-center gap-1.5 shrink-0 disabled:opacity-50"
+            >
+              {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
+              <span>Search</span>
+            </button>
+          </form>
 
-        {/* Filter Toolbar */}
-        <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-black/[0.04] dark:border-white/[0.06]">
-          <div className="flex flex-wrap items-center gap-3">
-            {/* Category Dropdown */}
-            <div className="flex items-center space-x-1.5 text-xs text-slate-500 dark:text-slate-400">
-              <Layers className="w-3.5 h-3.5 text-slate-400" />
-              <span className="font-medium">Category:</span>
-              <select
-                value={selectedCategory}
-                onChange={(e) => setSelectedCategory(e.target.value)}
-                className="max-w-[200px] px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-[#131823] border border-black/[0.06] dark:border-white/[0.08] text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-sky-500 cursor-pointer"
-              >
-                <option value="all">All Categories</option>
-                {categories
-                  .filter((c) => !c.includes('<') && !c.includes('>'))
-                  .map((c) => (
-                    <option key={c} value={c}>
-                      {getCategoryLabel(c)}
-                    </option>
-                  ))}
-              </select>
-            </div>
-
-            {/* Language Dropdown */}
-            <div className="flex items-center space-x-1.5 text-xs text-slate-500 dark:text-slate-400">
-              <Globe2 className="w-3.5 h-3.5 text-slate-400" />
-              <span className="font-medium">Language:</span>
-              <select
-                value={selectedLang}
-                onChange={(e) => setSelectedLang(e.target.value)}
-                className="max-w-[220px] px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-[#131823] border border-black/[0.06] dark:border-white/[0.08] text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-sky-500 cursor-pointer"
-              >
-                <option value="all">All Languages</option>
-                {sortedLanguages.map((l) => (
-                  <option key={l.code} value={l.code}>
-                    {l.name} ({l.code.toUpperCase()})
-                    {l.count ? ` • ${l.count.toLocaleString()}` : ''}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Max Size Dropdown */}
-            <div className="flex items-center space-x-1.5 text-xs text-slate-500 dark:text-slate-400">
-              <HardDrive className="w-3.5 h-3.5 text-slate-400" />
-              <span className="font-medium">Max Size:</span>
-              <select
-                value={selectedSize ?? ''}
-                onChange={(e) => {
-                  const val = e.target.value ? parseInt(e.target.value, 10) : undefined;
-                  setSelectedSize(val);
-                }}
-                className="px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-[#131823] border border-black/[0.06] dark:border-white/[0.08] text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-sky-500 cursor-pointer"
-              >
-                <option value="">Any Size</option>
-                <option value="524288000">&lt; 500 MB</option>
-                <option value="2147483648">&lt; 2 GB</option>
-                <option value="5368709120">&lt; 5 GB</option>
-                <option value="10737418240">&lt; 10 GB</option>
-              </select>
-            </div>
-
-            {/* Sorting Dropdown (CAT-003) */}
-            <div className="flex items-center space-x-1.5 text-xs text-slate-500 dark:text-slate-400">
-              <ArrowUpDown className="w-3.5 h-3.5 text-slate-400" />
-              <span className="font-medium">Sort By:</span>
-              <select
-                value={sortOption}
-                onChange={(e) => setSortOption(e.target.value as SortOption)}
-                className="px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-[#131823] border border-black/[0.06] dark:border-white/[0.08] text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-sky-500 cursor-pointer"
-              >
-                <option value="relevance">Best Match (Relevance)</option>
-                <option value="title_asc">Title (A-Z)</option>
-                <option value="title_desc">Title (Z-A)</option>
-                <option value="size_desc">Size (Largest First)</option>
-                <option value="size_asc">Size (Smallest First)</option>
-                <option value="updated_desc">Recently Updated</option>
-              </select>
-            </div>
-          </div>
-
-          <div className="flex items-center space-x-2">
-            {hasActiveFilters && (
-              <button
-                type="button"
-                onClick={handleResetFilters}
-                className="px-3 py-1.5 rounded-lg text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 flex items-center gap-1 transition-colors"
-                title="Reset all search & filters"
-              >
-                <RotateCcw className="w-3 h-3" />
-                <span>Reset All</span>
-              </button>
-            )}
+          {/* Subdued utility actions aligned to right */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              type="button"
+              onClick={() => setIsSaveModalOpen(true)}
+              className="px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-zinc-300 border border-white/10 text-xs font-medium flex items-center gap-1.5 transition-colors"
+              title="Save search criteria preset"
+            >
+              <BookmarkPlus className="w-3.5 h-3.5 text-zinc-400" />
+              <span className="hidden sm:inline">Save Search</span>
+            </button>
 
             <button
-              onClick={() => searchCatalog()}
-              className="px-3.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-white/[0.06] dark:hover:bg-white/[0.10] text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5 transition-colors"
+              type="button"
+              onClick={() => setIsSourcesModalOpen(true)}
+              className="px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-zinc-300 border border-white/10 text-xs font-medium flex items-center gap-1.5 transition-colors"
+              title="Manage OPDS Catalog Sources"
             >
-              <Filter className="w-3 h-3" />
-              <span>Apply Filters</span>
+              <Radio className="w-3.5 h-3.5 text-zinc-400" />
+              <span>Sources ({catalogSources.length})</span>
             </button>
+
+            <button
+              type="button"
+              onClick={() => setIsBundlesModalOpen(true)}
+              className={`px-3 py-2 rounded-xl border text-xs font-medium flex items-center gap-1.5 transition-colors ${
+                selectedBundleArchiveIds.length > 0
+                  ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40 shadow-xs'
+                  : 'bg-white/5 hover:bg-white/10 text-zinc-300 border-white/10'
+              }`}
+              title="Manage Download Bundles"
+            >
+              <Boxes className="w-3.5 h-3.5" />
+              <span>Bundles</span>
+              {selectedBundleArchiveIds.length > 0 && (
+                <span className="px-1.5 py-0.2 bg-cyan-500/30 text-cyan-200 rounded text-[10px] font-bold">
+                  {selectedBundleArchiveIds.length}
+                </span>
+              )}
+            </button>
+
+            {savedSearches.length > 0 && (
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setIsSavedSearchesOpen((prev) => !prev)}
+                  className="px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-zinc-300 border border-white/10 text-xs font-medium flex items-center gap-1.5 transition-colors"
+                  title="View saved search presets"
+                >
+                  <Bookmark className="w-3.5 h-3.5 text-zinc-400" />
+                  <span className="hidden sm:inline">Saved</span>
+                  <ChevronDown className="w-3 h-3 text-zinc-500" />
+                </button>
+
+                {isSavedSearchesOpen && (
+                  <div className="absolute right-0 top-full mt-2 w-72 rounded-2xl bg-[#0c1017] border border-white/10 shadow-2xl p-2 z-50 animate-fadeIn">
+                    <div className="px-3 py-2 text-xs font-bold text-zinc-400 uppercase tracking-wider border-b border-white/10 flex items-center justify-between">
+                      <span>Saved Presets</span>
+                      <span className="font-normal text-[10px] text-zinc-500">{savedSearches.length} items</span>
+                    </div>
+                    <div className="max-h-60 overflow-y-auto space-y-1 py-1">
+                      {savedSearches.map((s) => (
+                        <div
+                          key={s.id}
+                          onClick={() => handleApplySavedSearch(s)}
+                          className="group flex items-center justify-between p-2 rounded-xl text-xs hover:bg-white/5 cursor-pointer transition-colors"
+                        >
+                          <div className="min-w-0 pr-2">
+                            <p className="font-semibold text-zinc-200 truncate">{s.name}</p>
+                            <p className="text-[10px] text-zinc-500 truncate">
+                              {s.query ? `"${s.query}"` : 'All'} • {s.filtersJson.category || 'All categories'}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={(e) => handleDeleteSavedSearch(s.id, e)}
+                            className="p-1 rounded-lg text-zinc-500 hover:text-rose-400 opacity-0 group-hover:opacity-100 transition-all shrink-0"
+                            title="Delete saved preset"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Active Filter Chips (CAT-001) */}
+        {/* Row 2: Reactive Filters (No 'Apply Filters' button needed, instant update on change) */}
+        <div className="flex flex-wrap items-center gap-2.5 pt-2.5 border-t border-white/10 text-xs">
+          {/* Category Dropdown */}
+          <div className="flex items-center space-x-1.5 text-zinc-400">
+            <span className="text-zinc-500 text-[11px]">Category:</span>
+            <select
+              value={selectedCategory}
+              onChange={(e) => {
+                const val = e.target.value;
+                setSelectedCategory(val);
+                setTimeout(() => searchCatalog(), 50);
+              }}
+              className="max-w-[190px] px-2.5 py-1.5 rounded-lg bg-white/5 border border-white/10 text-xs font-medium text-zinc-200 focus:outline-none focus:ring-1 focus:ring-cyan-500/50 cursor-pointer"
+            >
+              <option value="all" className="bg-[#0c1017] text-zinc-200">All Categories</option>
+              {categories
+                .filter((c) => !c.includes('<') && !c.includes('>'))
+                .map((c) => (
+                  <option key={c} value={c} className="bg-[#0c1017] text-zinc-200">
+                    {getCategoryLabel(c)}
+                  </option>
+                ))}
+            </select>
+          </div>
+
+          {/* Language Dropdown */}
+          <div className="flex items-center space-x-1.5 text-zinc-400">
+            <span className="text-zinc-500 text-[11px]">Language:</span>
+            <select
+              value={selectedLang}
+              onChange={(e) => {
+                const val = e.target.value;
+                setSelectedLang(val);
+                setTimeout(() => searchCatalog(), 50);
+              }}
+              className="max-w-[210px] px-2.5 py-1.5 rounded-lg bg-white/5 border border-white/10 text-xs font-medium text-zinc-200 focus:outline-none focus:ring-1 focus:ring-cyan-500/50 cursor-pointer"
+            >
+              <option value="all" className="bg-[#0c1017] text-zinc-200">All Languages</option>
+              {sortedLanguages.map((l) => (
+                <option key={l.code} value={l.code} className="bg-[#0c1017] text-zinc-200">
+                  {l.name} ({l.code.toUpperCase()})
+                  {l.count ? ` • ${l.count.toLocaleString()}` : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Max Size Dropdown */}
+          <div className="flex items-center space-x-1.5 text-zinc-400">
+            <span className="text-zinc-500 text-[11px]">Size:</span>
+            <select
+              value={selectedSize ?? ''}
+              onChange={(e) => {
+                const val = e.target.value ? parseInt(e.target.value, 10) : undefined;
+                setSelectedSize(val);
+                setTimeout(() => searchCatalog(), 50);
+              }}
+              className="px-2.5 py-1.5 rounded-lg bg-white/5 border border-white/10 text-xs font-medium text-zinc-200 focus:outline-none focus:ring-1 focus:ring-cyan-500/50 cursor-pointer"
+            >
+              <option value="" className="bg-[#0c1017] text-zinc-200">Any Size</option>
+              <option value="524288000" className="bg-[#0c1017] text-zinc-200">&lt; 500 MB</option>
+              <option value="2147483648" className="bg-[#0c1017] text-zinc-200">&lt; 2 GB</option>
+              <option value="5368709120" className="bg-[#0c1017] text-zinc-200">&lt; 5 GB</option>
+              <option value="10737418240" className="bg-[#0c1017] text-zinc-200">&lt; 10 GB</option>
+            </select>
+          </div>
+
+          {/* Sorting Dropdown */}
+          <div className="flex items-center space-x-1.5 text-zinc-400">
+            <span className="text-zinc-500 text-[11px]">Sort:</span>
+            <select
+              value={sortOption}
+              onChange={(e) => {
+                setSortOption(e.target.value as SortOption);
+              }}
+              className="px-2.5 py-1.5 rounded-lg bg-white/5 border border-white/10 text-xs font-medium text-zinc-200 focus:outline-none focus:ring-1 focus:ring-cyan-500/50 cursor-pointer"
+            >
+              <option value="relevance" className="bg-[#0c1017] text-zinc-200">Best Match</option>
+              <option value="title_asc" className="bg-[#0c1017] text-zinc-200">Title (A-Z)</option>
+              <option value="title_desc" className="bg-[#0c1017] text-zinc-200">Title (Z-A)</option>
+              <option value="size_desc" className="bg-[#0c1017] text-zinc-200">Size (Largest)</option>
+              <option value="size_asc" className="bg-[#0c1017] text-zinc-200">Size (Smallest)</option>
+              <option value="updated_desc" className="bg-[#0c1017] text-zinc-200">Recently Updated</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Row 3: Conditional Active Filters Bar with Inline Reset All */}
         {hasActiveFilters && (
-          <div className="flex flex-wrap items-center gap-2 pt-1">
-            <span className="text-[11px] font-medium text-slate-400 dark:text-slate-500">
-              Active filters:
-            </span>
+          <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-white/5 text-xs">
+            <span className="text-[11px] text-zinc-500">Active:</span>
+
             {searchQuery && (
-              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-500/20">
-                Query: "{searchQuery}"
-                <button onClick={() => setSearchQuery('')} className="hover:opacity-75">
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-white/5 text-zinc-300 border border-white/10">
+                "{searchQuery}"
+                <button
+                  onClick={() => {
+                    setSearchQuery('');
+                    setTimeout(() => searchCatalog(), 50);
+                  }}
+                  className="hover:text-white"
+                >
                   <X className="w-3 h-3" />
                 </button>
               </span>
             )}
+
             {selectedCategory !== 'all' && (
-              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-500/20">
-                Category: {getCategoryLabel(selectedCategory)}
-                <button onClick={() => setSelectedCategory('all')} className="hover:opacity-75">
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-white/5 text-zinc-300 border border-white/10">
+                {getCategoryLabel(selectedCategory)}
+                <button
+                  onClick={() => {
+                    setSelectedCategory('all');
+                    setTimeout(() => searchCatalog(), 50);
+                  }}
+                  className="hover:text-white"
+                >
                   <X className="w-3 h-3" />
                 </button>
               </span>
             )}
+
             {selectedLang !== 'all' && (
-              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-500/20">
-                Lang: {getLanguageLabel(selectedLang)}
-                <button onClick={() => setSelectedLang('all')} className="hover:opacity-75">
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-white/5 text-zinc-300 border border-white/10">
+                {getLanguageLabel(selectedLang)}
+                <button
+                  onClick={() => {
+                    setSelectedLang('all');
+                    setTimeout(() => searchCatalog(), 50);
+                  }}
+                  className="hover:text-white"
+                >
                   <X className="w-3 h-3" />
                 </button>
               </span>
             )}
+
             {selectedSize !== undefined && (
-              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-500/20">
-                Max: {formatBytes(selectedSize)}
-                <button onClick={() => setSelectedSize(undefined)} className="hover:opacity-75">
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-white/5 text-zinc-300 border border-white/10">
+                &lt; {formatBytes(selectedSize)}
+                <button
+                  onClick={() => {
+                    setSelectedSize(undefined);
+                    setTimeout(() => searchCatalog(), 50);
+                  }}
+                  className="hover:text-white"
+                >
                   <X className="w-3 h-3" />
                 </button>
               </span>
             )}
+
+            {/* Inline subtle Reset All */}
+            <button
+              type="button"
+              onClick={handleResetFilters}
+              className="text-xs text-zinc-400 hover:text-white transition-colors ml-1 underline decoration-zinc-600 underline-offset-2"
+            >
+              Reset all
+            </button>
           </div>
         )}
       </div>
@@ -976,88 +998,94 @@ export const CatalogBrowser: React.FC<Props> = ({
               return (
                 <div
                   key={archive.id}
-                  className="group relative p-4 rounded-2xl bg-white/70 dark:bg-[#0c1017]/80 backdrop-blur-xl border border-black/[0.06] dark:border-white/[0.07] hover:border-sky-500/40 dark:hover:border-sky-500/40 transition-all flex flex-col justify-between shadow-[0_2px_12px_rgb(0,0,0,0.04)] dark:shadow-[0_2px_12px_rgb(0,0,0,0.2)] hover:shadow-lg"
+                  className="group relative p-4 rounded-2xl bg-[#0a0a0c]/80 backdrop-blur-xl border border-white/10 hover:border-cyan-500/30 hover:bg-white/[0.02] transition-all duration-200 flex flex-col justify-between shadow-[0_4px_20px_rgb(0,0,0,0.3)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.5)]"
                 >
                   <div>
-                    {/* Card Header */}
-                    <div className="flex items-start space-x-3 mb-3">
+                    {/* Top Section: Icon + Title First, Subtitle below */}
+                    <div className="flex items-start space-x-3 mb-2.5">
                       {archive.illustration_url ? (
                         <img
                           src={archive.illustration_url}
                           alt={archive.title}
-                          className="w-12 h-12 rounded-xl object-contain bg-slate-100 dark:bg-[#131823] p-1.5 shrink-0 border border-black/[0.04] dark:border-white/[0.08]"
+                          className="w-11 h-11 rounded-xl object-contain bg-white/5 p-1 shrink-0 border border-white/10"
                           onError={(e) => {
                             (e.target as HTMLElement).style.display = 'none';
                           }}
                         />
                       ) : (
-                        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-sky-500/10 to-indigo-500/10 dark:from-sky-500/20 dark:to-indigo-500/20 border border-sky-500/20 flex items-center justify-center shrink-0">
-                          <BookOpen className="w-5 h-5 text-sky-500" />
+                        <div className="w-11 h-11 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center shrink-0 text-cyan-400">
+                          <BookOpen className="w-5 h-5" />
                         </div>
                       )}
 
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-1.5 flex-wrap mb-1">
-                          {matchLabel && (
-                            <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-sky-500 text-white shadow-xs">
-                              {matchLabel}
-                            </span>
-                          )}
-                          {renderLanguageBadges(archive.language)}
-                          {archive.category && archive.category !== 'all' && (
-                            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-300">
-                              {getCategoryLabel(archive.category)}
-                            </span>
-                          )}
-                          {archive.is_installed && (
-                            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center gap-0.5">
-                              <CheckCircle2 className="w-3 h-3" />
-                              Installed
-                            </span>
-                          )}
-                        </div>
+                        <div className="flex items-start justify-between gap-1">
+                          <div className="min-w-0 flex-1">
+                            {/* Main Archive Title in bold white */}
+                            <h4
+                              className="text-base font-semibold text-white truncate leading-tight group-hover:text-cyan-200 transition-colors"
+                              title={archive.title}
+                            >
+                              {archive.title}
+                            </h4>
+                            {/* Collection/Source as muted subtitle */}
+                            <p className="text-xs text-zinc-400 truncate mt-0.5">
+                              {archive.category ? getCategoryLabel(archive.category) : 'General Reference'}
+                            </p>
+                          </div>
 
-                        <h4
-                          className="text-sm font-semibold text-slate-900 dark:text-white line-clamp-1"
-                          title={archive.title}
-                        >
-                          {archive.title}
-                        </h4>
+                          {/* Max 2 compact metadata pills on top-right */}
+                          <div className="flex items-center gap-1 shrink-0 pt-0.5">
+                            {matchLabel && (
+                              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-300 border border-cyan-500/20">
+                                {matchLabel}
+                              </span>
+                            )}
+                            {archive.is_installed ? (
+                              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/25 flex items-center gap-0.5">
+                                <CheckCircle2 className="w-2.5 h-2.5" />
+                                Installed
+                              </span>
+                            ) : (
+                              renderLanguageBadges(archive.language)
+                            )}
+                          </div>
+                        </div>
                       </div>
                     </div>
 
-                    {/* Description */}
-                    <p className="text-xs text-slate-600 dark:text-slate-400 line-clamp-3 mb-4 leading-relaxed min-h-[3rem]">
-                      {archive.description || 'No description provided for this archive.'}
+                    {/* Description with fixed line-clamp-2 and minimum height */}
+                    <p className="text-xs text-zinc-400 line-clamp-2 mb-3.5 leading-relaxed min-h-[2.5rem]">
+                      {archive.description || 'No description provided for this offline archive.'}
                     </p>
                   </div>
 
                   {/* Card Meta & Bottom Controls */}
-                  <div className="space-y-3 pt-3 border-t border-black/[0.04] dark:border-white/[0.06]">
+                  <div className="space-y-2.5 pt-2.5 border-t border-white/10">
                     {/* Meta Details */}
-                    <div className="grid grid-cols-2 gap-2 text-[11px] font-mono text-slate-500 dark:text-slate-400">
-                      <span className="flex items-center gap-1 font-semibold text-slate-700 dark:text-slate-300">
-                        <HardDrive className="w-3.5 h-3.5 text-slate-400" />
+                    <div className="grid grid-cols-2 gap-2 text-[11px] font-mono text-zinc-400">
+                      <span className="flex items-center gap-1 font-medium text-zinc-300">
+                        <HardDrive className="w-3 h-3 text-zinc-500" />
                         {formatBytes(archive.size_bytes)}
                       </span>
 
                       {archive.article_count !== undefined && archive.article_count !== null ? (
-                        <span className="flex items-center gap-1 text-right justify-end font-sans">
-                          <FileText className="w-3.5 h-3.5 text-slate-400" />
+                        <span className="flex items-center gap-1 text-right justify-end font-sans text-zinc-400">
+                          <FileText className="w-3 h-3 text-zinc-500" />
                           {archive.article_count.toLocaleString()} Articles
                         </span>
                       ) : (
-                        <span className="text-right text-slate-400">Standard Pack</span>
+                        <span className="text-right text-zinc-500 font-sans">Full Archive</span>
                       )}
                     </div>
 
-                    {/* Action Buttons */}
+                    {/* Action Controls */}
                     <div className="flex items-center gap-2">
                       <button
                         type="button"
                         onClick={() => setSelectedDetailsArchive(archive)}
-                        className="px-2.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10 text-slate-600 dark:text-slate-300 text-xs font-semibold flex items-center justify-center transition-colors shrink-0"
-                        title="View complete archive details & disk check"
+                        className="p-2 rounded-xl text-zinc-500 hover:text-zinc-200 hover:bg-white/5 border border-transparent hover:border-white/10 transition-colors shrink-0"
+                        title="View archive details & disk check"
                       >
                         <Info className="w-3.5 h-3.5" />
                       </button>
@@ -1071,15 +1099,15 @@ export const CatalogBrowser: React.FC<Props> = ({
                               : [...prev, archive.id]
                           );
                         }}
-                        className={`px-2.5 py-2 rounded-xl text-xs font-semibold flex items-center justify-center transition-colors shrink-0 ${
+                        className={`p-2 rounded-xl text-xs transition-colors shrink-0 ${
                           selectedBundleArchiveIds.includes(archive.id)
-                            ? 'bg-sky-500 text-white shadow-xs'
-                            : 'bg-slate-100 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10 text-slate-500 dark:text-slate-400'
+                            ? 'text-cyan-300 bg-cyan-500/20 border border-cyan-500/40'
+                            : 'text-zinc-500 hover:text-zinc-200 hover:bg-white/5 border border-transparent hover:border-white/10'
                         }`}
                         title={
                           selectedBundleArchiveIds.includes(archive.id)
-                            ? 'Remove from bundle selection'
-                            : 'Select archive for download bundle (DL-007)'
+                            ? 'Remove from bundle'
+                            : 'Add to bundle'
                         }
                       >
                         <PackagePlus className="w-3.5 h-3.5" />
@@ -1092,7 +1120,7 @@ export const CatalogBrowser: React.FC<Props> = ({
                               const archiveId = archive.name || archive.id;
                               if (onOpenArchiveReader) onOpenArchiveReader(archiveId);
                             }}
-                            className="w-full py-2 px-3 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors border border-emerald-500/20"
+                            className="w-full py-2 px-3 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors border border-emerald-500/20"
                           >
                             <BookOpen className="w-3.5 h-3.5" />
                             <span>Browse in Library</span>
@@ -1100,7 +1128,7 @@ export const CatalogBrowser: React.FC<Props> = ({
                         ) : isDownloading ? (
                           <button
                             disabled
-                            className="w-full py-2 px-3 rounded-xl bg-sky-500/15 text-sky-600 dark:text-sky-400 text-xs font-semibold flex items-center justify-center gap-2 cursor-wait border border-sky-500/20"
+                            className="w-full py-2 px-3 rounded-xl bg-cyan-500/15 text-cyan-300 text-xs font-semibold flex items-center justify-center gap-2 cursor-wait border border-cyan-500/25"
                           >
                             <Loader2 className="w-3.5 h-3.5 animate-spin" />
                             <span>
@@ -1110,14 +1138,15 @@ export const CatalogBrowser: React.FC<Props> = ({
                         ) : isPaused ? (
                           <button
                             disabled
-                            className="w-full py-2 px-3 rounded-xl bg-amber-500/15 text-amber-600 dark:text-amber-400 text-xs font-semibold flex items-center justify-center gap-2 border border-amber-500/20"
+                            className="w-full py-2 px-3 rounded-xl bg-amber-500/15 text-amber-300 text-xs font-semibold flex items-center justify-center gap-2 border border-amber-500/25"
                           >
                             <span>Paused</span>
                           </button>
                         ) : (
+                          /* Tonal / Secondary Ghost CTA by default; solid bright cyan on hover */
                           <button
                             onClick={() => handleStartDownload(archive)}
-                            className="w-full py-2 px-3 rounded-xl bg-sky-500 hover:bg-sky-600 text-white text-xs font-semibold flex items-center justify-center gap-1.5 shadow-sm shadow-sky-500/25 transition-all"
+                            className="w-full py-2 px-3 rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/25 hover:bg-cyan-500 hover:text-slate-950 group-hover:bg-cyan-500 group-hover:text-slate-950 font-medium text-xs flex items-center justify-center gap-1.5 transition-all duration-200"
                           >
                             <Download className="w-3.5 h-3.5" />
                             <span>Download Archive</span>
