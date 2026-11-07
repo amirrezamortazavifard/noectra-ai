@@ -1,3 +1,9 @@
+export interface CatalogLanguage {
+  code: string;
+  name: string;
+  count?: number;
+}
+
 export interface ZimArchive {
   id: string;
   title: string;
@@ -143,13 +149,26 @@ export class KnowledgeService {
     }
   }
 
-  static async fetchLanguages(): Promise<string[]> {
+  static async fetchLanguages(): Promise<CatalogLanguage[]> {
     try {
       const res = await this.apiFetch('/languages');
       if (!res.ok) return [];
       return res.json();
     } catch {
       return [];
+    }
+  }
+
+  static async browseLocalZimFile(): Promise<string | null> {
+    try {
+      const res = await this.apiFetch('/browse-file', { method: 'POST' });
+      if (!res.ok) return null;
+      const data = await res.json();
+      if (data.cancelled || !data.file_path) return null;
+      return data.file_path;
+    } catch (e) {
+      console.warn('Failed to open native file dialog:', e);
+      return null;
     }
   }
 

@@ -1,6 +1,13 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CatalogLanguage {
+    pub code: String,
+    pub name: String,
+    pub count: Option<u64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ZimArchive {
     pub id: String,
     pub title: String,

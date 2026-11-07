@@ -8,6 +8,7 @@ use zim::Zim;
 #[derive(Clone)]
 pub struct LibraryManager {
     pub zim_dir: PathBuf,
+    pub manifest_path: PathBuf,
     pub external_paths: Arc<RwLock<Vec<PathBuf>>>,
 }
 
@@ -15,10 +16,28 @@ impl LibraryManager {
     pub fn new(app_data_dir: &Path) -> Self {
         let zim_dir = app_data_dir.join("zim");
         let _ = std::fs::create_dir_all(&zim_dir);
+        let manifest_path = zim_dir.join("external_archives.json");
+
+        let mut loaded_paths = Vec::new();
+        if manifest_path.exists() {
+            if let Ok(content) = std::fs::read_to_string(&manifest_path) {
+                if let Ok(paths) = serde_json::from_str::<Vec<PathBuf>>(&content) {
+                    loaded_paths = paths;
+                }
+            }
+        }
 
         Self {
             zim_dir,
-            external_paths: Arc::new(RwLock::new(Vec::new())),
+            manifest_path,
+            external_paths: Arc::new(RwLock::new(loaded_paths)),
+        }
+    }
+
+    pub async fn persist_external_manifest(&self) {
+        let externals = self.external_paths.read().await;
+        if let Ok(json) = serde_json::to_string_pretty(&*externals) {
+            let _ = std::fs::write(&self.manifest_path, json);
         }
     }
 
@@ -193,10 +212,13 @@ impl LibraryManager {
             }
             self.inspect_zim_file(&dest_path, false)
         } else {
-            let mut externals = self.external_paths.write().await;
-            if !externals.contains(&source_path) {
-                externals.push(source_path.clone());
+            {
+                let mut externals = self.external_paths.write().await;
+                if !externals.contains(&source_path) {
+                    externals.push(source_path.clone());
+                }
             }
+            self.persist_external_manifest().await;
             self.inspect_zim_file(&source_path, true)
         }
     }
@@ -216,25 +238,28 @@ impl LibraryManager {
         }
 
         // Check in externals
-        let mut externals = self.external_paths.write().await;
         let mut found_path = None;
-        externals.retain(|p| {
-            let is_match = p
-                .file_name()
-                .map(|f| {
-                    f.to_string_lossy() == id_or_filename
-                        || f.to_string_lossy() == format!("{}.zim", id_or_filename)
-                        || f.to_string_lossy().trim_end_matches(".zim") == id_or_filename
-                })
-                .unwrap_or(false);
+        {
+            let mut externals = self.external_paths.write().await;
+            externals.retain(|p| {
+                let is_match = p
+                    .file_name()
+                    .map(|f| {
+                        f.to_string_lossy() == id_or_filename
+                            || f.to_string_lossy() == format!("{}.zim", id_or_filename)
+                            || f.to_string_lossy().trim_end_matches(".zim") == id_or_filename
+                    })
+                    .unwrap_or(false);
 
-            if is_match {
-                found_path = Some(p.clone());
-                false
-            } else {
-                true
-            }
-        });
+                if is_match {
+                    found_path = Some(p.clone());
+                    false
+                } else {
+                    true
+                }
+            });
+        }
+        self.persist_external_manifest().await;
 
         if delete_from_disk {
             if let Some(p) = found_path {

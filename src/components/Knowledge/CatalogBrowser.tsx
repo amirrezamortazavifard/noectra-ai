@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   ZimArchive,
   KnowledgeService,
   CatalogFilterParams,
   DownloadTask,
+  CatalogLanguage,
 } from '@/lib/services/knowledge';
 import {
   Search,
@@ -38,7 +39,7 @@ export const CatalogBrowser: React.FC<Props> = ({
 }) => {
   const [archives, setArchives] = useState<ZimArchive[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
-  const [languages, setLanguages] = useState<string[]>([]);
+  const [languages, setLanguages] = useState<CatalogLanguage[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [searchQuery, setSearchQuery] = useState<string>('medicine');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -58,19 +59,157 @@ export const CatalogBrowser: React.FC<Props> = ({
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
   };
 
+  const getCategoryLabel = (cat: string) => {
+    const map: Record<string, string> = {
+      wikipedia: 'Wikipedia',
+      wikimed: 'WikiMed (Medical)',
+      wikibooks: 'WikiBooks',
+      wikisource: 'WikiSource',
+      wiktionary: 'Wiktionary (Dictionary)',
+      wikivoyage: 'WikiVoyage (Travel)',
+      wikiversity: 'WikiVersity',
+      wikiquote: 'WikiQuote',
+      gutenberg: 'Project Gutenberg (Books)',
+      ted: 'TED Talks (Videos)',
+      phet: 'PhET Science Simulations',
+      ifixit: 'iFixit Repair Manuals',
+      stack_exchange: 'Stack Exchange Q&A',
+      mooc: 'MOOC & Online Courses',
+      psiram: 'Psiram Science Wiki',
+      other: 'Other Collections',
+    };
+    return map[cat.toLowerCase()] || cat.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+  };
+
   const getLanguageLabel = (code: string) => {
+    const cleanCode = code.trim().toLowerCase();
     const map: Record<string, string> = {
       fas: 'Persian (فارسی)',
+      fa: 'Persian (فارسی)',
+      per: 'Persian (فارسی)',
       eng: 'English',
+      en: 'English',
       ara: 'Arabic (العربية)',
-      fra: 'French',
-      deu: 'German',
-      spa: 'Spanish',
-      ita: 'Italian',
-      rus: 'Russian',
-      zho: 'Chinese',
+      ar: 'Arabic (العربية)',
+      fra: 'French (Français)',
+      fr: 'French (Français)',
+      deu: 'German (Deutsch)',
+      de: 'German (Deutsch)',
+      spa: 'Spanish (Español)',
+      es: 'Spanish (Español)',
+      ita: 'Italian (Italiano)',
+      it: 'Italian (Italiano)',
+      rus: 'Russian (Русский)',
+      ru: 'Russian (Русский)',
+      zho: 'Chinese (中文)',
+      zh: 'Chinese (中文)',
+      tur: 'Turkish (Türkçe)',
+      tr: 'Turkish (Türkçe)',
+      por: 'Portuguese (Português)',
+      pt: 'Portuguese (Português)',
+      hin: 'Hindi (हिन्दी)',
+      hi: 'Hindi (हिन्दी)',
+      jpn: 'Japanese (日本語)',
+      ja: 'Japanese (日本語)',
+      kor: 'Korean (한국어)',
+      ko: 'Korean (한국어)',
+      nld: 'Dutch (Nederlands)',
+      nl: 'Dutch (Nederlands)',
+      pol: 'Polish (Polski)',
+      pl: 'Polish (Polski)',
+      ukr: 'Ukrainian (Українська)',
+      uk: 'Ukrainian (Українська)',
+      vie: 'Vietnamese (Tiếng Việt)',
+      vi: 'Vietnamese (Tiếng Việt)',
+      swe: 'Swedish (Svenska)',
+      sv: 'Swedish (Svenska)',
     };
-    return map[code] || code.toUpperCase();
+
+    if (map[cleanCode]) return map[cleanCode];
+
+    const found = languages.find((l) => l.code === cleanCode);
+    if (found) return found.name;
+
+    return code.toUpperCase();
+  };
+
+  // Sort and prioritize languages list
+  const sortedLanguages = useMemo(() => {
+    const priorityCodes = ['eng', 'fas', 'ara', 'spa', 'fra', 'deu', 'zho', 'rus', 'tur', 'ita'];
+    const priorityList: CatalogLanguage[] = [];
+    const othersList: CatalogLanguage[] = [];
+
+    // Pre-seed priority languages if not fetched yet
+    const knownPriority: CatalogLanguage[] = [
+      { code: 'eng', name: 'English' },
+      { code: 'fas', name: 'Persian (فارسی)' },
+      { code: 'ara', name: 'Arabic (العربية)' },
+      { code: 'spa', name: 'Spanish (Español)' },
+      { code: 'fra', name: 'French (Français)' },
+      { code: 'deu', name: 'German (Deutsch)' },
+      { code: 'zho', name: 'Chinese (中文)' },
+      { code: 'rus', name: 'Russian (Русский)' },
+      { code: 'tur', name: 'Turkish (Türkçe)' },
+      { code: 'ita', name: 'Italian (Italiano)' },
+    ];
+
+    const source = languages.length > 0 ? languages : knownPriority;
+
+    for (const item of source) {
+      if (priorityCodes.includes(item.code)) {
+        priorityList.push(item);
+      } else {
+        othersList.push(item);
+      }
+    }
+
+    // Sort priority in the order of priorityCodes
+    priorityList.sort((a, b) => priorityCodes.indexOf(a.code) - priorityCodes.indexOf(b.code));
+    othersList.sort((a, b) => a.name.localeCompare(b.name));
+
+    return [...priorityList, ...othersList];
+  }, [languages]);
+
+  const renderLanguageBadges = (langStr: string) => {
+    if (!langStr) return null;
+    const codes = langStr
+      .split(',')
+      .map((c) => c.trim().toLowerCase())
+      .filter(Boolean);
+
+    if (codes.length === 0) return null;
+
+    if (codes.length === 1) {
+      const code = codes[0];
+      const label = getLanguageLabel(code);
+      return (
+        <span
+          className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-500/20 truncate max-w-[120px]"
+          title={label}
+        >
+          {label}
+        </span>
+      );
+    }
+
+    // Multi-language archive (e.g. TED talks with 20+ subtitles)
+    const primary = getLanguageLabel(codes[0]);
+    const remainingCount = codes.length - 1;
+    const allLabels = codes.map((c) => getLanguageLabel(c)).join(', ');
+
+    return (
+      <div
+        className="inline-flex items-center gap-1 cursor-help"
+        title={`Supported languages (${codes.length}): ${allLabels}`}
+      >
+        <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-500/20 truncate max-w-[80px]">
+          {primary}
+        </span>
+        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-300">
+          +{remainingCount}
+        </span>
+      </div>
+    );
   };
 
   const loadCategoriesAndLangs = async () => {
@@ -191,14 +330,16 @@ export const CatalogBrowser: React.FC<Props> = ({
               <select
                 value={selectedCategory}
                 onChange={(e) => setSelectedCategory(e.target.value)}
-                className="px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-[#131823] border border-black/[0.06] dark:border-white/[0.08] text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-sky-500 cursor-pointer"
+                className="max-w-[200px] px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-[#131823] border border-black/[0.06] dark:border-white/[0.08] text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-sky-500 cursor-pointer"
               >
                 <option value="all">All Categories</option>
-                {categories.map((c) => (
-                  <option key={c} value={c}>
-                    {c.charAt(0).toUpperCase() + c.slice(1)}
-                  </option>
-                ))}
+                {categories
+                  .filter((c) => !c.includes('<') && !c.includes('>'))
+                  .map((c) => (
+                    <option key={c} value={c}>
+                      {getCategoryLabel(c)}
+                    </option>
+                  ))}
               </select>
             </div>
 
@@ -209,22 +350,15 @@ export const CatalogBrowser: React.FC<Props> = ({
               <select
                 value={selectedLang}
                 onChange={(e) => setSelectedLang(e.target.value)}
-                className="px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-[#131823] border border-black/[0.06] dark:border-white/[0.08] text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-sky-500 cursor-pointer"
+                className="max-w-[220px] px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-[#131823] border border-black/[0.06] dark:border-white/[0.08] text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-sky-500 cursor-pointer"
               >
                 <option value="all">All Languages</option>
-                <option value="fas">Persian (فارسی)</option>
-                <option value="eng">English</option>
-                <option value="ara">Arabic (العربية)</option>
-                <option value="fra">French (Français)</option>
-                <option value="deu">German (Deutsch)</option>
-                <option value="spa">Spanish (Español)</option>
-                {languages
-                  .filter((l) => !['fas', 'eng', 'ara', 'fra', 'deu', 'spa'].includes(l))
-                  .map((l) => (
-                    <option key={l} value={l}>
-                      {l.toUpperCase()}
-                    </option>
-                  ))}
+                {sortedLanguages.map((l) => (
+                  <option key={l.code} value={l.code}>
+                    {l.name} ({l.code.toUpperCase()})
+                    {l.count ? ` • ${l.count.toLocaleString()}` : ''}
+                  </option>
+                ))}
               </select>
             </div>
 
@@ -415,12 +549,10 @@ export const CatalogBrowser: React.FC<Props> = ({
 
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5 flex-wrap mb-1">
-                        <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-600 dark:text-sky-400">
-                          {archive.language.toUpperCase()}
-                        </span>
+                        {renderLanguageBadges(archive.language)}
                         {archive.category && archive.category !== 'all' && (
                           <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-300">
-                            {archive.category}
+                            {getCategoryLabel(archive.category)}
                           </span>
                         )}
                         {archive.is_installed && (
@@ -556,9 +688,15 @@ export const CatalogBrowser: React.FC<Props> = ({
 
             <div className="p-3 rounded-xl bg-slate-50 dark:bg-[#131823] border border-black/[0.04] dark:border-white/[0.06] space-y-2 text-xs">
               <div className="flex justify-between">
-                <span className="text-slate-400">Language:</span>
+                <span className="text-slate-400">Category:</span>
                 <span className="font-semibold text-slate-700 dark:text-slate-200">
-                  {getLanguageLabel(selectedDetailsArchive.language)}
+                  {getCategoryLabel(selectedDetailsArchive.category)}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Language:</span>
+                <span className="font-semibold text-slate-700 dark:text-slate-200 text-right max-w-[260px] truncate" title={selectedDetailsArchive.language}>
+                  {selectedDetailsArchive.language.split(',').map((c) => getLanguageLabel(c)).join(', ')}
                 </span>
               </div>
               <div className="flex justify-between">

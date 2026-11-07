@@ -1,4 +1,4 @@
-use crate::knowledge_store::models::{CatalogResponse, ZimArchive};
+use crate::knowledge_store::models::{CatalogLanguage, CatalogResponse, ZimArchive};
 use quick_xml::events::Event;
 use quick_xml::Reader;
 
@@ -212,4 +212,171 @@ pub fn parse_opds_feed(xml: &str, base_url: &str) -> Result<CatalogResponse, Str
         items_per_page: if items_per_page == 0 { entries.len() } else { items_per_page },
         entries,
     })
+}
+
+pub fn parse_opds_categories(xml: &str) -> Vec<String> {
+    let mut reader = Reader::from_str(xml);
+    reader.config_mut().trim_text(true);
+
+    let mut buf = Vec::new();
+    let mut categories = Vec::new();
+    let mut in_entry = false;
+    let mut current_tag = String::new();
+    let mut title = String::new();
+
+    loop {
+        match reader.read_event_into(&mut buf) {
+            Ok(Event::Start(ref e)) => {
+                let name = String::from_utf8_lossy(e.name().as_ref()).to_string();
+                let local_name = name.split(':').last().unwrap_or(&name).to_string();
+                if local_name == "entry" {
+                    in_entry = true;
+                    title.clear();
+                }
+                current_tag = local_name;
+            }
+            Ok(Event::Text(e)) => {
+                if in_entry && current_tag == "title" {
+                    if let Ok(t) = e.unescape() {
+                        title = t.trim().to_lowercase();
+                    }
+                }
+            }
+            Ok(Event::End(ref e)) => {
+                let name = String::from_utf8_lossy(e.name().as_ref()).to_string();
+                let local_name = name.split(':').last().unwrap_or(&name).to_string();
+                if local_name == "entry" {
+                    in_entry = false;
+                    let clean = title.trim();
+                    if !clean.is_empty()
+                        && !clean.contains('<')
+                        && !clean.contains('>')
+                        && !clean.contains('/')
+                        && !clean.contains("xml")
+                        && !clean.contains("feed")
+                    {
+                        categories.push(clean.to_string());
+                    }
+                }
+                current_tag.clear();
+            }
+            Ok(Event::Eof) => break,
+            Err(_) => break,
+            _ => {}
+        }
+        buf.clear();
+    }
+
+    if categories.is_empty() {
+        vec![
+            "wikipedia".to_string(),
+            "wikimed".to_string(),
+            "wikibooks".to_string(),
+            "wikisource".to_string(),
+            "wiktionary".to_string(),
+            "wikivoyage".to_string(),
+            "wikiversity".to_string(),
+            "wikiquote".to_string(),
+            "gutenberg".to_string(),
+            "ted".to_string(),
+            "phet".to_string(),
+            "ifixit".to_string(),
+            "stack_exchange".to_string(),
+            "other".to_string(),
+        ]
+    } else {
+        categories.sort();
+        categories.dedup();
+        categories
+    }
+}
+
+pub fn parse_opds_languages(xml: &str) -> Vec<CatalogLanguage> {
+    let mut reader = Reader::from_str(xml);
+    reader.config_mut().trim_text(true);
+
+    let mut buf = Vec::new();
+    let mut languages = Vec::new();
+    let mut in_entry = false;
+    let mut current_tag = String::new();
+    let mut title = String::new();
+    let mut code = String::new();
+    let mut count: Option<u64> = None;
+
+    loop {
+        match reader.read_event_into(&mut buf) {
+            Ok(Event::Start(ref e)) => {
+                let name = String::from_utf8_lossy(e.name().as_ref()).to_string();
+                let local_name = name.split(':').last().unwrap_or(&name).to_string();
+                if local_name == "entry" {
+                    in_entry = true;
+                    title.clear();
+                    code.clear();
+                    count = None;
+                }
+                current_tag = local_name;
+            }
+            Ok(Event::Text(e)) => {
+                if in_entry {
+                    if let Ok(t) = e.unescape() {
+                        let text = t.trim();
+                        if current_tag == "title" {
+                            title = text.to_string();
+                        } else if current_tag == "language" {
+                            code = text.to_lowercase();
+                        } else if current_tag == "count" {
+                            count = text.parse::<u64>().ok();
+                        }
+                    }
+                }
+            }
+            Ok(Event::End(ref e)) => {
+                let name = String::from_utf8_lossy(e.name().as_ref()).to_string();
+                let local_name = name.split(':').last().unwrap_or(&name).to_string();
+                if local_name == "entry" {
+                    in_entry = false;
+                    let clean_code = code.trim().to_lowercase();
+                    let clean_name = title.trim().to_string();
+                    if !clean_code.is_empty()
+                        && !clean_code.contains('<')
+                        && !clean_name.is_empty()
+                        && !clean_name.contains('<')
+                    {
+                        languages.push(CatalogLanguage {
+                            code: clean_code,
+                            name: clean_name,
+                            count,
+                        });
+                    }
+                }
+                current_tag.clear();
+            }
+            Ok(Event::Eof) => break,
+            Err(_) => break,
+            _ => {}
+        }
+        buf.clear();
+    }
+
+    if languages.is_empty() {
+        vec![
+            CatalogLanguage { code: "eng".to_string(), name: "English".to_string(), count: None },
+            CatalogLanguage { code: "fas".to_string(), name: "Persian (فارسی)".to_string(), count: None },
+            CatalogLanguage { code: "ara".to_string(), name: "Arabic (العربية)".to_string(), count: None },
+            CatalogLanguage { code: "spa".to_string(), name: "Spanish (Español)".to_string(), count: None },
+            CatalogLanguage { code: "fra".to_string(), name: "French (Français)".to_string(), count: None },
+            CatalogLanguage { code: "deu".to_string(), name: "German (Deutsch)".to_string(), count: None },
+            CatalogLanguage { code: "rus".to_string(), name: "Russian (Русский)".to_string(), count: None },
+            CatalogLanguage { code: "zho".to_string(), name: "Chinese (中文)".to_string(), count: None },
+            CatalogLanguage { code: "ita".to_string(), name: "Italian (Italiano)".to_string(), count: None },
+            CatalogLanguage { code: "tur".to_string(), name: "Turkish (Türkçe)".to_string(), count: None },
+        ]
+    } else {
+        languages.sort_by(|a, b| {
+            let count_b = b.count.unwrap_or(0);
+            let count_a = a.count.unwrap_or(0);
+            count_b.cmp(&count_a).then_with(|| a.name.cmp(&b.name))
+        });
+        languages
+    }
 }

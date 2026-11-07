@@ -52,6 +52,35 @@ export const InstalledLibraryView: React.FC<Props> = ({
   const [importPath, setImportPath] = useState('');
   const [copyToLibrary, setCopyToLibrary] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleBrowseFile = async () => {
+    try {
+      const selected = await KnowledgeService.browseLocalZimFile();
+      if (selected) {
+        setImportPath(selected);
+        setShowImportModal(true);
+        toast.success(`Selected: ${selected.split(/[\\/]/).pop()}`);
+        return;
+      }
+    } catch (e) {
+      console.warn('Native dialog error, falling back to input:', e);
+    }
+
+    fileInputRef.current?.click();
+  };
+
+  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      const file = e.target.files[0];
+      const path = (file as any).path || file.name;
+      if (path) {
+        setImportPath(path);
+        setShowImportModal(true);
+        toast.success(`Selected: ${file.name}`);
+      }
+    }
+  };
 
   // Delete modal state
   const [archiveToDelete, setArchiveToDelete] = useState<ZimLibraryItem | null>(null);
@@ -406,7 +435,7 @@ export const InstalledLibraryView: React.FC<Props> = ({
 
           {/* Import Action Button */}
           <button
-            onClick={() => setShowImportModal(true)}
+            onClick={handleBrowseFile}
             className="px-4 py-2 rounded-xl bg-sky-500 hover:bg-sky-600 active:scale-98 text-white text-xs font-semibold shadow-md shadow-sky-500/20 transition-all flex items-center gap-2 shrink-0 ml-auto lg:ml-0"
           >
             <Plus className="w-3.5 h-3.5" />
@@ -619,32 +648,78 @@ export const InstalledLibraryView: React.FC<Props> = ({
             </div>
 
             <form onSubmit={handleImportSubmit} className="space-y-4">
+              {/* Clickable Browse & Drop Zone */}
+              <div
+                onClick={handleBrowseFile}
+                className="p-5 rounded-2xl border-2 border-dashed border-sky-500/30 dark:border-sky-500/20 hover:border-sky-500/60 bg-sky-500/[0.03] hover:bg-sky-500/[0.08] transition-all cursor-pointer flex flex-col items-center justify-center text-center space-y-2 group"
+              >
+                <div className="w-12 h-12 rounded-xl bg-sky-500/10 text-sky-500 group-hover:scale-105 flex items-center justify-center transition-transform">
+                  <FolderOpen className="w-6 h-6" />
+                </div>
+                <div>
+                  <span className="text-xs font-bold text-slate-900 dark:text-white">
+                    Click to Browse & Select .zim File
+                  </span>
+                  <span className="text-[11px] text-slate-500 dark:text-slate-400 block mt-0.5">
+                    or drag & drop your archive directly into this area
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleBrowseFile();
+                  }}
+                  className="mt-1 px-4 py-1.5 rounded-lg bg-sky-500/15 hover:bg-sky-500/25 text-sky-600 dark:text-sky-400 text-xs font-semibold inline-flex items-center gap-1.5 transition-colors"
+                >
+                  <FolderOpen className="w-3.5 h-3.5" />
+                  <span>Choose File with Explorer</span>
+                </button>
+              </div>
+
+              {/* Hidden HTML5 File Input Fallback */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".zim"
+                className="hidden"
+                onChange={handleFileInputChange}
+              />
+
               <div>
                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
-                  Absolute File Path (.zim):
+                  Selected File Path:
                 </label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={importPath}
-                    onChange={(e) => setImportPath(e.target.value)}
-                    placeholder="e.g. C:\Users\Downloads\wikipedia_en_all_maxi.zim"
-                    className="w-full pl-3 pr-10 py-2.5 rounded-xl bg-slate-100/90 dark:bg-white/[0.05] border border-black/[0.06] dark:border-white/[0.08] text-xs font-mono text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-500/40 transition-all"
-                    required
-                  />
-                  {importPath && (
-                    <button
-                      type="button"
-                      onClick={() => setImportPath('')}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  )}
+                <div className="flex items-center gap-2">
+                  <div className="relative flex-1">
+                    <input
+                      type="text"
+                      value={importPath}
+                      onChange={(e) => setImportPath(e.target.value)}
+                      placeholder="Browse a file above or enter path..."
+                      className="w-full pl-3 pr-8 py-2.5 rounded-xl bg-slate-100/90 dark:bg-white/[0.05] border border-black/[0.06] dark:border-white/[0.08] text-xs font-mono text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-500/40 transition-all"
+                      required
+                    />
+                    {importPath && (
+                      <button
+                        type="button"
+                        onClick={() => setImportPath('')}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleBrowseFile}
+                    className="px-3.5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/10 dark:hover:bg-white/15 text-slate-800 dark:text-white text-xs font-bold flex items-center gap-1.5 border border-black/[0.06] dark:border-white/[0.08] transition-all shrink-0"
+                    title="Open native file explorer"
+                  >
+                    <FolderOpen className="w-3.5 h-3.5 text-sky-500" />
+                    <span>Browse</span>
+                  </button>
                 </div>
-                <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1.5">
-                  Tip: You can also drag and drop any .zim file directly into this window.
-                </p>
               </div>
 
               {/* Copy file toggle */}

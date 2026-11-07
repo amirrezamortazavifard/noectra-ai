@@ -16,7 +16,7 @@ use catalog_client::KiwixCatalogClient;
 use download_manager::DownloadManager;
 use library_manager::LibraryManager;
 use models::{
-    CatalogQuery, CatalogResponse, DownloadTask, ImportLocalZimRequest,
+    CatalogLanguage, CatalogQuery, CatalogResponse, DownloadTask, ImportLocalZimRequest,
     StartDownloadRequest, ZimArchive, ZimArticleContent, ZimArticleSummary,
     ZimLibraryItem,
 };
@@ -53,6 +53,7 @@ pub fn create_knowledge_router(state: KnowledgeStoreState) -> Router {
         .route("/api/knowledge/catalog", get(get_catalog_handler))
         .route("/api/knowledge/categories", get(get_categories_handler))
         .route("/api/knowledge/languages", get(get_languages_handler))
+        .route("/api/knowledge/browse-file", post(browse_zim_file_handler))
         .route("/api/knowledge/entry/:id", get(get_entry_handler))
         .route("/api/knowledge/library", get(get_library_handler))
         .route("/api/knowledge/import", post(import_zim_handler))
@@ -120,9 +121,32 @@ async fn get_categories_handler(
 
 async fn get_languages_handler(
     State(state): State<KnowledgeStoreState>,
-) -> Json<Vec<String>> {
+) -> Json<Vec<CatalogLanguage>> {
     let langs = state.catalog_client.get_languages().await.unwrap_or_default();
     Json(langs)
+}
+
+async fn browse_zim_file_handler() -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let chosen = tokio::task::spawn_blocking(|| {
+        rfd::FileDialog::new()
+            .add_filter("ZIM Archive", &["zim"])
+            .set_title("Select Local ZIM Archive")
+            .pick_file()
+    })
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    if let Some(path) = chosen {
+        Ok(Json(json!({
+            "cancelled": false,
+            "file_path": path.to_string_lossy().to_string()
+        })))
+    } else {
+        Ok(Json(json!({
+            "cancelled": true,
+            "file_path": null
+        })))
+    }
 }
 
 async fn get_entry_handler(

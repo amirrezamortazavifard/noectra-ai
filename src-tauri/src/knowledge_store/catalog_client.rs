@@ -1,5 +1,5 @@
-use crate::knowledge_store::models::{CatalogQuery, CatalogResponse, ZimArchive};
-use crate::knowledge_store::opds_parser::parse_opds_feed;
+use crate::knowledge_store::models::{CatalogLanguage, CatalogQuery, CatalogResponse, ZimArchive};
+use crate::knowledge_store::opds_parser::{parse_opds_categories, parse_opds_feed, parse_opds_languages};
 use reqwest::Client;
 use std::time::Duration;
 
@@ -76,72 +76,34 @@ impl KiwixCatalogClient {
     }
 
     pub async fn get_categories(&self) -> Result<Vec<String>, String> {
-        // Fallback default rich categories list
-        let default_categories = vec![
-            "wikipedia".to_string(),
-            "wikimed".to_string(),
-            "wikibooks".to_string(),
-            "wikisource".to_string(),
-            "wiktionary".to_string(),
-            "wikivoyage".to_string(),
-            "gutenberg".to_string(),
-            "stackexchange".to_string(),
-            "ted".to_string(),
-            "other".to_string(),
-        ];
-
         let endpoint = format!("{}/categories", self.base_url);
         match self.client.get(&endpoint).send().await {
             Ok(res) if res.status().is_success() => {
                 if let Ok(text) = res.text().await {
-                    let mut cats: Vec<String> = text
-                        .lines()
-                        .map(|l| l.trim().to_string())
-                        .filter(|l| !l.is_empty())
-                        .collect();
+                    let cats = parse_opds_categories(&text);
                     if !cats.is_empty() {
-                        cats.sort();
-                        cats.dedup();
                         return Ok(cats);
                     }
                 }
-                Ok(default_categories)
+                Ok(parse_opds_categories(""))
             }
-            _ => Ok(default_categories),
+            _ => Ok(parse_opds_categories("")),
         }
     }
 
-    pub async fn get_languages(&self) -> Result<Vec<String>, String> {
-        let default_langs = vec![
-            "eng".to_string(),
-            "fas".to_string(),
-            "ara".to_string(),
-            "fra".to_string(),
-            "deu".to_string(),
-            "spa".to_string(),
-            "ita".to_string(),
-            "rus".to_string(),
-            "zho".to_string(),
-        ];
-
+    pub async fn get_languages(&self) -> Result<Vec<CatalogLanguage>, String> {
         let endpoint = format!("{}/languages", self.base_url);
         match self.client.get(&endpoint).send().await {
             Ok(res) if res.status().is_success() => {
                 if let Ok(text) = res.text().await {
-                    let mut langs: Vec<String> = text
-                        .lines()
-                        .map(|l| l.trim().to_string())
-                        .filter(|l| !l.is_empty() && l.len() == 3)
-                        .collect();
+                    let langs = parse_opds_languages(&text);
                     if !langs.is_empty() {
-                        langs.sort();
-                        langs.dedup();
                         return Ok(langs);
                     }
                 }
-                Ok(default_langs)
+                Ok(parse_opds_languages(""))
             }
-            _ => Ok(default_langs),
+            _ => Ok(parse_opds_languages("")),
         }
     }
 

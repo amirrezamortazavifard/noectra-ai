@@ -73,7 +73,7 @@ const Sidebar = ({ children }: { children: React.ReactNode }) => {
 
   return (
     <div className="relative min-h-screen">
-      <aside className="hidden lg:fixed lg:inset-y-3 lg:left-3 lg:z-50 lg:flex lg:w-14 lg:flex-col">
+      <aside className="hidden lg:fixed lg:inset-y-3 lg:left-3 lg:z-50 lg:flex lg:w-16 lg:flex-col">
         <div className="relative flex grow flex-col items-center justify-between py-4 px-1.5 rounded-[24px] bg-white/70 dark:bg-[#0c1017]/75 backdrop-blur-[24px] border border-black/[0.06] dark:border-white/[0.06] shadow-[0_16px_40px_rgba(0,0,0,0.3),0_0_1px_rgba(255,255,255,0.06)] overflow-hidden transition-colors duration-300">
           <div
             className="pointer-events-none absolute -top-10 left-1/2 -translate-x-1/2 w-28 h-28 rounded-full opacity-35 dark:opacity-50 blur-xl"
@@ -137,9 +137,9 @@ const Sidebar = ({ children }: { children: React.ReactNode }) => {
 
                     <span
                       className={cn(
-                        'text-[8px] tracking-tight uppercase font-medium mt-0.5 transition-colors duration-200 truncate max-w-[50px] text-center',
+                        'text-[7.5px] tracking-tighter uppercase font-semibold mt-0.5 transition-colors duration-200 text-center leading-none w-full px-0.5',
                         link.active
-                          ? 'text-black/90 dark:text-[#4FC3F7] font-semibold'
+                          ? 'text-black/90 dark:text-[#4FC3F7]'
                           : 'text-black/45 dark:text-[rgba(255,255,255,0.45)] group-hover:text-black/80 dark:group-hover:text-[rgba(255,255,255,0.85)]',
                       )}
                     >
