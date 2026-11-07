@@ -22,7 +22,9 @@ pub struct DownloadManager {
 impl DownloadManager {
     pub fn new() -> Self {
         let client = Client::builder()
-            .timeout(Duration::from_secs(60))
+            .connect_timeout(Duration::from_secs(30))
+            .pool_idle_timeout(Duration::from_secs(90))
+            .tcp_keepalive(Duration::from_secs(30))
             .redirect(reqwest::redirect::Policy::limited(10))
             .build()
             .unwrap_or_default();
@@ -236,138 +238,192 @@ impl DownloadManager {
         pause_rx: watch::Receiver<bool>,
         cancel_rx: watch::Receiver<bool>,
     ) {
-        let mut existing_bytes: u64 = 0;
-        if part_path.exists() {
-            if let Ok(meta) = tokio::fs::metadata(&part_path).await {
-                existing_bytes = meta.len();
-            }
-        }
+        let max_retries = 10;
+        let mut retry_count = 0;
+        let mut final_downloaded: u64 = 0;
 
-        let mut headers = HeaderMap::new();
-        if existing_bytes > 0 {
-            if let Ok(val) = HeaderValue::from_str(&format!("bytes={}-", existing_bytes)) {
-                headers.insert(RANGE, val);
-            }
-        }
-
-        let resp_res = self.client.get(&url).headers(headers).send().await;
-        let response = match resp_res {
-            Ok(r) => r,
-            Err(e) => {
-                let mut map = self.tasks.write().await;
-                if let Some(t) = map.get_mut(&id) {
-                    t.status = DownloadStatus::Failed;
-                    t.error_message = Some(format!("Network error: {}", e));
+        loop {
+            let mut existing_bytes: u64 = 0;
+            if part_path.exists() {
+                if let Ok(meta) = tokio::fs::metadata(&part_path).await {
+                    existing_bytes = meta.len();
                 }
-                return;
             }
-        };
+            final_downloaded = existing_bytes;
 
-        let status = response.status();
-        let is_range_response = status.as_u16() == 206;
+            let mut headers = HeaderMap::new();
+            if existing_bytes > 0 {
+                if let Ok(val) = HeaderValue::from_str(&format!("bytes={}-", existing_bytes)) {
+                    headers.insert(RANGE, val);
+                }
+            }
 
-        let (mut file, mut downloaded) = if is_range_response && existing_bytes > 0 {
-            let f = match OpenOptions::new().create(true).append(true).open(&part_path).await {
-                Ok(f) => f,
+            let resp_res = self.client.get(&url).headers(headers).send().await;
+            let response = match resp_res {
+                Ok(r) => r,
                 Err(e) => {
+                    if retry_count < max_retries {
+                        retry_count += 1;
+                        let backoff_secs = (retry_count as u64).min(10);
+                        {
+                            let mut map = self.tasks.write().await;
+                            if let Some(t) = map.get_mut(&id) {
+                                t.error_message = Some(format!(
+                                    "Connection issue: {}. Auto-retrying ({}/{})...",
+                                    e, retry_count, max_retries
+                                ));
+                            }
+                        }
+                        tokio::time::sleep(Duration::from_secs(backoff_secs)).await;
+                        continue;
+                    }
                     let mut map = self.tasks.write().await;
                     if let Some(t) = map.get_mut(&id) {
                         t.status = DownloadStatus::Failed;
-                        t.error_message = Some(format!("Failed to open partial file: {}", e));
+                        t.error_message = Some(format!("Network error: {}", e));
                     }
                     return;
                 }
             };
-            (f, existing_bytes)
-        } else {
-            let f = match File::create(&part_path).await {
-                Ok(f) => f,
-                Err(e) => {
-                    let mut map = self.tasks.write().await;
-                    if let Some(t) = map.get_mut(&id) {
-                        t.status = DownloadStatus::Failed;
-                        t.error_message = Some(format!("Failed to create partial file: {}", e));
-                    }
-                    return;
-                }
-            };
-            (f, 0u64)
-        };
 
-        let content_length = response.content_length().unwrap_or(0);
-        let total_expected = if is_range_response {
-            existing_bytes + content_length
-        } else {
-            content_length
-        };
+            let status = response.status();
+            let is_range_response = status.as_u16() == 206;
 
-        {
-            let mut map = self.tasks.write().await;
-            if let Some(t) = map.get_mut(&id) {
-                if total_expected > 0 {
-                    t.total_bytes = total_expected;
-                }
-                t.downloaded_bytes = downloaded;
-                t.status = DownloadStatus::Downloading;
-            }
-        }
-
-        let mut stream = response.bytes_stream();
-        let mut last_tick = Instant::now();
-        let mut bytes_since_tick = 0u64;
-
-        while let Some(chunk_res) = stream.next().await {
-            if *cancel_rx.borrow() {
-                let mut map = self.tasks.write().await;
-                if let Some(t) = map.get_mut(&id) {
-                    t.status = DownloadStatus::Cancelled;
-                    t.speed_bps = 0;
-                }
-                let _ = tokio::fs::remove_file(&part_path).await;
-                return;
-            }
-
-            if *pause_rx.borrow() {
-                let _ = file.flush().await;
-                let mut map = self.tasks.write().await;
-                if let Some(t) = map.get_mut(&id) {
-                    t.status = DownloadStatus::Paused;
-                    t.speed_bps = 0;
-                }
-                return;
-            }
-
-            match chunk_res {
-                Ok(chunk) => {
-                    let len = chunk.len() as u64;
-                    if let Err(e) = file.write_all(&chunk).await {
+            let (mut file, mut downloaded) = if is_range_response && existing_bytes > 0 {
+                let f = match OpenOptions::new().create(true).append(true).open(&part_path).await {
+                    Ok(f) => f,
+                    Err(e) => {
                         let mut map = self.tasks.write().await;
                         if let Some(t) = map.get_mut(&id) {
                             t.status = DownloadStatus::Failed;
-                            t.error_message = Some(format!("Write error: {}", e));
+                            t.error_message = Some(format!("Failed to open partial file: {}", e));
                         }
                         return;
                     }
-                    downloaded += len;
-                    bytes_since_tick += len;
-
-                    let now = Instant::now();
-                    let elapsed = now.duration_since(last_tick);
-                    if elapsed >= Duration::from_millis(500) {
-                        let speed = (bytes_since_tick as f64 / elapsed.as_secs_f64()) as u64;
+                };
+                (f, existing_bytes)
+            } else {
+                let f = match File::create(&part_path).await {
+                    Ok(f) => f,
+                    Err(e) => {
                         let mut map = self.tasks.write().await;
                         if let Some(t) = map.get_mut(&id) {
-                            t.downloaded_bytes = downloaded;
-                            t.speed_bps = speed;
-                            if t.total_bytes > 0 {
-                                t.progress_pct = (downloaded as f32 / t.total_bytes as f32) * 100.0;
-                            }
+                            t.status = DownloadStatus::Failed;
+                            t.error_message = Some(format!("Failed to create partial file: {}", e));
                         }
-                        last_tick = now;
-                        bytes_since_tick = 0;
+                        return;
+                    }
+                };
+                (f, 0u64)
+            };
+
+            let content_length = response.content_length().unwrap_or(0);
+            let total_expected = if is_range_response {
+                existing_bytes + content_length
+            } else {
+                content_length
+            };
+
+            {
+                let mut map = self.tasks.write().await;
+                if let Some(t) = map.get_mut(&id) {
+                    if total_expected > 0 {
+                        t.total_bytes = total_expected;
+                    }
+                    t.downloaded_bytes = downloaded;
+                    t.status = DownloadStatus::Downloading;
+                    t.error_message = None;
+                }
+            }
+
+            let mut stream = response.bytes_stream();
+            let mut last_tick = Instant::now();
+            let mut bytes_since_tick = 0u64;
+            let mut stream_failed_err = None;
+
+            while let Some(chunk_res) = stream.next().await {
+                if *cancel_rx.borrow() {
+                    let mut map = self.tasks.write().await;
+                    if let Some(t) = map.get_mut(&id) {
+                        t.status = DownloadStatus::Cancelled;
+                        t.speed_bps = 0;
+                    }
+                    let _ = tokio::fs::remove_file(&part_path).await;
+                    return;
+                }
+
+                if *pause_rx.borrow() {
+                    let _ = file.flush().await;
+                    let mut map = self.tasks.write().await;
+                    if let Some(t) = map.get_mut(&id) {
+                        t.status = DownloadStatus::Paused;
+                        t.speed_bps = 0;
+                    }
+                    return;
+                }
+
+                match chunk_res {
+                    Ok(chunk) => {
+                        let len = chunk.len() as u64;
+                        if let Err(e) = file.write_all(&chunk).await {
+                            let mut map = self.tasks.write().await;
+                            if let Some(t) = map.get_mut(&id) {
+                                t.status = DownloadStatus::Failed;
+                                t.error_message = Some(format!("Write error: {}", e));
+                            }
+                            return;
+                        }
+                        downloaded += len;
+                        final_downloaded = downloaded;
+                        bytes_since_tick += len;
+                        // Successfully receiving data resets retry count
+                        if retry_count > 0 && bytes_since_tick > 512 * 1024 {
+                            retry_count = 0;
+                        }
+
+                        let now = Instant::now();
+                        let elapsed = now.duration_since(last_tick);
+                        if elapsed >= Duration::from_millis(500) {
+                            let speed = (bytes_since_tick as f64 / elapsed.as_secs_f64()) as u64;
+                            let mut map = self.tasks.write().await;
+                            if let Some(t) = map.get_mut(&id) {
+                                t.downloaded_bytes = downloaded;
+                                t.speed_bps = speed;
+                                if t.total_bytes > 0 {
+                                    t.progress_pct = (downloaded as f32 / t.total_bytes as f32) * 100.0;
+                                }
+                            }
+                            last_tick = now;
+                            bytes_since_tick = 0;
+                        }
+                    }
+                    Err(e) => {
+                        stream_failed_err = Some(e);
+                        break;
                     }
                 }
-                Err(e) => {
+            }
+
+            let _ = file.flush().await;
+            drop(file);
+
+            if let Some(e) = stream_failed_err {
+                if retry_count < max_retries {
+                    retry_count += 1;
+                    let backoff_secs = (retry_count as u64).min(8);
+                    {
+                        let mut map = self.tasks.write().await;
+                        if let Some(t) = map.get_mut(&id) {
+                            t.speed_bps = 0;
+                            t.error_message = Some(format!(
+                                "Interrupted: {}. Auto-reconnecting from {} ({}/{})...",
+                                e, downloaded, retry_count, max_retries
+                            ));
+                        }
+                    }
+                    tokio::time::sleep(Duration::from_secs(backoff_secs)).await;
+                    continue; // Auto-resumes from exact byte offset using HTTP Range!
+                } else {
                     let mut map = self.tasks.write().await;
                     if let Some(t) = map.get_mut(&id) {
                         t.status = DownloadStatus::Failed;
@@ -376,10 +432,10 @@ impl DownloadManager {
                     return;
                 }
             }
-        }
 
-        let _ = file.flush().await;
-        drop(file);
+            // Stream completed cleanly
+            break;
+        }
 
         // Verification if checksum provided
         if let Some(ref expected_hash) = sha256_checksum {
@@ -419,8 +475,8 @@ impl DownloadManager {
         let mut map = self.tasks.write().await;
         if let Some(t) = map.get_mut(&id) {
             t.status = DownloadStatus::Completed;
-            t.downloaded_bytes = downloaded;
-            t.total_bytes = downloaded;
+            t.downloaded_bytes = final_downloaded;
+            t.total_bytes = final_downloaded;
             t.progress_pct = 100.0;
             t.speed_bps = 0;
             t.error_message = None;
