@@ -124,7 +124,7 @@ export const GlobalSearchAndIndexingView: React.FC<Props> = ({ onOpenArticle }) 
           <div>
             <p className="text-[11px] font-medium text-slate-500">Indexed Articles</p>
             <h4 className="text-lg font-bold text-slate-900 dark:text-white">
-              {indexStatus.total_indexed_articles.toLocaleString()}
+              {(indexStatus?.total_indexed_articles ?? 0).toLocaleString()}
             </h4>
           </div>
         </div>
@@ -137,7 +137,7 @@ export const GlobalSearchAndIndexingView: React.FC<Props> = ({ onOpenArticle }) 
           <div>
             <p className="text-[11px] font-medium text-slate-500">Total Words Indexed</p>
             <h4 className="text-lg font-bold text-slate-900 dark:text-white">
-              {indexStatus.total_words_indexed.toLocaleString()}
+              {(indexStatus?.total_words_indexed ?? 0).toLocaleString()}
             </h4>
           </div>
         </div>
@@ -150,7 +150,7 @@ export const GlobalSearchAndIndexingView: React.FC<Props> = ({ onOpenArticle }) 
           <div>
             <p className="text-[11px] font-medium text-slate-500">Archives Indexed</p>
             <h4 className="text-lg font-bold text-slate-900 dark:text-white">
-              {indexStatus.unique_archives_indexed} of {archives.length}
+              {indexStatus?.unique_archives_indexed ?? 0} of {archives.length}
             </h4>
           </div>
         </div>

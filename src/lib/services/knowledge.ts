@@ -1072,11 +1072,21 @@ export class KnowledgeService {
   }
 
   static async fetchIndexingStatus(): Promise<IndexingStatus> {
-    const res = await this.apiFetch('/search/index/status');
-    if (!res.ok) {
+    try {
+      const res = await this.apiFetch('/search/index/status');
+      if (!res.ok) {
+        return { total_indexed_articles: 0, total_words_indexed: 0, unique_archives_indexed: 0 };
+      }
+      const data = await res.json();
+      return {
+        total_indexed_articles: Number(data.total_indexed_articles ?? data.total_articles ?? 0),
+        total_words_indexed: Number(data.total_words_indexed ?? data.total_words ?? 0),
+        unique_archives_indexed: Number(data.unique_archives_indexed ?? data.archives_indexed ?? 0),
+        last_indexed_at: data.last_indexed_at,
+      };
+    } catch {
       return { total_indexed_articles: 0, total_words_indexed: 0, unique_archives_indexed: 0 };
     }
-    return res.json();
   }
 
   static async triggerIndexArchive(archiveId: string, maxArticles: number = 200): Promise<{ success: boolean; indexed_count: number }> {
