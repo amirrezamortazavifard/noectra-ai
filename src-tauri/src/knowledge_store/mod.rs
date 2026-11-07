@@ -8,6 +8,8 @@ pub mod zim_reader;
 use crate::db::{
     ArchiveUserMetadataRecord, CatalogSourceRecord, Database, DownloadBundleRecord,
     LibraryCollectionRecord, SavedCatalogSearchRecord, ScanDirectoryRecord, StorageRootRecord,
+    ArticleAnnotationRecord, ReadingHistoryRecord, ArticleBookmarkRecord, MedicalGlossaryRecord,
+    ClinicalGuidelineRecord, ClinicalConflictRecord, ArchiveVersionRecord,
 };
 use axum::{
     body::Body,
@@ -111,6 +113,28 @@ pub fn create_knowledge_router(state: KnowledgeStoreState) -> Router {
         // LIB-010: Backup & Restore
         .route("/api/knowledge/backup", get(get_backup_snapshot_handler))
         .route("/api/knowledge/restore", post(restore_backup_snapshot_handler))
+        // READ-001 to READ-012: Reader Annotations, History & Bookmarks
+        .route("/api/knowledge/reader/annotations", get(get_annotations_handler).post(save_annotation_handler))
+        .route("/api/knowledge/reader/annotations/:id", delete(delete_annotation_handler))
+        .route("/api/knowledge/reader/history", get(get_reading_history_handler).post(record_reading_history_handler).delete(clear_reading_history_handler))
+        .route("/api/knowledge/reader/history/:id", delete(delete_reading_history_item_handler))
+        .route("/api/knowledge/reader/bookmarks", get(get_article_bookmarks_handler).post(save_article_bookmark_handler))
+        .route("/api/knowledge/reader/bookmarks/:id", delete(delete_article_bookmark_handler))
+        // SEARCH-001 to SEARCH-009: Global FTS & Indexing Manager
+        .route("/api/knowledge/search/global", get(global_fts_search_handler))
+        .route("/api/knowledge/search/index/status", get(get_indexing_status_handler))
+        .route("/api/knowledge/search/index/run", post(run_index_archive_handler))
+        .route("/api/knowledge/search/index/clear", post(clear_search_index_handler))
+        // MED-001 to MED-007: Medical Collections, Glossary, Guidelines & Conflicts
+        .route("/api/knowledge/medical/glossary", get(get_medical_glossary_handler).post(save_medical_glossary_handler))
+        .route("/api/knowledge/medical/glossary/:id", delete(delete_medical_glossary_handler))
+        .route("/api/knowledge/medical/guidelines", get(get_clinical_guidelines_handler).post(save_clinical_guideline_handler))
+        .route("/api/knowledge/medical/conflicts", get(get_clinical_conflicts_handler))
+        // UPD-001 to UPD-003: Archive Version History & Check
+        .route("/api/knowledge/updates/history", get(get_archive_version_history_handler).post(save_archive_version_handler))
+        .route("/api/knowledge/updates/check", get(check_archive_updates_handler))
+        // AI-001 to AI-006: Local RAG Context Endpoint
+        .route("/api/knowledge/ai/rag-context", post(ai_rag_context_handler))
         .layer(cors)
         .with_state(state)
 }
@@ -1165,5 +1189,385 @@ async fn restore_backup_snapshot_handler(
     Ok(Json(json!({
         "success": true,
         "restored_items": restored_count
+    })))
+}
+
+
+// ==========================================
+// Handlers for Items 31 to 70
+// ==========================================
+
+#[derive(Debug, Deserialize)]
+struct AnnotationsQuery {
+    archive_id: Option<String>,
+    article_path: Option<String>,
+}
+
+async fn get_annotations_handler(
+    State(state): State<KnowledgeStoreState>,
+    Query(query): Query<AnnotationsQuery>,
+) -> Result<Json<Vec<ArticleAnnotationRecord>>, (StatusCode, String)> {
+    let annotations = if let (Some(aid), Some(path)) = (query.archive_id, query.article_path) {
+        state.db.get_article_annotations(&aid, &path).map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+    } else {
+        state.db.get_all_annotations(None).map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+    };
+    Ok(Json(annotations))
+}
+
+async fn save_annotation_handler(
+    State(state): State<KnowledgeStoreState>,
+    Json(payload): Json<ArticleAnnotationRecord>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    state.db.save_annotation(&payload).map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    Ok(Json(json!({ "success": true, "id": payload.id })))
+}
+
+async fn delete_annotation_handler(
+    State(state): State<KnowledgeStoreState>,
+    AxumPath(id): AxumPath<String>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    state.db.delete_annotation(&id).map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    Ok(Json(json!({ "success": true })))
+}
+
+#[derive(Debug, Deserialize)]
+struct HistoryQuery {
+    limit: Option<usize>,
+}
+
+async fn get_reading_history_handler(
+    State(state): State<KnowledgeStoreState>,
+    Query(query): Query<HistoryQuery>,
+) -> Result<Json<Vec<ReadingHistoryRecord>>, (StatusCode, String)> {
+    let limit = query.limit.unwrap_or(50);
+    let history = state.db.get_reading_history(limit).map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    Ok(Json(history))
+}
+
+async fn record_reading_history_handler(
+    State(state): State<KnowledgeStoreState>,
+    Json(payload): Json<ReadingHistoryRecord>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    state.db.record_reading_history(&payload).map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    Ok(Json(json!({ "success": true })))
+}
+
+async fn clear_reading_history_handler(
+    State(state): State<KnowledgeStoreState>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    state.db.clear_reading_history().map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    Ok(Json(json!({ "success": true })))
+}
+
+async fn delete_reading_history_item_handler(
+    State(state): State<KnowledgeStoreState>,
+    AxumPath(id): AxumPath<String>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    state.db.delete_reading_history_item(&id).map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    Ok(Json(json!({ "success": true })))
+}
+
+#[derive(Debug, Deserialize)]
+struct BookmarksQuery {
+    archive_id: Option<String>,
+}
+
+async fn get_article_bookmarks_handler(
+    State(state): State<KnowledgeStoreState>,
+    Query(query): Query<BookmarksQuery>,
+) -> Result<Json<Vec<ArticleBookmarkRecord>>, (StatusCode, String)> {
+    let bookmarks = state.db.get_article_bookmarks(query.archive_id.as_deref()).map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    Ok(Json(bookmarks))
+}
+
+async fn save_article_bookmark_handler(
+    State(state): State<KnowledgeStoreState>,
+    Json(payload): Json<ArticleBookmarkRecord>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    state.db.save_article_bookmark(&payload).map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    Ok(Json(json!({ "success": true, "id": payload.id })))
+}
+
+async fn delete_article_bookmark_handler(
+    State(state): State<KnowledgeStoreState>,
+    AxumPath(id): AxumPath<String>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    state.db.delete_article_bookmark(&id).map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    Ok(Json(json!({ "success": true })))
+}
+
+// SEARCH Handlers
+
+#[derive(Debug, Deserialize)]
+struct GlobalSearchQuery {
+    q: String,
+    archive_id: Option<String>,
+    limit: Option<usize>,
+}
+
+async fn global_fts_search_handler(
+    State(state): State<KnowledgeStoreState>,
+    Query(query): Query<GlobalSearchQuery>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let limit = query.limit.unwrap_or(30);
+    let results = state.db.search_global_fts(&query.q, query.archive_id.as_deref(), limit)
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    Ok(Json(json!({
+        "query": query.q,
+        "count": results.len(),
+        "results": results
+    })))
+}
+
+async fn get_indexing_status_handler(
+    State(state): State<KnowledgeStoreState>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let stats = state.db.get_indexing_stats().map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    Ok(Json(stats))
+}
+
+#[derive(Debug, Deserialize)]
+struct RunIndexPayload {
+    archive_id: String,
+    max_articles: Option<usize>,
+}
+
+async fn run_index_archive_handler(
+    State(state): State<KnowledgeStoreState>,
+    Json(payload): Json<RunIndexPayload>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let library = state.library_manager.list_archives().await;
+    let item = library.into_iter().find(|a| a.id == payload.archive_id);
+    let item = match item {
+        Some(i) => i,
+        None => return Err((StatusCode::NOT_FOUND, "Archive not found in library".into())),
+    };
+
+    let p = Path::new(&item.file_path);
+    let articles = ZimReader::search_articles(p, "", payload.max_articles.unwrap_or(200))
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
+
+    let mut indexed_count = 0;
+    for summary in articles {
+        if let Ok(content) = ZimReader::read_article(p, &summary.url) {
+            let plain_text = clean_html_to_plain(&content.html);
+            let words = plain_text.split_whitespace().count() as i64;
+            let _ = state.db.index_article_content(
+                &payload.archive_id,
+                &summary.url,
+                &summary.title,
+                &plain_text,
+                words,
+            );
+            indexed_count += 1;
+        }
+    }
+
+    Ok(Json(json!({
+        "success": true,
+        "archive_id": payload.archive_id,
+        "indexed_count": indexed_count
+    })))
+}
+
+#[derive(Debug, Deserialize)]
+struct ClearIndexPayload {
+    archive_id: Option<String>,
+}
+
+async fn clear_search_index_handler(
+    State(state): State<KnowledgeStoreState>,
+    Json(payload): Json<ClearIndexPayload>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    state.db.clear_search_index(payload.archive_id.as_deref()).map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    Ok(Json(json!({ "success": true })))
+}
+
+// Simple HTML text cleaner for FTS indexing
+fn clean_html_to_plain(html: &str) -> String {
+    let mut in_tag = false;
+    let mut out = String::with_capacity(html.len());
+    for ch in html.chars() {
+        if ch == '<' {
+            in_tag = true;
+            out.push(' ');
+        } else if ch == '>' {
+            in_tag = false;
+        } else if !in_tag {
+            out.push(ch);
+        }
+    }
+    out.split_whitespace().collect::<Vec<&str>>().join(" ")
+}
+
+// Medical Handlers (MED-001 to MED-007)
+
+#[derive(Debug, Deserialize)]
+struct GlossaryQuery {
+    q: Option<String>,
+    specialty: Option<String>,
+}
+
+async fn get_medical_glossary_handler(
+    State(state): State<KnowledgeStoreState>,
+    Query(query): Query<GlossaryQuery>,
+) -> Result<Json<Vec<MedicalGlossaryRecord>>, (StatusCode, String)> {
+    let terms = state.db.get_medical_glossary(query.q.as_deref(), query.specialty.as_deref())
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    Ok(Json(terms))
+}
+
+async fn save_medical_glossary_handler(
+    State(state): State<KnowledgeStoreState>,
+    Json(payload): Json<MedicalGlossaryRecord>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    state.db.save_medical_glossary_term(&payload).map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    Ok(Json(json!({ "success": true, "id": payload.id })))
+}
+
+async fn delete_medical_glossary_handler(
+    State(state): State<KnowledgeStoreState>,
+    AxumPath(id): AxumPath<String>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    state.db.delete_medical_glossary_term(&id).map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    Ok(Json(json!({ "success": true })))
+}
+
+async fn get_clinical_guidelines_handler(
+    State(state): State<KnowledgeStoreState>,
+) -> Result<Json<Vec<ClinicalGuidelineRecord>>, (StatusCode, String)> {
+    let guidelines = state.db.get_clinical_guidelines().map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    Ok(Json(guidelines))
+}
+
+async fn save_clinical_guideline_handler(
+    State(state): State<KnowledgeStoreState>,
+    Json(payload): Json<ClinicalGuidelineRecord>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    state.db.save_clinical_guideline(&payload).map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    Ok(Json(json!({ "success": true, "id": payload.id })))
+}
+
+async fn get_clinical_conflicts_handler(
+    State(state): State<KnowledgeStoreState>,
+) -> Result<Json<Vec<ClinicalConflictRecord>>, (StatusCode, String)> {
+    let conflicts = state.db.get_clinical_conflicts().map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    Ok(Json(conflicts))
+}
+
+// UPD-001 to UPD-003 Handlers
+
+#[derive(Debug, Deserialize)]
+struct VersionHistoryQuery {
+    archive_id: Option<String>,
+}
+
+async fn get_archive_version_history_handler(
+    State(state): State<KnowledgeStoreState>,
+    Query(query): Query<VersionHistoryQuery>,
+) -> Result<Json<Vec<ArchiveVersionRecord>>, (StatusCode, String)> {
+    let versions = state.db.get_archive_version_history(query.archive_id.as_deref())
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    Ok(Json(versions))
+}
+
+async fn save_archive_version_handler(
+    State(state): State<KnowledgeStoreState>,
+    Json(payload): Json<ArchiveVersionRecord>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    state.db.save_archive_version(&payload).map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    Ok(Json(json!({ "success": true })))
+}
+
+async fn check_archive_updates_handler(
+    State(state): State<KnowledgeStoreState>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let library = state.library_manager.list_archives().await;
+    let catalog = state.catalog_client.fetch_entries(&models::CatalogQuery {
+        q: None,
+        category: None,
+        lang: None,
+        tag: None,
+        notag: None,
+        maxsize: None,
+        start: Some(0),
+        count: Some(500),
+    }).await.unwrap_or_else(|_| models::CatalogResponse {
+        total: 0,
+        start_index: 0,
+        items_per_page: 500,
+        entries: vec![],
+    });
+
+    let mut updates_available = Vec::new();
+    for item in &library {
+        let matched = catalog.entries.iter().find(|e| {
+            e.title.to_lowercase() == item.title.to_lowercase() ||
+            item.file_name.to_lowercase().starts_with(&e.title.to_lowercase().replace(' ', "_"))
+        });
+
+        if let Some(cat) = matched {
+            let is_newer = match (&item.modified_at, &cat.updated_at) {
+                (Some(local_d), Some(remote_d)) => remote_d > local_d,
+                _ => false,
+            };
+            if is_newer {
+                updates_available.push(json!({
+                    "archive_id": item.id,
+                    "title": item.title,
+                    "current_date": item.modified_at,
+                    "new_version_date": cat.updated_at,
+                    "download_url": cat.download_url,
+                    "size_mb": (cat.size_bytes as f64) / (1024.0 * 1024.0)
+                }));
+            }
+        }
+    }
+
+    Ok(Json(json!({
+        "checked_at": chrono::Utc::now().to_rfc3339(),
+        "total_archives": library.len(),
+        "updates_found": updates_available.len(),
+        "updates": updates_available
+    })))
+}
+
+// AI-001 to AI-006: Local RAG Context Retrieval Handler
+
+#[derive(Debug, Deserialize)]
+struct RagContextRequest {
+    query: String,
+    archive_id: Option<String>,
+    max_chunks: Option<usize>,
+}
+
+async fn ai_rag_context_handler(
+    State(state): State<KnowledgeStoreState>,
+    Json(payload): Json<RagContextRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let max_chunks = payload.max_chunks.unwrap_or(5);
+    let search_results = state.db.search_global_fts(&payload.query, payload.archive_id.as_deref(), max_chunks)
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    let mut context_chunks = Vec::new();
+    let mut citations = Vec::new();
+
+    for res in search_results {
+        context_chunks.push(json!({
+            "archive": res.archive_title,
+            "article": res.title,
+            "path": res.article_path,
+            "snippet": res.snippet,
+            "score": res.score
+        }));
+        citations.push(format!("{} - [{}] ({})", res.archive_title, res.title, res.article_path));
+    }
+
+    Ok(Json(json!({
+        "query": payload.query,
+        "chunks_found": context_chunks.len(),
+        "context_chunks": context_chunks,
+        "citations": citations
     })))
 }

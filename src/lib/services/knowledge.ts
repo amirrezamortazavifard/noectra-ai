@@ -198,6 +198,142 @@ export interface ZimArticleContent {
   mime_type: string;
 }
 
+
+// ==========================================
+// Types for Items 31 to 70
+// ==========================================
+
+export interface ArticleAnnotation {
+  id: string;
+  archiveId: string;
+  articlePath: string;
+  selectedText: string;
+  noteText?: string;
+  color: string;
+  startOffset: number;
+  endOffset: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ReadingHistoryItem {
+  id: string;
+  archiveId: string;
+  archiveTitle: string;
+  articlePath: string;
+  articleTitle: string;
+  scrollPercentage: number;
+  readDurationSeconds: number;
+  lastReadAt: string;
+}
+
+export interface ArticleBookmark {
+  id: string;
+  archiveId: string;
+  articlePath: string;
+  title: string;
+  category?: string;
+  tags?: string;
+  createdAt: string;
+}
+
+export interface GlobalSearchResult {
+  archiveId: string;
+  archiveTitle: string;
+  articlePath: string;
+  title: string;
+  snippet: string;
+  score: number;
+  wordCount: number;
+}
+
+export interface IndexingStatus {
+  total_indexed_articles: number;
+  total_words_indexed: number;
+  unique_archives_indexed: number;
+  last_indexed_at?: string;
+}
+
+export interface MedicalGlossaryTerm {
+  id: string;
+  termEn: string;
+  termFa: string;
+  phoneticFa?: string;
+  specialty?: string;
+  definitionEn?: string;
+  definitionFa?: string;
+  clinicalSignificance?: string;
+  icdCode?: string;
+  favorite: boolean;
+  createdAt?: string;
+}
+
+export interface ClinicalGuideline {
+  id: string;
+  guidelineCode: string;
+  title: string;
+  organization: string;
+  version: string;
+  publicationYear: number;
+  specialty: string;
+  summary: string;
+  recommendationsJson?: string;
+  evidenceGrade: string;
+  sourceUrl?: string;
+  updatedAt?: string;
+}
+
+export interface ClinicalConflict {
+  id: string;
+  topic: string;
+  guidelineAId: string;
+  guidelineBId: string;
+  stanceA: string;
+  stanceB: string;
+  clinicalImplication: string;
+  expertConsensus?: string;
+}
+
+export interface ArchiveVersionItem {
+  id: string;
+  archiveId: string;
+  versionTag: string;
+  releaseDate: string;
+  fileSizeBytes: number;
+  sha256?: string;
+  changeLog?: string;
+  isCurrent: boolean;
+  backupPath?: string;
+  retentionStatus: string;
+}
+
+export interface ArchiveUpdateCheckResult {
+  checked_at: string;
+  total_archives: number;
+  updates_found: number;
+  updates: Array<{
+    archive_id: string;
+    title: string;
+    current_date?: string;
+    new_version_date?: string;
+    download_url?: string;
+    size_mb: number;
+  }>;
+}
+
+export interface RagContextResponse {
+  query: string;
+  chunks_found: number;
+  context_chunks: Array<{
+    archive: string;
+    article: string;
+    path: string;
+    snippet: string;
+    score: number;
+  }>;
+  citations: string[];
+}
+
 export class KnowledgeService {
   private static async apiFetch(endpoint: string, options?: RequestInit): Promise<Response> {
     const isTauri =
@@ -733,6 +869,241 @@ export class KnowledgeService {
     if (!res.ok) {
       const err = await res.text();
       throw new Error(err || 'Failed to restore backup snapshot');
+    }
+    return res.json();
+  }
+
+  // --- READ-001 to READ-012: Reader Annotations, History & Bookmarks ---
+  static async fetchAnnotations(archiveId?: string, articlePath?: string): Promise<ArticleAnnotation[]> {
+    try {
+      const params = new URLSearchParams();
+      if (archiveId) params.append('archive_id', archiveId);
+      if (articlePath) params.append('article_path', articlePath);
+      const res = await this.apiFetch(`/reader/annotations?${params.toString()}`);
+      if (!res.ok) return [];
+      return res.json();
+    } catch {
+      return [];
+    }
+  }
+
+  static async saveAnnotation(annotation: Partial<ArticleAnnotation>): Promise<{ success: boolean; id: string }> {
+    const res = await this.apiFetch('/reader/annotations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(annotation),
+    });
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(err || 'Failed to save annotation');
+    }
+    return res.json();
+  }
+
+  static async deleteAnnotation(id: string): Promise<boolean> {
+    const res = await this.apiFetch(`/reader/annotations/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    return res.ok;
+  }
+
+  static async fetchReadingHistory(limit: number = 50): Promise<ReadingHistoryItem[]> {
+    try {
+      const res = await this.apiFetch(`/reader/history?limit=${limit}`);
+      if (!res.ok) return [];
+      return res.json();
+    } catch {
+      return [];
+    }
+  }
+
+  static async recordReadingHistory(item: Partial<ReadingHistoryItem>): Promise<boolean> {
+    try {
+      const res = await this.apiFetch('/reader/history', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(item),
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  }
+
+  static async clearReadingHistory(): Promise<boolean> {
+    const res = await this.apiFetch('/reader/history', { method: 'DELETE' });
+    return res.ok;
+  }
+
+  static async deleteReadingHistoryItem(id: string): Promise<boolean> {
+    const res = await this.apiFetch(`/reader/history/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    return res.ok;
+  }
+
+  static async fetchArticleBookmarks(archiveId?: string): Promise<ArticleBookmark[]> {
+    try {
+      const params = archiveId ? `?archive_id=${encodeURIComponent(archiveId)}` : '';
+      const res = await this.apiFetch(`/reader/bookmarks${params}`);
+      if (!res.ok) return [];
+      return res.json();
+    } catch {
+      return [];
+    }
+  }
+
+  static async saveArticleBookmark(bookmark: Partial<ArticleBookmark>): Promise<{ success: boolean; id: string }> {
+    const res = await this.apiFetch('/reader/bookmarks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(bookmark),
+    });
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(err || 'Failed to save bookmark');
+    }
+    return res.json();
+  }
+
+  static async deleteArticleBookmark(id: string): Promise<boolean> {
+    const res = await this.apiFetch(`/reader/bookmarks/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    return res.ok;
+  }
+
+  // --- SEARCH-001 to SEARCH-009: Global FTS & Indexing Manager ---
+  static async searchGlobalFts(q: string, archiveId?: string, limit: number = 30): Promise<{ query: string; count: number; results: GlobalSearchResult[] }> {
+    const params = new URLSearchParams({ q, limit: String(limit) });
+    if (archiveId) params.append('archive_id', archiveId);
+    const res = await this.apiFetch(`/search/global?${params.toString()}`);
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(err || 'Search failed');
+    }
+    return res.json();
+  }
+
+  static async fetchIndexingStatus(): Promise<IndexingStatus> {
+    const res = await this.apiFetch('/search/index/status');
+    if (!res.ok) {
+      return { total_indexed_articles: 0, total_words_indexed: 0, unique_archives_indexed: 0 };
+    }
+    return res.json();
+  }
+
+  static async triggerIndexArchive(archiveId: string, maxArticles: number = 200): Promise<{ success: boolean; indexed_count: number }> {
+    const res = await this.apiFetch('/search/index/run', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ archive_id: archiveId, max_articles: maxArticles }),
+    });
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(err || 'Failed to index archive');
+    }
+    return res.json();
+  }
+
+  static async clearSearchIndex(archiveId?: string): Promise<boolean> {
+    const res = await this.apiFetch('/search/index/clear', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ archive_id: archiveId }),
+    });
+    return res.ok;
+  }
+
+  // --- MED-001 to MED-007: Medical Collections, Glossary, Guidelines & Conflicts ---
+  static async fetchMedicalGlossary(q?: string, specialty?: string): Promise<MedicalGlossaryTerm[]> {
+    try {
+      const params = new URLSearchParams();
+      if (q) params.append('q', q);
+      if (specialty) params.append('specialty', specialty);
+      const res = await this.apiFetch(`/medical/glossary?${params.toString()}`);
+      if (!res.ok) return [];
+      return res.json();
+    } catch {
+      return [];
+    }
+  }
+
+  static async saveMedicalGlossaryTerm(term: Partial<MedicalGlossaryTerm>): Promise<{ success: boolean; id: string }> {
+    const res = await this.apiFetch('/medical/glossary', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(term),
+    });
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(err || 'Failed to save glossary term');
+    }
+    return res.json();
+  }
+
+  static async deleteMedicalGlossaryTerm(id: string): Promise<boolean> {
+    const res = await this.apiFetch(`/medical/glossary/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    return res.ok;
+  }
+
+  static async fetchClinicalGuidelines(): Promise<ClinicalGuideline[]> {
+    try {
+      const res = await this.apiFetch('/medical/guidelines');
+      if (!res.ok) return [];
+      return res.json();
+    } catch {
+      return [];
+    }
+  }
+
+  static async saveClinicalGuideline(guideline: Partial<ClinicalGuideline>): Promise<{ success: boolean; id: string }> {
+    const res = await this.apiFetch('/medical/guidelines', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(guideline),
+    });
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(err || 'Failed to save clinical guideline');
+    }
+    return res.json();
+  }
+
+  static async fetchClinicalConflicts(): Promise<ClinicalConflict[]> {
+    try {
+      const res = await this.apiFetch('/medical/conflicts');
+      if (!res.ok) return [];
+      return res.json();
+    } catch {
+      return [];
+    }
+  }
+
+  // --- UPD-001 to UPD-003: Version History & Update Checks ---
+  static async fetchArchiveVersionHistory(archiveId?: string): Promise<ArchiveVersionItem[]> {
+    try {
+      const params = archiveId ? `?archive_id=${encodeURIComponent(archiveId)}` : '';
+      const res = await this.apiFetch(`/updates/history${params}`);
+      if (!res.ok) return [];
+      return res.json();
+    } catch {
+      return [];
+    }
+  }
+
+  static async checkArchiveUpdates(): Promise<ArchiveUpdateCheckResult> {
+    const res = await this.apiFetch('/updates/check');
+    if (!res.ok) {
+      return { checked_at: new Date().toISOString(), total_archives: 0, updates_found: 0, updates: [] };
+    }
+    return res.json();
+  }
+
+  // --- AI-001 to AI-006: Local RAG Pipeline Context ---
+  static async fetchRagContext(query: string, archiveId?: string, maxChunks: number = 5): Promise<RagContextResponse> {
+    const res = await this.apiFetch('/ai/rag-context', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query, archive_id: archiveId, max_chunks: maxChunks }),
+    });
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(err || 'Failed to retrieve RAG context');
     }
     return res.json();
   }

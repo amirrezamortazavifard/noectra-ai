@@ -187,6 +187,160 @@ pub struct DownloadBundleRecord {
     pub updated_at: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ArticleAnnotationRecord {
+    pub id: String,
+    #[serde(rename = "archiveId")]
+    pub archive_id: String,
+    #[serde(rename = "articlePath")]
+    pub article_path: String,
+    #[serde(rename = "selectedText")]
+    pub selected_text: String,
+    #[serde(rename = "prefixContext")]
+    pub prefix_context: Option<String>,
+    #[serde(rename = "suffixContext")]
+    pub suffix_context: Option<String>,
+    #[serde(rename = "anchorId")]
+    pub anchor_id: Option<String>,
+    pub color: String,
+    pub note: Option<String>,
+    #[serde(rename = "createdAt")]
+    pub created_at: String,
+    #[serde(rename = "updatedAt")]
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReadingHistoryRecord {
+    pub id: String,
+    #[serde(rename = "archiveId")]
+    pub archive_id: String,
+    #[serde(rename = "archiveTitle")]
+    pub archive_title: String,
+    #[serde(rename = "articlePath")]
+    pub article_path: String,
+    #[serde(rename = "articleTitle")]
+    pub article_title: String,
+    #[serde(rename = "scrollPercentage")]
+    pub scroll_percentage: f64,
+    #[serde(rename = "lastReadAt")]
+    pub last_read_at: String,
+    #[serde(rename = "durationSeconds")]
+    pub duration_seconds: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ArticleBookmarkRecord {
+    pub id: String,
+    #[serde(rename = "archiveId")]
+    pub archive_id: String,
+    #[serde(rename = "archiveTitle")]
+    pub archive_title: String,
+    #[serde(rename = "articlePath")]
+    pub article_path: String,
+    #[serde(rename = "articleTitle")]
+    pub article_title: String,
+    pub tags: Vec<String>,
+    pub note: Option<String>,
+    #[serde(rename = "createdAt")]
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MedicalGlossaryRecord {
+    pub id: String,
+    pub term: String,
+    #[serde(rename = "farsiTranslation")]
+    pub farsi_translation: String,
+    pub definition: String,
+    pub abbreviation: Option<String>,
+    pub specialty: String,
+    pub source: String,
+    #[serde(rename = "isFavorite")]
+    pub is_favorite: bool,
+    #[serde(rename = "createdAt")]
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ClinicalGuidelineRecord {
+    pub id: String,
+    pub title: String,
+    pub organization: String,
+    pub specialty: String,
+    #[serde(rename = "currentVersion")]
+    pub current_version: String,
+    #[serde(rename = "latestVersion")]
+    pub latest_version: Option<String>,
+    #[serde(rename = "publicationDate")]
+    pub publication_date: Option<String>,
+    #[serde(rename = "hasUpdate")]
+    pub has_update: bool,
+    #[serde(rename = "evidenceType")]
+    pub evidence_type: String,
+    pub summary: Option<String>,
+    #[serde(rename = "updatedAt")]
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ClinicalConflictRecord {
+    pub id: String,
+    pub topic: String,
+    pub specialty: String,
+    #[serde(rename = "sourceA")]
+    pub source_a: String,
+    #[serde(rename = "recommendationA")]
+    pub recommendation_a: String,
+    #[serde(rename = "sourceB")]
+    pub source_b: String,
+    #[serde(rename = "recommendationB")]
+    pub recommendation_b: String,
+    #[serde(rename = "evidenceLevelA")]
+    pub evidence_level_a: Option<String>,
+    #[serde(rename = "evidenceLevelB")]
+    pub evidence_level_b: Option<String>,
+    #[serde(rename = "reviewStatus")]
+    pub review_status: String,
+    #[serde(rename = "updatedAt")]
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ArchiveVersionRecord {
+    pub id: String,
+    #[serde(rename = "archiveId")]
+    pub archive_id: String,
+    #[serde(rename = "archiveTitle")]
+    pub archive_title: String,
+    #[serde(rename = "versionDate")]
+    pub version_date: String,
+    #[serde(rename = "fileSizeBytes")]
+    pub file_size_bytes: i64,
+    pub sha256: Option<String>,
+    #[serde(rename = "installedAt")]
+    pub installed_at: String,
+    #[serde(rename = "filePath")]
+    pub file_path: String,
+    #[serde(rename = "retentionStatus")]
+    pub retention_status: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GlobalSearchResultRecord {
+    #[serde(rename = "archiveId")]
+    pub archive_id: String,
+    #[serde(rename = "archiveTitle")]
+    pub archive_title: String,
+    #[serde(rename = "articlePath")]
+    pub article_path: String,
+    pub title: String,
+    pub snippet: String,
+    pub score: f64,
+    #[serde(rename = "wordCount")]
+    pub word_count: i64,
+}
+
 #[derive(Clone)]
 pub struct Database {
     conn: Arc<Mutex<Connection>>,
@@ -498,7 +652,150 @@ impl Database {
                  recursive INTEGER NOT NULL DEFAULT 1,
                  last_scanned_at TEXT,
                  created_at TEXT NOT NULL
-             );",
+             );
+
+             -- READ-002: Highlights & Annotations
+             CREATE TABLE IF NOT EXISTS article_annotations (
+                 id TEXT PRIMARY KEY,
+                 archive_id TEXT NOT NULL,
+                 article_path TEXT NOT NULL,
+                 selected_text TEXT NOT NULL,
+                 prefix_context TEXT,
+                 suffix_context TEXT,
+                 anchor_id TEXT,
+                 color TEXT NOT NULL DEFAULT 'yellow',
+                 note TEXT,
+                 created_at TEXT NOT NULL,
+                 updated_at TEXT NOT NULL
+             );
+             CREATE INDEX IF NOT EXISTS idx_article_annotations_arch_path ON article_annotations (archive_id, article_path);
+
+             -- READ-007: Reading History & Continue Reading
+             CREATE TABLE IF NOT EXISTS article_reading_history (
+                 id TEXT PRIMARY KEY,
+                 archive_id TEXT NOT NULL,
+                 archive_title TEXT NOT NULL,
+                 article_path TEXT NOT NULL,
+                 article_title TEXT NOT NULL,
+                 scroll_percentage REAL NOT NULL DEFAULT 0.0,
+                 last_read_at TEXT NOT NULL,
+                 duration_seconds INTEGER NOT NULL DEFAULT 0
+             );
+             CREATE INDEX IF NOT EXISTS idx_reading_history_time ON article_reading_history (last_read_at DESC);
+             CREATE INDEX IF NOT EXISTS idx_reading_history_article ON article_reading_history (archive_id, article_path);
+
+             -- READ-008: Article Bookmarks
+             CREATE TABLE IF NOT EXISTS article_bookmarks (
+                 id TEXT PRIMARY KEY,
+                 archive_id TEXT NOT NULL,
+                 archive_title TEXT NOT NULL,
+                 article_path TEXT NOT NULL,
+                 article_title TEXT NOT NULL,
+                 tags TEXT NOT NULL DEFAULT '[]',
+                 note TEXT,
+                 created_at TEXT NOT NULL
+             );
+             CREATE INDEX IF NOT EXISTS idx_article_bookmarks_arch ON article_bookmarks (archive_id);
+
+             -- SEARCH-001 to SEARCH-009: Full-Text Search (SQLite FTS5) & Indexed Articles
+             CREATE TABLE IF NOT EXISTS knowledge_indexed_articles (
+                 id TEXT PRIMARY KEY,
+                 archive_id TEXT NOT NULL,
+                 article_path TEXT NOT NULL,
+                 title TEXT NOT NULL,
+                 plain_text TEXT NOT NULL,
+                 word_count INTEGER NOT NULL DEFAULT 0,
+                 indexed_at TEXT NOT NULL,
+                 UNIQUE(archive_id, article_path)
+             );
+             CREATE INDEX IF NOT EXISTS idx_indexed_articles_archive ON knowledge_indexed_articles (archive_id);
+
+             CREATE VIRTUAL TABLE IF NOT EXISTS knowledge_articles_fts USING fts5(
+                 title,
+                 plain_text,
+                 archive_id UNINDEXED,
+                 article_path UNINDEXED,
+                 tokenize = 'unicode61'
+             );
+
+             -- MED-004: Medical Glossary
+             CREATE TABLE IF NOT EXISTS medical_glossary_terms (
+                 id TEXT PRIMARY KEY,
+                 term TEXT NOT NULL,
+                 farsi_translation TEXT NOT NULL,
+                 definition TEXT NOT NULL,
+                 abbreviation TEXT,
+                 specialty TEXT NOT NULL DEFAULT 'General Medicine',
+                 source TEXT NOT NULL DEFAULT 'Standard Medical Lexicon',
+                 is_favorite INTEGER NOT NULL DEFAULT 0,
+                 created_at TEXT NOT NULL
+             );
+             CREATE INDEX IF NOT EXISTS idx_med_glossary_term ON medical_glossary_terms (term);
+
+             INSERT OR IGNORE INTO medical_glossary_terms (id, term, farsi_translation, definition, abbreviation, specialty, source, created_at)
+             VALUES
+             ('gloss-1', 'Hypertension', 'فشار خون بالا', 'A chronic medical condition in which systemic arterial blood pressure is persistently elevated.', 'HTN', 'Cardiology', 'AHA Guidelines', datetime('now')),
+             ('gloss-2', 'Myocardial Infarction', 'انفارکتوس میوکارد (سکته قلبی)', 'Ischemia-induced necrosis of myocardial tissue resulting from acute coronary artery occlusion.', 'MI', 'Cardiology', 'ACC/AHA', datetime('now')),
+             ('gloss-3', 'Diabetes Mellitus', 'دیابت قندی', 'A metabolic disorder characterized by chronic hyperglycemia resulting from defects in insulin secretion, action, or both.', 'DM', 'Endocrinology', 'ADA Standards of Care', datetime('now')),
+             ('gloss-4', 'Chronic Obstructive Pulmonary Disease', 'بیماری انسدادی مزمن ریه', 'A progressive lung disease characterized by persistent airflow limitation and respiratory symptoms.', 'COPD', 'Pulmonology', 'GOLD Guidelines', datetime('now')),
+             ('gloss-5', 'Sepsis', 'سپسیس (عفونت منتشر)', 'Life-threatening organ dysfunction caused by a dysregulated host response to infection.', 'SEPSIS', 'Critical Care', 'Surviving Sepsis Campaign', datetime('now')),
+             ('gloss-6', 'Cerebrovascular Accident', 'سکته مغزی', 'Sudden loss of brain function due to a disturbance in the cerebral blood supply.', 'CVA', 'Neurology', 'AHA/ASA Stroke Guidelines', datetime('now'));
+
+             -- MED-005: Clinical Guidelines
+             CREATE TABLE IF NOT EXISTS clinical_guidelines (
+                 id TEXT PRIMARY KEY,
+                 title TEXT NOT NULL,
+                 organization TEXT NOT NULL,
+                 specialty TEXT NOT NULL,
+                 current_version TEXT NOT NULL,
+                 latest_version TEXT,
+                 publication_date TEXT,
+                 has_update INTEGER NOT NULL DEFAULT 0,
+                 evidence_type TEXT NOT NULL DEFAULT 'Clinical Guideline',
+                 summary TEXT,
+                 updated_at TEXT NOT NULL
+             );
+
+             INSERT OR IGNORE INTO clinical_guidelines (id, title, organization, specialty, current_version, latest_version, publication_date, has_update, evidence_type, summary, updated_at)
+             VALUES
+             ('guide-1', 'Guideline for Prevention and Management of High Blood Pressure', 'ACC/AHA', 'Cardiology', '2023 Comprehensive', '2024 Interim Revision', '2023-11-01', 1, 'Clinical Practice Guideline', 'Defines stage 1 hypertension threshold at >=130/80 mmHg; emphasizes early combination pharmacotherapy in high-risk patients.', datetime('now')),
+             ('guide-2', 'Global Strategy for Diagnosis, Management, and Prevention of COPD', 'GOLD', 'Pulmonology', '2024 Report', '2024 Report', '2024-01-15', 0, 'International Guideline', 'Recommends LABA+LAMA dual bronchodilation as primary maintenance therapy for symptomatic COPD patients.', datetime('now')),
+             ('guide-3', 'Standards of Care in Diabetes', 'American Diabetes Association (ADA)', 'Endocrinology', '2024 Standards', '2024 Standards', '2024-01-01', 0, 'Clinical Practice Recommendation', 'Recommends early SGLT2 inhibitors and GLP-1 receptor agonists in patients with established ASCVD or CKD independent of baseline A1C.', datetime('now')),
+             ('guide-4', 'International Guidelines for Management of Sepsis and Septic Shock', 'Surviving Sepsis Campaign', 'Critical Care & Emergency', '2021 Update', '2023 Pediatric & Adult Digest', '2021-10-01', 0, 'Evidence-Based Guideline', 'Guidance on dynamic assessment of fluid responsiveness and early norepinephrine administration in septic shock.', datetime('now'));
+
+             -- MED-006: Clinical Conflicts & Differing Recommendations
+             CREATE TABLE IF NOT EXISTS clinical_conflicts (
+                 id TEXT PRIMARY KEY,
+                 topic TEXT NOT NULL,
+                 specialty TEXT NOT NULL,
+                 source_a TEXT NOT NULL,
+                 recommendation_a TEXT NOT NULL,
+                 source_b TEXT NOT NULL,
+                 recommendation_b TEXT NOT NULL,
+                 evidence_level_a TEXT,
+                 evidence_level_b TEXT,
+                 review_status TEXT NOT NULL DEFAULT 'Candidate Conflict - Requires Clinical Review',
+                 updated_at TEXT NOT NULL
+             );
+
+             INSERT OR IGNORE INTO clinical_conflicts (id, topic, specialty, source_a, recommendation_a, source_b, recommendation_b, evidence_level_a, evidence_level_b, review_status, updated_at)
+             VALUES
+             ('conf-1', 'Hypertension Diagnostic Threshold', 'Cardiology', 'ACC/AHA (2023)', 'Stage 1 Hypertension starts at SBP >= 130 mmHg or DBP >= 80 mmHg.', 'ESC/ESH (European Society)', 'Hypertension defined as SBP >= 140 mmHg or DBP >= 90 mmHg; 130-139/85-89 classified as High-Normal.', 'Class I, Level A', 'Class I, Level A', 'Active Guideline Variance', datetime('now')),
+             ('conf-2', 'Initial Fluid Resuscitation Volume in Sepsis', 'Critical Care', 'Surviving Sepsis Campaign', 'Recommends initial crystalloid fluid bolus of 30 mL/kg within 3 hours.', 'CLOVERS Trial (NEJM 2023)', 'Restrictive fluid strategy demonstrated equivalent 90-day mortality compared to liberal fluid protocol.', 'Weak Recommendation, Low Quality Evidence', 'High (Multicenter RCT)', 'Emerging Evidence Debate', datetime('now'));
+
+             -- UPD-001 to UPD-003: Archive Version History
+             CREATE TABLE IF NOT EXISTS archive_version_history (
+                 id TEXT PRIMARY KEY,
+                 archive_id TEXT NOT NULL,
+                 archive_title TEXT NOT NULL,
+                 version_date TEXT NOT NULL,
+                 file_size_bytes INTEGER NOT NULL,
+                 sha256 TEXT,
+                 installed_at TEXT NOT NULL,
+                 file_path TEXT NOT NULL,
+                 retention_status TEXT NOT NULL DEFAULT 'active'
+             );
+             CREATE INDEX IF NOT EXISTS idx_archive_version_hist ON archive_version_history (archive_id);",
         )?;
         Ok(Self {
             conn: Arc::new(Mutex::new(conn)),
@@ -1253,6 +1550,607 @@ impl Database {
     pub fn delete_download_bundle(&self, id: &str) -> Result<()> {
         let conn = self.conn.lock().unwrap();
         conn.execute("DELETE FROM download_bundles WHERE id = ?1", params![id])?;
+        Ok(())
+    }
+
+    // --- READ-002: Highlights & Annotations ---
+    pub fn get_article_annotations(&self, archive_id: &str, article_path: &str) -> Result<Vec<ArticleAnnotationRecord>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT id, archive_id, article_path, selected_text, prefix_context, suffix_context, anchor_id, color, note, created_at, updated_at
+             FROM article_annotations
+             WHERE archive_id = ?1 AND article_path = ?2
+             ORDER BY rowid ASC",
+        )?;
+        let rows = stmt.query_map(params![archive_id, article_path], |row| {
+            Ok(ArticleAnnotationRecord {
+                id: row.get(0)?,
+                archive_id: row.get(1)?,
+                article_path: row.get(2)?,
+                selected_text: row.get(3)?,
+                prefix_context: row.get(4)?,
+                suffix_context: row.get(5)?,
+                anchor_id: row.get(6)?,
+                color: row.get(7)?,
+                note: row.get(8)?,
+                created_at: row.get(9)?,
+                updated_at: row.get(10)?,
+            })
+        })?;
+        let mut list = Vec::new();
+        for r in rows {
+            if let Ok(a) = r {
+                list.push(a);
+            }
+        }
+        Ok(list)
+    }
+
+    pub fn get_all_annotations(&self, archive_id: Option<&str>) -> Result<Vec<ArticleAnnotationRecord>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT id, archive_id, article_path, selected_text, prefix_context, suffix_context, anchor_id, color, note, created_at, updated_at
+             FROM article_annotations
+             WHERE (?1 IS NULL OR archive_id = ?1)
+             ORDER BY rowid DESC",
+        )?;
+        let rows = stmt.query_map(rusqlite::params![archive_id], |row| {
+            Ok(ArticleAnnotationRecord {
+                id: row.get(0)?,
+                archive_id: row.get(1)?,
+                article_path: row.get(2)?,
+                selected_text: row.get(3)?,
+                prefix_context: row.get(4)?,
+                suffix_context: row.get(5)?,
+                anchor_id: row.get(6)?,
+                color: row.get(7)?,
+                note: row.get(8)?,
+                created_at: row.get(9)?,
+                updated_at: row.get(10)?,
+            })
+        })?;
+        let mut list = Vec::new();
+        for r in rows {
+            if let Ok(a) = r {
+                list.push(a);
+            }
+        }
+        Ok(list)
+    }
+
+    pub fn save_annotation(&self, record: &ArticleAnnotationRecord) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "INSERT INTO article_annotations (id, archive_id, article_path, selected_text, prefix_context, suffix_context, anchor_id, color, note, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
+             ON CONFLICT(id) DO UPDATE SET
+                selected_text = excluded.selected_text,
+                color = excluded.color,
+                note = excluded.note,
+                updated_at = excluded.updated_at",
+            params![
+                record.id,
+                record.archive_id,
+                record.article_path,
+                record.selected_text,
+                record.prefix_context,
+                record.suffix_context,
+                record.anchor_id,
+                record.color,
+                record.note,
+                record.created_at,
+                record.updated_at,
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn delete_annotation(&self, id: &str) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute("DELETE FROM article_annotations WHERE id = ?1", params![id])?;
+        Ok(())
+    }
+
+    // --- READ-007: Reading History & Continue Reading ---
+    pub fn get_reading_history(&self, limit: usize) -> Result<Vec<ReadingHistoryRecord>> {
+        let conn = self.conn.lock().unwrap();
+        let max_items = if limit == 0 { 50 } else { limit.min(200) };
+        let mut stmt = conn.prepare(
+            "SELECT id, archive_id, archive_title, article_path, article_title, scroll_percentage, last_read_at, duration_seconds
+             FROM article_reading_history
+             ORDER BY last_read_at DESC
+             LIMIT ?1",
+        )?;
+        let rows = stmt.query_map(params![max_items as i64], |row| {
+            Ok(ReadingHistoryRecord {
+                id: row.get(0)?,
+                archive_id: row.get(1)?,
+                archive_title: row.get(2)?,
+                article_path: row.get(3)?,
+                article_title: row.get(4)?,
+                scroll_percentage: row.get(5)?,
+                last_read_at: row.get(6)?,
+                duration_seconds: row.get(7)?,
+            })
+        })?;
+        let mut list = Vec::new();
+        for r in rows {
+            if let Ok(item) = r {
+                list.push(item);
+            }
+        }
+        Ok(list)
+    }
+
+    pub fn record_reading_history(&self, record: &ReadingHistoryRecord) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "INSERT INTO article_reading_history (id, archive_id, archive_title, article_path, article_title, scroll_percentage, last_read_at, duration_seconds)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+             ON CONFLICT(id) DO UPDATE SET
+                scroll_percentage = excluded.scroll_percentage,
+                last_read_at = excluded.last_read_at,
+                duration_seconds = duration_seconds + excluded.duration_seconds",
+            params![
+                record.id,
+                record.archive_id,
+                record.archive_title,
+                record.article_path,
+                record.article_title,
+                record.scroll_percentage,
+                record.last_read_at,
+                record.duration_seconds,
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn clear_reading_history(&self) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute("DELETE FROM article_reading_history", [])?;
+        Ok(())
+    }
+
+    pub fn delete_reading_history_item(&self, id: &str) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute("DELETE FROM article_reading_history WHERE id = ?1", params![id])?;
+        Ok(())
+    }
+
+    // --- READ-008: Article Bookmarks ---
+    pub fn get_article_bookmarks(&self, archive_id: Option<&str>) -> Result<Vec<ArticleBookmarkRecord>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT id, archive_id, archive_title, article_path, article_title, tags, note, created_at
+             FROM article_bookmarks
+             WHERE (?1 IS NULL OR archive_id = ?1)
+             ORDER BY rowid DESC",
+        )?;
+        let rows = stmt.query_map(rusqlite::params![archive_id], |row| {
+            let tags_str: String = row.get(5)?;
+            let tags = serde_json::from_str(&tags_str).unwrap_or_else(|_| Vec::new());
+            Ok(ArticleBookmarkRecord {
+                id: row.get(0)?,
+                archive_id: row.get(1)?,
+                archive_title: row.get(2)?,
+                article_path: row.get(3)?,
+                article_title: row.get(4)?,
+                tags,
+                note: row.get(6)?,
+                created_at: row.get(7)?,
+            })
+        })?;
+        let mut list = Vec::new();
+        for r in rows {
+            if let Ok(item) = r {
+                list.push(item);
+            }
+        }
+        Ok(list)
+    }
+
+    pub fn save_article_bookmark(&self, record: &ArticleBookmarkRecord) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        let tags_json = serde_json::to_string(&record.tags).unwrap_or_else(|_| "[]".to_string());
+        conn.execute(
+            "INSERT INTO article_bookmarks (id, archive_id, archive_title, article_path, article_title, tags, note, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+             ON CONFLICT(id) DO UPDATE SET
+                tags = excluded.tags,
+                note = excluded.note",
+            params![
+                record.id,
+                record.archive_id,
+                record.archive_title,
+                record.article_path,
+                record.article_title,
+                tags_json,
+                record.note,
+                record.created_at,
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn delete_article_bookmark(&self, id: &str) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute("DELETE FROM article_bookmarks WHERE id = ?1", params![id])?;
+        Ok(())
+    }
+
+    // --- SEARCH-001 to SEARCH-009: Full-Text Search (SQLite FTS5) & Search Index ---
+    pub fn index_article_content(
+        &self,
+        archive_id: &str,
+        article_path: &str,
+        title: &str,
+        plain_text: &str,
+        word_count: i64,
+    ) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        let id = format!("{}:{}", archive_id, article_path);
+        let now = chrono::Utc::now().to_rfc3339();
+
+        conn.execute(
+            "INSERT INTO knowledge_indexed_articles (id, archive_id, article_path, title, plain_text, word_count, indexed_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+             ON CONFLICT(archive_id, article_path) DO UPDATE SET
+                title = excluded.title,
+                plain_text = excluded.plain_text,
+                word_count = excluded.word_count,
+                indexed_at = excluded.indexed_at",
+            params![id, archive_id, article_path, title, plain_text, word_count, now],
+        )?;
+
+        // Update FTS virtual table
+        conn.execute(
+            "DELETE FROM knowledge_articles_fts WHERE archive_id = ?1 AND article_path = ?2",
+            params![archive_id, article_path],
+        ).ok();
+
+        conn.execute(
+            "INSERT INTO knowledge_articles_fts (title, plain_text, archive_id, article_path)
+             VALUES (?1, ?2, ?3, ?4)",
+            params![title, plain_text, archive_id, article_path],
+        )?;
+
+        Ok(())
+    }
+
+    pub fn search_global_fts(
+        &self,
+        query: &str,
+        archive_filter: Option<&str>,
+        limit: usize,
+    ) -> Result<Vec<GlobalSearchResultRecord>> {
+        let conn = self.conn.lock().unwrap();
+        let max_results = if limit == 0 { 40 } else { limit.min(100) };
+        let clean_q = query.trim().replace('"', "\"\"");
+        if clean_q.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let fts_query = format!("\"{}\"*", clean_q);
+
+        let (sql, params_vec): (String, Vec<Box<dyn rusqlite::ToSql>>) = match archive_filter {
+            Some(aid) => (
+                "SELECT f.archive_id, COALESCE(z.title, f.archive_id), f.article_path, f.title,
+                        snippet(knowledge_articles_fts, 1, '<b>', '</b>', '...', 24),
+                        bm25(knowledge_articles_fts),
+                        COALESCE(i.word_count, 0)
+                 FROM knowledge_articles_fts f
+                 LEFT JOIN zim_archives z ON z.id = f.archive_id
+                 LEFT JOIN knowledge_indexed_articles i ON (i.archive_id = f.archive_id AND i.article_path = f.article_path)
+                 WHERE knowledge_articles_fts MATCH ?1 AND f.archive_id = ?2
+                 ORDER BY bm25(knowledge_articles_fts) ASC
+                 LIMIT ?3".to_string(),
+                vec![Box::new(fts_query), Box::new(aid.to_string()), Box::new(max_results as i64)],
+            ),
+            None => (
+                "SELECT f.archive_id, COALESCE(z.title, f.archive_id), f.article_path, f.title,
+                        snippet(knowledge_articles_fts, 1, '<b>', '</b>', '...', 24),
+                        bm25(knowledge_articles_fts),
+                        COALESCE(i.word_count, 0)
+                 FROM knowledge_articles_fts f
+                 LEFT JOIN zim_archives z ON z.id = f.archive_id
+                 LEFT JOIN knowledge_indexed_articles i ON (i.archive_id = f.archive_id AND i.article_path = f.article_path)
+                 WHERE knowledge_articles_fts MATCH ?1
+                 ORDER BY bm25(knowledge_articles_fts) ASC
+                 LIMIT ?2".to_string(),
+                vec![Box::new(fts_query), Box::new(max_results as i64)],
+            ),
+        };
+
+        let mut stmt = conn.prepare(&sql)?;
+        let mut param_refs = Vec::new();
+        for p in &params_vec {
+            param_refs.push(p.as_ref());
+        }
+
+        let rows = stmt.query_map(param_refs.as_slice(), |row| {
+            let score_raw: f64 = row.get(5)?;
+            // Normalize BM25 score (smaller is better in sqlite bm25, convert to positive relevance)
+            let score = (100.0 / (1.0 + score_raw.abs())).min(100.0);
+            Ok(GlobalSearchResultRecord {
+                archive_id: row.get(0)?,
+                archive_title: row.get(1)?,
+                article_path: row.get(2)?,
+                title: row.get(3)?,
+                snippet: row.get(4)?,
+                score,
+                word_count: row.get(6)?,
+            })
+        })?;
+
+        let mut list = Vec::new();
+        for r in rows {
+            if let Ok(item) = r {
+                list.push(item);
+            }
+        }
+        Ok(list)
+    }
+
+    pub fn get_indexing_stats(&self) -> Result<serde_json::Value> {
+        let conn = self.conn.lock().unwrap();
+        let total_articles: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM knowledge_indexed_articles",
+            [],
+            |r| r.get(0),
+        ).unwrap_or(0);
+        let total_words: i64 = conn.query_row(
+            "SELECT COALESCE(SUM(word_count), 0) FROM knowledge_indexed_articles",
+            [],
+            |r| r.get(0),
+        ).unwrap_or(0);
+        let archives_indexed: i64 = conn.query_row(
+            "SELECT COUNT(DISTINCT archive_id) FROM knowledge_indexed_articles",
+            [],
+            |r| r.get(0),
+        ).unwrap_or(0);
+
+        Ok(serde_json::json!({
+            "total_articles": total_articles,
+            "total_words": total_words,
+            "archives_indexed": archives_indexed,
+            "engine": "SQLite FTS5 (BM25 + unicode61 tokenizer)"
+        }))
+    }
+
+    pub fn clear_search_index(&self, archive_id_opt: Option<&str>) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        if let Some(aid) = archive_id_opt {
+            conn.execute("DELETE FROM knowledge_indexed_articles WHERE archive_id = ?1", params![aid])?;
+            conn.execute("DELETE FROM knowledge_articles_fts WHERE archive_id = ?1", params![aid])?;
+        } else {
+            conn.execute("DELETE FROM knowledge_indexed_articles", [])?;
+            conn.execute("DELETE FROM knowledge_articles_fts", [])?;
+        }
+        Ok(())
+    }
+
+    // --- MED-004: Medical Glossary ---
+    pub fn get_medical_glossary(&self, search: Option<&str>, specialty: Option<&str>) -> Result<Vec<MedicalGlossaryRecord>> {
+        let conn = self.conn.lock().unwrap();
+        let s_term = search.map(|s| format!("%{}%", s.trim()));
+        let spec_term = match specialty {
+            Some("all") | None => None,
+            Some(s) if s.is_empty() => None,
+            Some(s) => Some(s.to_string()),
+        };
+        let mut stmt = conn.prepare(
+            "SELECT id, term, farsi_translation, definition, abbreviation, specialty, source, is_favorite, created_at
+             FROM medical_glossary_terms
+             WHERE (?1 IS NULL OR specialty = ?1)
+               AND (?2 IS NULL OR term LIKE ?2 OR farsi_translation LIKE ?2 OR abbreviation LIKE ?2 OR definition LIKE ?2)
+             ORDER BY is_favorite DESC, term ASC
+             LIMIT 100",
+        )?;
+        let rows = stmt.query_map(rusqlite::params![spec_term, s_term], |row| {
+            let is_fav_int: i64 = row.get(7)?;
+            Ok(MedicalGlossaryRecord {
+                id: row.get(0)?,
+                term: row.get(1)?,
+                farsi_translation: row.get(2)?,
+                definition: row.get(3)?,
+                abbreviation: row.get(4)?,
+                specialty: row.get(5)?,
+                source: row.get(6)?,
+                is_favorite: is_fav_int == 1,
+                created_at: row.get(8)?,
+            })
+        })?;
+        let mut list = Vec::new();
+        for r in rows {
+            if let Ok(item) = r {
+                list.push(item);
+            }
+        }
+        Ok(list)
+    }
+
+    pub fn save_medical_glossary_term(&self, record: &MedicalGlossaryRecord) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "INSERT INTO medical_glossary_terms (id, term, farsi_translation, definition, abbreviation, specialty, source, is_favorite, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+             ON CONFLICT(id) DO UPDATE SET
+                term = excluded.term,
+                farsi_translation = excluded.farsi_translation,
+                definition = excluded.definition,
+                abbreviation = excluded.abbreviation,
+                specialty = excluded.specialty,
+                source = excluded.source,
+                is_favorite = excluded.is_favorite",
+            params![
+                record.id,
+                record.term,
+                record.farsi_translation,
+                record.definition,
+                record.abbreviation,
+                record.specialty,
+                record.source,
+                if record.is_favorite { 1 } else { 0 },
+                record.created_at,
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn delete_medical_glossary_term(&self, id: &str) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute("DELETE FROM medical_glossary_terms WHERE id = ?1", params![id])?;
+        Ok(())
+    }
+
+    // --- MED-005: Clinical Guidelines ---
+    pub fn get_clinical_guidelines(&self) -> Result<Vec<ClinicalGuidelineRecord>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT id, title, organization, specialty, current_version, latest_version, publication_date, has_update, evidence_type, summary, updated_at
+             FROM clinical_guidelines
+             ORDER BY updated_at DESC",
+        )?;
+        let rows = stmt.query_map([], |row| {
+            let has_up_int: i64 = row.get(7)?;
+            Ok(ClinicalGuidelineRecord {
+                id: row.get(0)?,
+                title: row.get(1)?,
+                organization: row.get(2)?,
+                specialty: row.get(3)?,
+                current_version: row.get(4)?,
+                latest_version: row.get(5)?,
+                publication_date: row.get(6)?,
+                has_update: has_up_int == 1,
+                evidence_type: row.get(8)?,
+                summary: row.get(9)?,
+                updated_at: row.get(10)?,
+            })
+        })?;
+        let mut list = Vec::new();
+        for r in rows {
+            if let Ok(item) = r {
+                list.push(item);
+            }
+        }
+        Ok(list)
+    }
+
+    pub fn save_clinical_guideline(&self, record: &ClinicalGuidelineRecord) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "INSERT INTO clinical_guidelines (id, title, organization, specialty, current_version, latest_version, publication_date, has_update, evidence_type, summary, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
+             ON CONFLICT(id) DO UPDATE SET
+                title = excluded.title,
+                organization = excluded.organization,
+                specialty = excluded.specialty,
+                current_version = excluded.current_version,
+                latest_version = excluded.latest_version,
+                publication_date = excluded.publication_date,
+                has_update = excluded.has_update,
+                evidence_type = excluded.evidence_type,
+                summary = excluded.summary,
+                updated_at = excluded.updated_at",
+            params![
+                record.id,
+                record.title,
+                record.organization,
+                record.specialty,
+                record.current_version,
+                record.latest_version,
+                record.publication_date,
+                if record.has_update { 1 } else { 0 },
+                record.evidence_type,
+                record.summary,
+                record.updated_at,
+            ],
+        )?;
+        Ok(())
+    }
+
+    // --- MED-006: Clinical Conflicts ---
+    pub fn get_clinical_conflicts(&self) -> Result<Vec<ClinicalConflictRecord>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT id, topic, specialty, source_a, recommendation_a, source_b, recommendation_b, evidence_level_a, evidence_level_b, review_status, updated_at
+             FROM clinical_conflicts
+             ORDER BY updated_at DESC",
+        )?;
+        let rows = stmt.query_map([], |row| {
+            Ok(ClinicalConflictRecord {
+                id: row.get(0)?,
+                topic: row.get(1)?,
+                specialty: row.get(2)?,
+                source_a: row.get(3)?,
+                recommendation_a: row.get(4)?,
+                source_b: row.get(5)?,
+                recommendation_b: row.get(6)?,
+                evidence_level_a: row.get(7)?,
+                evidence_level_b: row.get(8)?,
+                review_status: row.get(9)?,
+                updated_at: row.get(10)?,
+            })
+        })?;
+        let mut list = Vec::new();
+        for r in rows {
+            if let Ok(item) = r {
+                list.push(item);
+            }
+        }
+        Ok(list)
+    }
+
+    // --- UPD-001 to UPD-003: Archive Version History ---
+    pub fn get_archive_version_history(&self, archive_id_opt: Option<&str>) -> Result<Vec<ArchiveVersionRecord>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT id, archive_id, archive_title, version_date, file_size_bytes, sha256, installed_at, file_path, retention_status
+             FROM archive_version_history
+             WHERE (?1 IS NULL OR archive_id = ?1)
+             ORDER BY installed_at DESC",
+        )?;
+        let rows = stmt.query_map(rusqlite::params![archive_id_opt], |row| {
+            Ok(ArchiveVersionRecord {
+                id: row.get(0)?,
+                archive_id: row.get(1)?,
+                archive_title: row.get(2)?,
+                version_date: row.get(3)?,
+                file_size_bytes: row.get(4)?,
+                sha256: row.get(5)?,
+                installed_at: row.get(6)?,
+                file_path: row.get(7)?,
+                retention_status: row.get(8)?,
+            })
+        })?;
+        let mut list = Vec::new();
+        for r in rows {
+            if let Ok(item) = r {
+                list.push(item);
+            }
+        }
+        Ok(list)
+    }
+
+    pub fn save_archive_version(&self, record: &ArchiveVersionRecord) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "INSERT INTO archive_version_history (id, archive_id, archive_title, version_date, file_size_bytes, sha256, installed_at, file_path, retention_status)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+             ON CONFLICT(id) DO UPDATE SET
+                retention_status = excluded.retention_status",
+            params![
+                record.id,
+                record.archive_id,
+                record.archive_title,
+                record.version_date,
+                record.file_size_bytes,
+                record.sha256,
+                record.installed_at,
+                record.file_path,
+                record.retention_status,
+            ],
+        )?;
         Ok(())
     }
 }

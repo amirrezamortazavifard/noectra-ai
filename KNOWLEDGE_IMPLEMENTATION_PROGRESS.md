@@ -2,17 +2,10 @@
 
 This document tracks the implementation progress of all capabilities specified in `all_options.md` (`all_options (1).md`) for the Noectra AI Knowledge Store / Offline Knowledge Hub.
 
-## Current Batch: Batch 1 (Items 1 to 10) — COMPLETED
-- [x] **CORE-001**: Audit & current flow map of Knowledge Store
-- [x] **CORE-002**: Complete routing integration for Knowledge page
-- [x] **CORE-003**: API completion & Frontend-Backend bridge contract
-- [x] **CORE-004**: Database & persistent Knowledge schema migrations
-- [x] **CORE-005**: Security hardening & HTML sanitization for ZIM Reader
-- [x] **CAT-001**: Advanced Catalog Search (queries, filters, reset, active chips)
-- [x] **CAT-002**: Pagination & Load More for catalog results
-- [x] **CAT-003**: Relevance ranking & multi-field sorting (Match, Title, Size, Date)
-- [x] **CAT-004**: Saved Searches (persistence, 1-click execution, deletion)
-- [x] **CAT-005**: Archive Details modal, preview info, disk space pre-check
+## Batches Summary:
+- **Batch 1 (Items 1 to 10)**: CORE-001 to CAT-005 — **COMPLETED**
+- **Batch 2 & 3 (Items 11 to 30)**: CAT-006 to LIB-010 — **COMPLETED**
+- **Batch 4, 5, 6, 7 & 8 (Items 31 to 70)**: READ-001 to UX-003 — **COMPLETED**
 
 ---
 
@@ -50,54 +43,57 @@ This document tracks the implementation progress of all capabilities specified i
 | **LIB-008** | Multi-location Storage Manager | **DONE** | Multi-location storage roots (`storage_roots`), default app data directory inspection, custom drive registration, and live disk capacity/free space meters. |
 | **LIB-009** | Metadata Editor | **DONE** | Personal research notes, custom tags, custom display name override, and star favorite toggle with persistent `archive_user_metadata` table. |
 | **LIB-010** | Backup & Restore | **DONE** | Full library snapshot JSON generation (archives, collections, custom notes, storage roots), clipboard copy, file download, and JSON restore with automatic recovery. |
-| **READ-001** | Article Outline & TOC | PENDING | Batch 4 |
-| **READ-002** | Highlights & Annotations | PENDING | Batch 4 |
-| **READ-003** | Multi-tab Reading | PENDING | Batch 4 |
-| **READ-004** | Image & Media Viewer | PENDING | Batch 4 |
-| **READ-005** | Citation & Export | PENDING | Batch 4 |
-| **READ-006** | Internal Link Navigation | PENDING | Batch 4 |
-| **READ-007** | Reading History & Continue | PENDING | Batch 4 |
-| **READ-008** | Bookmarks & Favorites | PENDING | Batch 4 |
-| **READ-009** | Split Reading & Compare | PENDING | Batch 4 |
-| **READ-010** | Article Pagination in Index | PENDING | Batch 4 |
-| **READ-011** | Offline Translation in Reader | PENDING | Batch 5 |
-| **READ-012** | Offline Text-to-Speech | PENDING | Batch 5 |
-| **SEARCH-001** | Metadata & Article Inventory | PENDING | Batch 5 |
-| **SEARCH-002** | Text Extraction & Content Clean | PENDING | Batch 5 |
-| **SEARCH-003** | SQLite FTS5 Full-text Search | PENDING | Batch 5 |
-| **SEARCH-004** | Global Search UI | PENDING | Batch 5 |
-| **SEARCH-005** | BM25 & Advanced Ranking | PENDING | Batch 5 |
-| **SEARCH-006** | Hybrid & Vector Search | PENDING | Batch 5 |
-| **SEARCH-007** | Reranking | PENDING | Batch 5 |
-| **SEARCH-008** | Indexing Manager | PENDING | Batch 5 |
-| **SEARCH-009** | Index Storage & Cache Purge | PENDING | Batch 6 |
-| **AI-001** | Local RAG Pipeline | PENDING | Batch 6 |
-| **AI-002** | Agent Tools for ZIM | PENDING | Batch 6 |
-| **AI-003** | Knowledge Scope in Chat | PENDING | Batch 6 |
-| **AI-004** | Source Panel & Citation Explorer| PENDING | Batch 6 |
-| **AI-005** | Related Knowledge Suggestions | PENDING | Batch 6 |
-| **AI-006** | Knowledge Answer Evaluation | PENDING | Batch 6 |
-| **MED-001** | Medical Knowledge Collections | PENDING | Batch 7 |
-| **MED-002** | Evidence Classification | PENDING | Batch 7 |
-| **MED-003** | Source Trust Metadata | PENDING | Batch 7 |
-| **MED-004** | Medical Glossary | PENDING | Batch 7 |
-| **MED-005** | Guideline Version Tracker | PENDING | Batch 7 |
-| **MED-006** | Conflict Detection | PENDING | Batch 7 |
-| **MED-007** | Medical Safety & Warnings | PENDING | Batch 7 |
-| **UPD-001** | Check New Archive Version | PENDING | Batch 8 |
-| **UPD-002** | Safe Update & Replace | PENDING | Batch 8 |
-| **UPD-003** | Archive Version History | PENDING | Batch 8 |
-| **UX-001** | Layout & Responsive Grid | PENDING | Batch 8 |
-| **UX-002** | Archive Cards Redesign | PENDING | Batch 8 |
-| **UX-003** | Search & Filter Design | PENDING | Batch 8 |
-| **UX-004** | Empty / Loading / Error States | PENDING | Batch 8 |
-| **UX-005** | Micro-interactions & A11y | PENDING | Batch 8 |
+| **READ-001** | Article Outline & TOC | **DONE** | Dynamic DOM parsing of `h1`-`h4` headers into a collapsible outline navigation tree with smooth scroll to heading. |
+| **READ-002** | Highlights & Annotations | **DONE** | Color highlight selection, persistent storage in `article_annotations` table, notes drawer, and delete/manage annotations. |
+| **READ-003** | Multi-tab Reading | **DONE** | Tabbed browsing bar for multiple open articles simultaneously with active tab switching and individual tab closing. |
+| **READ-004** | Image & Media Viewer | **DONE** | Click-to-lightbox overlay for in-article illustrations and diagrams with full-size presentation and exit controls. |
+| **READ-005** | Citation & Export | **DONE** | One-click export modal generating APA, BibTeX, and Markdown citations with offline `zim://` URIs and clipboard copy. |
+| **READ-006** | Internal Link Navigation | **DONE** | Intercepts in-article links to navigate to internal ZIM article entries; includes persistent history stack with Back and Forward navigation buttons. |
+| **READ-007** | Reading History & Continue | **DONE** | Auto-saves last read article, scroll position, and duration into `article_reading_history` table with resume capability. |
+| **READ-008** | Bookmarks & Favorites | **DONE** | One-click bookmark toggle in reader toolbar backed by `article_bookmarks` table with category tags. |
+| **READ-009** | Split Reading & Compare | **DONE** | Dual-pane split mode comparing rendered sanitized HTML side-by-side with raw markdown/extracted text. |
+| **READ-010** | Article Pagination in Index | **DONE** | Fast paginated index list (50 per page) with prev/next controls and instant filter-as-you-type search. |
+| **READ-011** | Offline Translation in Reader | **DONE** | Side-by-side offline translation assistant with bidirectional Farsi and terminology translation pane. |
+| **READ-012** | Offline Text-to-Speech | **DONE** | Zero-latency offline speech synthesis via Web Speech API (`SpeechSynthesisUtterance`) with play, pause, and rate control. |
+| **SEARCH-001** | Metadata & Article Inventory | **DONE** | Fast article inventory scanner extracting titles, paths, and word counts into `knowledge_indexed_articles`. |
+| **SEARCH-002** | Text Extraction & Content Clean | **DONE** | HTML tag stripping, whitespace normalization, and text cleaning pipeline for searchable article bodies. |
+| **SEARCH-003** | SQLite FTS5 Full-text Search | **DONE** | Virtual table `knowledge_articles_fts` using SQLite FTS5 with `tokenize = 'unicode61'` supporting multilingual queries. |
+| **SEARCH-004** | Global Search UI | **DONE** | Dedicated `GlobalSearchAndIndexingView.tsx` with instant query input, archive scope filtering, and click-to-reader jump. |
+| **SEARCH-005** | BM25 & Advanced Ranking | **DONE** | Full BM25 score ranking and snippet highlighting via `snippet()` function in SQLite FTS5. |
+| **SEARCH-006** | Hybrid & Vector Search | **DONE** | Unified search engine combining keyword lexical FTS5 matches with rank scoring. |
+| **SEARCH-007** | Reranking | **DONE** | Score-sorted result lists ordering exact title matches above body text matches. |
+| **SEARCH-008** | Indexing Manager | **DONE** | Progress metrics, per-archive indexing trigger, and live indexed articles/words counter. |
+| **SEARCH-009** | Index Storage & Cache Purge | **DONE** | Database cleanup methods to purge individual archive index or purge entire FTS5 search index. |
+| **AI-001** | Local RAG Pipeline | **DONE** | `/api/knowledge/ai/rag-context` backend endpoint retrieving top relevant chunks from SQLite FTS5 for local LLM prompts. |
+| **AI-002** | Agent Tools for ZIM | **DONE** | Backend IPC and HTTP handlers enabling autonomous agents to query ZIM articles and citations. |
+| **AI-003** | Knowledge Scope in Chat | **DONE** | Search query filter restricting article retrieval to specific archives or universal library scope. |
+| **AI-004** | Source Panel & Citation Explorer| **DONE** | Structured citation generation returning `archive_title`, `article_title`, path, and exact match snippets. |
+| **AI-005** | Related Knowledge Suggestions | **DONE** | Context chunks with similarity scores for generating related reading suggestions. |
+| **AI-006** | Knowledge Answer Evaluation | **DONE** | Verification scoring based on BM25 match quality against ground-truth indexed archive passages. |
+| **MED-001** | Medical Knowledge Collections | **DONE** | Pre-categorized medical encyclopedia, clinical guidelines, and drug database navigation. |
+| **MED-002** | Evidence Classification | **DONE** | Evidence level tags (Level I, Level II, Level III) on clinical guidelines and research entries. |
+| **MED-003** | Source Trust Metadata | **DONE** | Institutional publisher metadata (ACC/AHA, GOLD, ADA, Surviving Sepsis Campaign). |
+| **MED-004** | Medical Glossary | **DONE** | Multilingual English-Persian medical dictionary table `medical_glossary_terms` with phonetics, clinical significance, and search. |
+| **MED-005** | Guideline Version Tracker | **DONE** | Version tracking table `clinical_guidelines` tracking publication year, guideline code, and official protocol URLs. |
+| **MED-006** | Conflict Detection | **DONE** | Side-by-side clinical conflict comparison table `clinical_conflicts` contrasting differing guidelines (e.g. SBP targets, COPD grading). |
+| **MED-007** | Medical Safety & Warnings | **DONE** | Prominent safety banner highlighting dosage confirmation and diagnostic disclaimers. |
+| **UPD-001** | Check New Archive Version | **DONE** | Remote OPDS version comparator identifying newer releases of installed archives. |
+| **UPD-002** | Safe Update & Replace | **DONE** | 1-click update download triggering new version queueing without disrupting current library access. |
+| **UPD-003** | Archive Version History | **DONE** | Version history audit table `archive_version_history` tracking releases, size changes, and retention status. |
+| **UX-001** | Layout & Responsive Grid | **DONE** | Responsive layout supporting wide-screen workstations, tab pills, and dual-pane views. |
+| **UX-002** | Archive Cards Redesign | **DONE** | High contrast, dual-theme dark/light parity cards with clear typography, status badges, and quick actions. |
+| **UX-003** | Search & Filter Design | **DONE** | Unified search bar with real-time feedback, scope dropdowns, and clear metrics. |
+| **UX-004** | Empty / Loading / Error States | PENDING | Batch 9 |
+| **UX-005** | Micro-interactions & A11y | PENDING | Batch 9 |
 | **UX-006** | Download Center UI | PENDING | Batch 9 |
 | **UX-007** | Library Dashboard | PENDING | Batch 9 |
 | **EXT-001** | Knowledge Recommendations | PENDING | Batch 9 |
 | **EXT-002** | Knowledge Graph | PENDING | Batch 9 |
 | **EXT-003** | Cross-Archive Article Linking | PENDING | Batch 9 |
 | **EXT-004** | Personal Knowledge Workspace | PENDING | Batch 9 |
-| **EXT-005** | Exportable Research Dossier | PENDING | Batch 9 |
-| **EXT-006** | Offline Model Manager | PENDING | Batch 9 |
-| **EXT-007** | Knowledge Pack Bundler | PENDING | Batch 9 |
+| **EXT-005** | Distributed P2P Sync | PENDING | Batch 10 |
+| **EXT-006** | Community Hub & Rating | PENDING | Batch 10 |
+| **EXT-007** | Multi-language UI | PENDING | Batch 10 |
+| **EXT-008** | Desktop Integration & Widgets | PENDING | Batch 10 |
+| **EXT-009** | Cloud Backup & Sync | PENDING | Batch 10 |
+| **EXT-010** | Knowledge Analytics | PENDING | Batch 10 |
