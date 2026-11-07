@@ -492,12 +492,12 @@ export const ZimArticleReaderModal: React.FC<Props> = ({ archiveId, onClose }) =
   };
 
   // Detect whether the current article content is predominantly RTL (Persian, Arabic, Hebrew)
-  const isRtl = useMemo(() => {
-    if (!articleContent) return false;
-    const testString = `${articleContent.title || ''} ${(articleContent.text || '').substring(0, 300)}`;
-    const rtlRegex = /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF\u0590-\u05FF]/;
-    return rtlRegex.test(testString);
-  }, [articleContent]);
+  const isRtl = Boolean(
+    articleContent &&
+      /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF\u0590-\u05FF]/.test(
+        `${articleContent.title || ''} ${(articleContent.text || '').substring(0, 300)}`
+      )
+  );
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/70 backdrop-blur-md animate-in fade-in duration-200">
