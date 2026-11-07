@@ -151,6 +151,43 @@ impl DownloadManager {
         Err("Task not found".to_string())
     }
 
+    pub async fn pause_all(&self) {
+        let active_ids: Vec<String> = {
+            let tasks = self.tasks.read().await;
+            tasks
+                .values()
+                .filter(|t| t.status == DownloadStatus::Downloading || t.status == DownloadStatus::Queued)
+                .map(|t| t.id.clone())
+                .collect()
+        };
+        for id in active_ids {
+            let _ = self.pause_download(&id).await;
+        }
+    }
+
+    pub async fn resume_all(&self, zim_dir: PathBuf) {
+        let paused_ids: Vec<String> = {
+            let tasks = self.tasks.read().await;
+            tasks
+                .values()
+                .filter(|t| t.status == DownloadStatus::Paused)
+                .map(|t| t.id.clone())
+                .collect()
+        };
+        for id in paused_ids {
+            let _ = self.resume_download(&id, zim_dir.clone()).await;
+        }
+    }
+
+    pub async fn clear_completed(&self) {
+        let mut tasks = self.tasks.write().await;
+        tasks.retain(|_, t| {
+            t.status == DownloadStatus::Downloading
+                || t.status == DownloadStatus::Queued
+                || t.status == DownloadStatus::Paused
+        });
+    }
+
     pub async fn resume_download(&self, id: &str, zim_dir: PathBuf) -> Result<(), String> {
         let task = {
             let tasks = self.tasks.read().await;

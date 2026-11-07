@@ -99,6 +99,94 @@ pub struct SavedCatalogSearchRecord {
     pub updated_at: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CatalogSourceRecord {
+    pub id: String,
+    pub name: String,
+    pub url: String,
+    #[serde(rename = "isEnabled")]
+    pub is_enabled: bool,
+    #[serde(rename = "isDefault")]
+    pub is_default: bool,
+    pub priority: i64,
+    #[serde(rename = "createdAt")]
+    pub created_at: String,
+    #[serde(rename = "updatedAt")]
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LibraryCollectionRecord {
+    pub id: String,
+    pub name: String,
+    pub description: String,
+    pub color: String,
+    pub icon: String,
+    #[serde(rename = "itemCount")]
+    pub item_count: Option<i64>,
+    #[serde(rename = "createdAt")]
+    pub created_at: String,
+    #[serde(rename = "updatedAt")]
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ArchiveUserMetadataRecord {
+    #[serde(rename = "archiveId")]
+    pub archive_id: String,
+    #[serde(rename = "displayName")]
+    pub display_name: Option<String>,
+    #[serde(rename = "customNotes")]
+    pub custom_notes: Option<String>,
+    #[serde(rename = "customTags")]
+    pub custom_tags: Vec<String>,
+    #[serde(rename = "isFavorite")]
+    pub is_favorite: bool,
+    #[serde(rename = "updatedAt")]
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StorageRootRecord {
+    pub id: String,
+    pub path: String,
+    pub role: String,
+    #[serde(rename = "isActive")]
+    pub is_active: bool,
+    #[serde(rename = "freeBytes")]
+    pub free_bytes: Option<u64>,
+    #[serde(rename = "totalBytes")]
+    pub total_bytes: Option<u64>,
+    #[serde(rename = "createdAt")]
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ScanDirectoryRecord {
+    pub id: String,
+    pub path: String,
+    pub recursive: bool,
+    #[serde(rename = "lastScannedAt")]
+    pub last_scanned_at: Option<String>,
+    #[serde(rename = "createdAt")]
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DownloadBundleRecord {
+    pub id: String,
+    pub name: String,
+    #[serde(rename = "archiveIds")]
+    pub archive_ids: Vec<String>,
+    #[serde(rename = "totalBytes")]
+    pub total_bytes: i64,
+    pub status: String,
+    #[serde(rename = "createdAt")]
+    pub created_at: String,
+    #[serde(rename = "updatedAt")]
+    pub updated_at: String,
+}
+
 #[derive(Clone)]
 pub struct Database {
     conn: Arc<Mutex<Connection>>,
@@ -332,6 +420,84 @@ impl Database {
                  updated_at TEXT NOT NULL,
                  completed_at TEXT,
                  FOREIGN KEY(archive_id) REFERENCES zim_archives(id) ON DELETE CASCADE
+             );
+
+             -- CAT-006: Multiple Catalog Sources
+             CREATE TABLE IF NOT EXISTS catalog_sources (
+                 id TEXT PRIMARY KEY,
+                 name TEXT NOT NULL,
+                 url TEXT NOT NULL,
+                 is_enabled INTEGER NOT NULL DEFAULT 1,
+                 is_default INTEGER NOT NULL DEFAULT 0,
+                 priority INTEGER NOT NULL DEFAULT 0,
+                 created_at TEXT NOT NULL,
+                 updated_at TEXT NOT NULL
+             );
+
+             INSERT OR IGNORE INTO catalog_sources (id, name, url, is_enabled, is_default, priority, created_at, updated_at)
+             VALUES ('kiwix-default', 'Official Kiwix OPDS Catalog', 'https://library.kiwix.org/catalog/v2', 1, 1, 0, datetime('now'), datetime('now'));
+
+             -- DL-007: Download Bundles
+             CREATE TABLE IF NOT EXISTS download_bundles (
+                 id TEXT PRIMARY KEY,
+                 name TEXT NOT NULL,
+                 archive_ids TEXT NOT NULL DEFAULT '[]',
+                 total_bytes INTEGER NOT NULL DEFAULT 0,
+                 status TEXT NOT NULL DEFAULT 'queued',
+                 created_at TEXT NOT NULL,
+                 updated_at TEXT NOT NULL
+             );
+
+             -- LIB-003: Collections & Categories
+             CREATE TABLE IF NOT EXISTS library_collections (
+                 id TEXT PRIMARY KEY,
+                 name TEXT NOT NULL,
+                 description TEXT NOT NULL DEFAULT '',
+                 color TEXT NOT NULL DEFAULT 'sky',
+                 icon TEXT NOT NULL DEFAULT 'folder',
+                 created_at TEXT NOT NULL,
+                 updated_at TEXT NOT NULL
+             );
+
+             INSERT OR IGNORE INTO library_collections (id, name, description, color, icon, created_at, updated_at)
+             VALUES 
+             ('col-med', 'Medical & Healthcare', 'Clinical and medical encyclopedias, WikiMed, and medical textbooks', 'emerald', 'stethoscope', datetime('now'), datetime('now')),
+             ('col-wiki', 'Encyclopedias', 'General reference, Wikipedia, and WikiBooks collections', 'sky', 'book-open', datetime('now'), datetime('now')),
+             ('col-tech', 'Engineering & CS', 'Programming, StackExchange Q&A, and technical manuals', 'indigo', 'cpu', datetime('now'), datetime('now'));
+
+             CREATE TABLE IF NOT EXISTS archive_collection_members (
+                 archive_id TEXT NOT NULL,
+                 collection_id TEXT NOT NULL,
+                 PRIMARY KEY (archive_id, collection_id),
+                 FOREIGN KEY(collection_id) REFERENCES library_collections(id) ON DELETE CASCADE
+             );
+
+             -- LIB-009: User Metadata & Personal Tags/Notes
+             CREATE TABLE IF NOT EXISTS archive_user_metadata (
+                 archive_id TEXT PRIMARY KEY,
+                 display_name TEXT,
+                 custom_notes TEXT,
+                 custom_tags TEXT NOT NULL DEFAULT '[]',
+                 is_favorite INTEGER NOT NULL DEFAULT 0,
+                 updated_at TEXT NOT NULL
+             );
+
+             -- LIB-008: Storage Roots & Multi-location
+             CREATE TABLE IF NOT EXISTS storage_roots (
+                 id TEXT PRIMARY KEY,
+                 path TEXT NOT NULL,
+                 role TEXT NOT NULL DEFAULT 'managed',
+                 is_active INTEGER NOT NULL DEFAULT 1,
+                 created_at TEXT NOT NULL
+             );
+
+             -- LIB-004: Scanner Folders
+             CREATE TABLE IF NOT EXISTS scan_directories (
+                 id TEXT PRIMARY KEY,
+                 path TEXT NOT NULL,
+                 recursive INTEGER NOT NULL DEFAULT 1,
+                 last_scanned_at TEXT,
+                 created_at TEXT NOT NULL
              );",
         )?;
         Ok(Self {
@@ -724,6 +890,369 @@ impl Database {
     pub fn delete_saved_catalog_search(&self, id: &str) -> Result<()> {
         let conn = self.conn.lock().unwrap();
         conn.execute("DELETE FROM saved_catalog_searches WHERE id = ?1", params![id])?;
+        Ok(())
+    }
+
+    // --- CAT-006: Multiple Catalog Sources ---
+    pub fn get_catalog_sources(&self) -> Result<Vec<CatalogSourceRecord>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT id, name, url, is_enabled, is_default, priority, created_at, updated_at FROM catalog_sources ORDER BY priority ASC, created_at ASC",
+        )?;
+        let rows = stmt.query_map([], |row| {
+            let is_enabled: i64 = row.get(3)?;
+            let is_default: i64 = row.get(4)?;
+            Ok(CatalogSourceRecord {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                url: row.get(2)?,
+                is_enabled: is_enabled == 1,
+                is_default: is_default == 1,
+                priority: row.get(5)?,
+                created_at: row.get(6)?,
+                updated_at: row.get(7)?,
+            })
+        })?;
+        let mut res = Vec::new();
+        for r in rows {
+            if let Ok(item) = r {
+                res.push(item);
+            }
+        }
+        Ok(res)
+    }
+
+    pub fn save_catalog_source(&self, record: &CatalogSourceRecord) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "INSERT INTO catalog_sources (id, name, url, is_enabled, is_default, priority, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+             ON CONFLICT(id) DO UPDATE SET
+                name = excluded.name,
+                url = excluded.url,
+                is_enabled = excluded.is_enabled,
+                is_default = excluded.is_default,
+                priority = excluded.priority,
+                updated_at = excluded.updated_at",
+            params![
+                record.id,
+                record.name,
+                record.url,
+                if record.is_enabled { 1 } else { 0 },
+                if record.is_default { 1 } else { 0 },
+                record.priority,
+                record.created_at,
+                record.updated_at,
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn delete_catalog_source(&self, id: &str) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        // Prevent deleting default source
+        conn.execute("DELETE FROM catalog_sources WHERE id = ?1 AND is_default = 0", params![id])?;
+        Ok(())
+    }
+
+    // --- LIB-003: Collections Manager ---
+    pub fn get_library_collections(&self) -> Result<Vec<LibraryCollectionRecord>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT c.id, c.name, c.description, c.color, c.icon, c.created_at, c.updated_at,
+                    (SELECT COUNT(*) FROM archive_collection_members m WHERE m.collection_id = c.id) as item_count
+             FROM library_collections c ORDER BY c.created_at ASC",
+        )?;
+        let rows = stmt.query_map([], |row| {
+            Ok(LibraryCollectionRecord {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                description: row.get(2)?,
+                color: row.get(3)?,
+                icon: row.get(4)?,
+                item_count: Some(row.get(7)?),
+                created_at: row.get(5)?,
+                updated_at: row.get(6)?,
+            })
+        })?;
+        let mut res = Vec::new();
+        for r in rows {
+            if let Ok(c) = r {
+                res.push(c);
+            }
+        }
+        Ok(res)
+    }
+
+    pub fn save_library_collection(&self, record: &LibraryCollectionRecord) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "INSERT INTO library_collections (id, name, description, color, icon, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+             ON CONFLICT(id) DO UPDATE SET
+                name = excluded.name,
+                description = excluded.description,
+                color = excluded.color,
+                icon = excluded.icon,
+                updated_at = excluded.updated_at",
+            params![
+                record.id,
+                record.name,
+                record.description,
+                record.color,
+                record.icon,
+                record.created_at,
+                record.updated_at,
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn delete_library_collection(&self, id: &str) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute("DELETE FROM library_collections WHERE id = ?1", params![id])?;
+        Ok(())
+    }
+
+    pub fn add_archive_to_collection(&self, archive_id: &str, collection_id: &str) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "INSERT OR IGNORE INTO archive_collection_members (archive_id, collection_id) VALUES (?1, ?2)",
+            params![archive_id, collection_id],
+        )?;
+        Ok(())
+    }
+
+    pub fn remove_archive_from_collection(&self, archive_id: &str, collection_id: &str) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "DELETE FROM archive_collection_members WHERE archive_id = ?1 AND collection_id = ?2",
+            params![archive_id, collection_id],
+        )?;
+        Ok(())
+    }
+
+    pub fn get_archive_collections(&self, archive_id: &str) -> Result<Vec<String>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare("SELECT collection_id FROM archive_collection_members WHERE archive_id = ?1")?;
+        let rows = stmt.query_map(params![archive_id], |row| row.get(0))?;
+        let mut ids = Vec::new();
+        for r in rows {
+            if let Ok(id) = r {
+                ids.push(id);
+            }
+        }
+        Ok(ids)
+    }
+
+    // --- LIB-009: User Metadata & Personal Tags/Notes ---
+    pub fn get_archive_user_metadata(&self, archive_id: &str) -> Result<Option<ArchiveUserMetadataRecord>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT archive_id, display_name, custom_notes, custom_tags, is_favorite, updated_at FROM archive_user_metadata WHERE archive_id = ?1",
+        )?;
+        let mut rows = stmt.query(params![archive_id])?;
+        if let Some(row) = rows.next()? {
+            let tags_str: String = row.get(3)?;
+            let tags: Vec<String> = serde_json::from_str(&tags_str).unwrap_or_default();
+            let is_fav: i64 = row.get(4)?;
+            Ok(Some(ArchiveUserMetadataRecord {
+                archive_id: row.get(0)?,
+                display_name: row.get(1)?,
+                custom_notes: row.get(2)?,
+                custom_tags: tags,
+                is_favorite: is_fav == 1,
+                updated_at: row.get(5)?,
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
+    pub fn save_archive_user_metadata(&self, record: &ArchiveUserMetadataRecord) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        let tags_json = serde_json::to_string(&record.custom_tags).unwrap_or_else(|_| "[]".to_string());
+        conn.execute(
+            "INSERT INTO archive_user_metadata (archive_id, display_name, custom_notes, custom_tags, is_favorite, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+             ON CONFLICT(archive_id) DO UPDATE SET
+                display_name = excluded.display_name,
+                custom_notes = excluded.custom_notes,
+                custom_tags = excluded.custom_tags,
+                is_favorite = excluded.is_favorite,
+                updated_at = excluded.updated_at",
+            params![
+                record.archive_id,
+                record.display_name,
+                record.custom_notes,
+                tags_json,
+                if record.is_favorite { 1 } else { 0 },
+                record.updated_at,
+            ],
+        )?;
+        Ok(())
+    }
+
+    // --- LIB-008: Storage Roots ---
+    pub fn get_storage_roots(&self) -> Result<Vec<StorageRootRecord>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT id, path, role, is_active, created_at FROM storage_roots ORDER BY created_at ASC",
+        )?;
+        let rows = stmt.query_map([], |row| {
+            let is_act: i64 = row.get(3)?;
+            Ok(StorageRootRecord {
+                id: row.get(0)?,
+                path: row.get(1)?,
+                role: row.get(2)?,
+                is_active: is_act == 1,
+                free_bytes: None,
+                total_bytes: None,
+                created_at: row.get(4)?,
+            })
+        })?;
+        let mut res = Vec::new();
+        for r in rows {
+            if let Ok(item) = r {
+                res.push(item);
+            }
+        }
+        Ok(res)
+    }
+
+    pub fn save_storage_root(&self, record: &StorageRootRecord) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "INSERT INTO storage_roots (id, path, role, is_active, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5)
+             ON CONFLICT(id) DO UPDATE SET
+                path = excluded.path,
+                role = excluded.role,
+                is_active = excluded.is_active",
+            params![
+                record.id,
+                record.path,
+                record.role,
+                if record.is_active { 1 } else { 0 },
+                record.created_at,
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn delete_storage_root(&self, id: &str) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute("DELETE FROM storage_roots WHERE id = ?1", params![id])?;
+        Ok(())
+    }
+
+    // --- LIB-004: Scanner Folders ---
+    pub fn get_scan_directories(&self) -> Result<Vec<ScanDirectoryRecord>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT id, path, recursive, last_scanned_at, created_at FROM scan_directories ORDER BY created_at ASC",
+        )?;
+        let rows = stmt.query_map([], |row| {
+            let rec: i64 = row.get(2)?;
+            Ok(ScanDirectoryRecord {
+                id: row.get(0)?,
+                path: row.get(1)?,
+                recursive: rec == 1,
+                last_scanned_at: row.get(3)?,
+                created_at: row.get(4)?,
+            })
+        })?;
+        let mut res = Vec::new();
+        for r in rows {
+            if let Ok(d) = r {
+                res.push(d);
+            }
+        }
+        Ok(res)
+    }
+
+    pub fn save_scan_directory(&self, record: &ScanDirectoryRecord) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "INSERT INTO scan_directories (id, path, recursive, last_scanned_at, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5)
+             ON CONFLICT(id) DO UPDATE SET
+                path = excluded.path,
+                recursive = excluded.recursive,
+                last_scanned_at = excluded.last_scanned_at",
+            params![
+                record.id,
+                record.path,
+                if record.recursive { 1 } else { 0 },
+                record.last_scanned_at,
+                record.created_at,
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn delete_scan_directory(&self, id: &str) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute("DELETE FROM scan_directories WHERE id = ?1", params![id])?;
+        Ok(())
+    }
+
+    // --- DL-007: Download Bundles ---
+    pub fn get_download_bundles(&self) -> Result<Vec<DownloadBundleRecord>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT id, name, archive_ids, total_bytes, status, created_at, updated_at FROM download_bundles ORDER BY created_at DESC",
+        )?;
+        let rows = stmt.query_map([], |row| {
+            let ids_str: String = row.get(2)?;
+            let archive_ids: Vec<String> = serde_json::from_str(&ids_str).unwrap_or_default();
+            Ok(DownloadBundleRecord {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                archive_ids,
+                total_bytes: row.get(3)?,
+                status: row.get(4)?,
+                created_at: row.get(5)?,
+                updated_at: row.get(6)?,
+            })
+        })?;
+        let mut res = Vec::new();
+        for r in rows {
+            if let Ok(b) = r {
+                res.push(b);
+            }
+        }
+        Ok(res)
+    }
+
+    pub fn save_download_bundle(&self, record: &DownloadBundleRecord) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        let ids_json = serde_json::to_string(&record.archive_ids).unwrap_or_else(|_| "[]".to_string());
+        conn.execute(
+            "INSERT INTO download_bundles (id, name, archive_ids, total_bytes, status, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+             ON CONFLICT(id) DO UPDATE SET
+                name = excluded.name,
+                archive_ids = excluded.archive_ids,
+                total_bytes = excluded.total_bytes,
+                status = excluded.status,
+                updated_at = excluded.updated_at",
+            params![
+                record.id,
+                record.name,
+                ids_json,
+                record.total_bytes,
+                record.status,
+                record.created_at,
+                record.updated_at,
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn delete_download_bundle(&self, id: &str) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute("DELETE FROM download_bundles WHERE id = ?1", params![id])?;
         Ok(())
     }
 }

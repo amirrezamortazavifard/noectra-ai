@@ -30,26 +30,26 @@ This document tracks the implementation progress of all capabilities specified i
 | **CAT-003** | Relevance Ranking & Sorting | **DONE** | Multi-tier scoring (exact title match > prefix > contains > tags > description) + 6 sorting options with `Best Match` and `Title Match` badges. |
 | **CAT-004** | Saved Searches | **DONE** | Save search preset modal, persistent storage in SQLite `saved_catalog_searches`, dropdown menu, 1-click apply, and delete presets. |
 | **CAT-005** | Archive Details & Space Check | **DONE** | Full archive metadata sheet, human readable bytes, acquisition link, tags, live target drive free space check, and low disk space alert. |
-| **CAT-006** | Multiple Catalog Sources | PENDING | Next Batch (Batch 2) |
-| **DL-001** | Persistent Download Queue | PENDING | Next Batch (Batch 2) |
-| **DL-002** | Integrity Verification SHA-256 | PENDING | Next Batch (Batch 2) |
-| **DL-003** | Bandwidth & Concurrency Control | PENDING | Next Batch (Batch 2) |
-| **DL-004** | Resume with HTTP Range | PENDING | Next Batch (Batch 2) |
-| **DL-005** | Retry and Recovery | PENDING | Next Batch (Batch 2) |
-| **DL-006** | Download Scheduler | PENDING | Next Batch (Batch 2) |
-| **DL-007** | Download Bundles | PENDING | Next Batch (Batch 2) |
-| **DL-008** | Target Storage & Disk Space | PENDING | Next Batch (Batch 2) |
-| **DL-009** | Notifications & Download Center | PENDING | Next Batch (Batch 2) |
-| **LIB-001** | Import Local ZIM | PENDING | Batch 3 |
-| **LIB-002** | Library Overview & Real Stats | PENDING | Batch 3 |
-| **LIB-003** | Collection Manager | PENDING | Batch 3 |
-| **LIB-004** | Auto Scanner | PENDING | Batch 3 |
-| **LIB-005** | Duplicate Detection | PENDING | Batch 3 |
-| **LIB-006** | Missing File Recovery & Relink | PENDING | Batch 3 |
-| **LIB-007** | Archive Health Check | PENDING | Batch 3 |
-| **LIB-008** | Multi-location Storage Manager | PENDING | Batch 3 |
-| **LIB-009** | Metadata Editor | PENDING | Batch 3 |
-| **LIB-010** | Backup & Restore | PENDING | Batch 3 |
+| **CAT-006** | Multiple Catalog Sources | **DONE** | Full OPDS source management: persistent `catalog_sources` table, pre-seeded Kiwix official endpoint, add custom OPDS feeds, live OPDS connection test, delete sources, and Sources modal in CatalogBrowser. |
+| **DL-001** | Persistent Download Queue | **DONE** | SQLite-backed `download_tasks` queue with persistent state, progress tracking, resume on startup, and auto-queue transitions. |
+| **DL-002** | Integrity Verification SHA-256 | **DONE** | Integrated SHA-256 stream hasher in `download_manager.rs` that validates completed downloads against remote/archive hashes before moving to library. |
+| **DL-003** | Bandwidth & Concurrency Control | **DONE** | Concurrency limiter (`tokio::sync::Semaphore`), per-stream byte accounting, and speed calculator in download drawer. |
+| **DL-004** | Resume with HTTP Range | **DONE** | Range header support (`Range: bytes=X-`, `206 Partial Content`), `.part` temporary file persistence, and automatic resumed downloads without re-downloading existing bytes. |
+| **DL-005** | Retry and Recovery | **DONE** | Exponential backoff recovery in `download_manager.rs`, retry buttons on failed tasks, and graceful network disconnection resilience. |
+| **DL-006** | Download Scheduler | **DONE** | Download task status scheduling, background thread worker loop, and dynamic task dispatching. |
+| **DL-007** | Download Bundles | **DONE** | Multi-archive bundle selection, persistent `download_bundles` table, bundle manager modal with 1-click batch queueing of all archives. |
+| **DL-008** | Target Storage & Disk Space | **DONE** | Native Windows `kernel32::GetDiskFreeSpaceExW` disk space verification, low-space warnings, and target path allocation before starting downloads. |
+| **DL-009** | Notifications & Download Center | **DONE** | Upgraded `DownloadsManagerDrawer.tsx` with filter tabs (All, Active, Paused, Completed, Failed), bulk actions (Pause All, Resume All, Clear Done), live speed/ETA calculation, and toasts. |
+| **LIB-001** | Import Local ZIM | **DONE** | File picker, path validation, drag-and-drop file import, and choice between Linked Storage vs Managed Copy. |
+| **LIB-002** | Library Overview & Real Stats | **DONE** | Real-time overview metrics: Total Archives, Total Storage Used, Total Articles Indexed, and Library Health Status. |
+| **LIB-003** | Collection Manager | **DONE** | Custom knowledge collections (`library_collections`, `archive_collection_members`), color tags, collection filter pills row in library view, and quick archive assignment. |
+| **LIB-004** | Auto Scanner | **DONE** | Recursive directory scanner (`scan_directories`), system folder exclusion, 1-click scan execution, and table of discovered `.zim` files with import buttons. |
+| **LIB-005** | Duplicate Detection | **DONE** | Duplicate group detection by size and hash matching across storage locations with 1-click duplicate unlink. |
+| **LIB-006** | Missing File Recovery & Relink | **DONE** | Detection of missing/moved files (`status === 'missing'`), warning banner on card, and Relink Modal to restore path on disk without losing metadata. |
+| **LIB-007** | Archive Health Check | **DONE** | Real-time archive file readability, cluster header, and article count validation via `zim_reader` with status badges on cards. |
+| **LIB-008** | Multi-location Storage Manager | **DONE** | Multi-location storage roots (`storage_roots`), default app data directory inspection, custom drive registration, and live disk capacity/free space meters. |
+| **LIB-009** | Metadata Editor | **DONE** | Personal research notes, custom tags, custom display name override, and star favorite toggle with persistent `archive_user_metadata` table. |
+| **LIB-010** | Backup & Restore | **DONE** | Full library snapshot JSON generation (archives, collections, custom notes, storage roots), clipboard copy, file download, and JSON restore with automatic recovery. |
 | **READ-001** | Article Outline & TOC | PENDING | Batch 4 |
 | **READ-002** | Highlights & Annotations | PENDING | Batch 4 |
 | **READ-003** | Multi-tab Reading | PENDING | Batch 4 |

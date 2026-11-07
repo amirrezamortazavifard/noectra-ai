@@ -321,5 +321,56 @@ impl LibraryManager {
         #[allow(unreachable_code)]
         Ok(())
     }
+
+    pub async fn relink_archive(&self, id_or_filename: &str, new_path: &Path) -> Result<ZimLibraryItem, String> {
+        if !new_path.exists() {
+            return Err("Target file does not exist on disk".to_string());
+        }
+        if !new_path.extension().map(|e| e == "zim").unwrap_or(false) {
+            return Err("File is not a .zim archive".to_string());
+        }
+
+        let item = self.inspect_zim_file(new_path, true)?;
+
+        let mut externals = self.external_paths.write().await;
+        externals.retain(|p| {
+            let fname = p.file_name().map(|f| f.to_string_lossy().to_string()).unwrap_or_default();
+            fname != id_or_filename && fname.trim_end_matches(".zim") != id_or_filename
+        });
+        externals.push(new_path.to_path_buf());
+        drop(externals);
+
+        self.persist_external_manifest().await;
+        Ok(item)
+    }
+
+    pub fn scan_directory(&self, dir: &Path, recursive: bool) -> Vec<PathBuf> {
+        let mut found = Vec::new();
+        if !dir.exists() || !dir.is_dir() {
+            return found;
+        }
+
+        let mut queue = vec![dir.to_path_buf()];
+        let mut depth = 0;
+        let max_depth = if recursive { 4 } else { 1 };
+
+        while let Some(current) = queue.pop() {
+            if let Ok(entries) = std::fs::read_dir(&current) {
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    if path.is_file() && path.extension().map(|e| e.eq_ignore_ascii_case("zim")).unwrap_or(false) {
+                        found.push(path);
+                    } else if recursive && path.is_dir() && depth < max_depth {
+                        let name = path.file_name().map(|f| f.to_string_lossy().to_string()).unwrap_or_default();
+                        if !name.starts_with('.') && name != "node_modules" && name != "Windows" && name != "Program Files" {
+                            queue.push(path);
+                        }
+                    }
+                }
+            }
+            depth += 1;
+        }
+        found
+    }
 }
 
