@@ -10,7 +10,7 @@ use crate::db::{
     LibraryCollectionRecord, SavedCatalogSearchRecord, ScanDirectoryRecord, StorageRootRecord,
     ArticleAnnotationRecord, ReadingHistoryRecord, ArticleBookmarkRecord, MedicalGlossaryRecord,
     ClinicalGuidelineRecord, ClinicalConflictRecord, ArchiveVersionRecord,
-    KnowledgeGraphEntityRecord, KnowledgeGraphRelationRecord, PersonalWorkspaceItemRecord,
+    PersonalWorkspaceItemRecord,
     OfflineModelRecord, ResearchDossierRecord,
 };
 use axum::{

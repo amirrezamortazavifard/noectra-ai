@@ -117,8 +117,8 @@ export function sanitizeZimHtml(rawHtml: string, options: SanitizeOptions = {}):
       }
     }
 
-    // 4. Normalize Images (`<img>`) to load from local ZIM resource proxy if archiveId is provided
-    if (el.tagName.toLowerCase() === 'img') {
+    // 4. Normalize Images (`<img>`), Videos (`<video>`), and Audio (`<audio>`) to load from local ZIM resource proxy
+    if (['img', 'video', 'audio', 'source'].includes(el.tagName.toLowerCase())) {
       const src = el.getAttribute('src');
       if (src && !src.startsWith('http://') && !src.startsWith('https://') && !src.startsWith('data:')) {
         if (options.archiveId) {
@@ -136,7 +136,9 @@ export function sanitizeZimHtml(rawHtml: string, options: SanitizeOptions = {}):
           );
         }
       }
-      el.setAttribute('loading', 'lazy');
+      if (el.tagName.toLowerCase() === 'img') {
+        el.setAttribute('loading', 'lazy');
+      }
     }
 
     // 5. Style Sup and Wikipedia Citation Brackets [1][2]

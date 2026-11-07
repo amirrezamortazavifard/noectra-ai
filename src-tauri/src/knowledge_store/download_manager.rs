@@ -240,7 +240,7 @@ impl DownloadManager {
     ) {
         let max_retries = 10;
         let mut retry_count = 0;
-        let mut final_downloaded: u64 = 0;
+        let mut final_downloaded: u64;
 
         loop {
             let mut existing_bytes: u64 = 0;
