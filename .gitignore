@@ -21,6 +21,8 @@ data/config.json
 data/*.db
 data/*.db-shm
 data/*.db-wal
+data/zim/
+data/external_archives.json
 .env
 .env.*
 !.env.example

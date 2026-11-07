@@ -13,7 +13,9 @@ impl ZimReader {
         let zim = Zim::new(zim_path).map_err(|e| format!("Failed to open ZIM: {}", e))?;
         let q_clean = query.trim().to_lowercase();
         let mut results = Vec::new();
-        let max_results = if limit == 0 { 50 } else { limit.min(200) };
+        let mut seen_titles = std::collections::HashSet::new();
+        let mut seen_urls = std::collections::HashSet::new();
+        let max_results = if limit == 0 { 60 } else { limit.min(300) };
 
         for entry_res in zim.iterate_by_urls() {
             let entry = match entry_res {
@@ -48,10 +50,20 @@ impl ZimReader {
                 entry.title.clone()
             };
 
+            let norm_title = title.trim().to_lowercase();
+            let norm_url = entry.url.trim().to_lowercase();
+
+            if seen_titles.contains(&norm_title) || seen_urls.contains(&norm_url) {
+                continue;
+            }
+
             if q_clean.is_empty()
-                || title.to_lowercase().contains(&q_clean)
-                || entry.url.to_lowercase().contains(&q_clean)
+                || norm_title.contains(&q_clean)
+                || norm_url.contains(&q_clean)
             {
+                seen_titles.insert(norm_title);
+                seen_urls.insert(norm_url);
+
                 results.push(ZimArticleSummary {
                     url: entry.url,
                     title,
