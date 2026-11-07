@@ -586,7 +586,7 @@ export const CatalogBrowser: React.FC<Props> = ({
       const label = getLanguageLabel(code);
       return (
         <span
-          className="text-[10px] font-medium uppercase tracking-wider px-2 py-0.5 rounded-md bg-white/5 text-zinc-400 border border-white/10 truncate max-w-[100px]"
+          className="text-[10px] font-medium uppercase tracking-wider px-2 py-0.5 rounded-md bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-zinc-400 border border-slate-200 dark:border-white/10 truncate max-w-[100px]"
           title={label}
         >
           {label}
@@ -603,10 +603,10 @@ export const CatalogBrowser: React.FC<Props> = ({
         className="inline-flex items-center gap-1 cursor-help"
         title={`Supported languages (${codes.length}): ${allLabels}`}
       >
-        <span className="text-[10px] font-medium uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-white/5 text-zinc-400 border border-white/10 truncate max-w-[80px]">
+        <span className="text-[10px] font-medium uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-zinc-400 border border-slate-200 dark:border-white/10 truncate max-w-[80px]">
           {primary}
         </span>
-        <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-md bg-white/5 text-zinc-400 border border-white/10">
+        <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-zinc-400 border border-slate-200 dark:border-white/10">
           +{remainingCount}
         </span>
       </div>
@@ -616,19 +616,19 @@ export const CatalogBrowser: React.FC<Props> = ({
   return (
     <div className="w-full space-y-6">
       {/* Search & Filter Command Panel */}
-      <div className="p-4 sm:p-5 rounded-2xl bg-[#0a0a0c]/90 backdrop-blur-2xl border border-white/10 shadow-[0_4px_25px_rgb(0,0,0,0.4)] space-y-3.5">
+      <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#0a0a0c]/90 backdrop-blur-2xl border border-slate-200 dark:border-white/10 shadow-[0_4px_20px_rgb(0,0,0,0.05)] dark:shadow-[0_4px_25px_rgb(0,0,0,0.4)] space-y-3.5">
         
         {/* Row 1: Search Input directly adjacent to primary SEARCH CTA, plus subdued utilities on right */}
         <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-2.5">
           <form onSubmit={handleSearchSubmit} className="flex-1 flex items-center gap-2">
             <div className="relative flex-1">
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-zinc-500" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search offline encyclopedias, medical guides, textbooks..."
-                className="w-full pl-10 pr-9 py-2.5 rounded-xl bg-white/[0.03] border border-white/10 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-cyan-500/40 focus:border-cyan-500/50 transition-all font-medium"
+                className="w-full pl-10 pr-9 py-2.5 rounded-xl bg-slate-50 dark:bg-white/[0.03] border border-slate-200 dark:border-white/10 text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-cyan-500/40 focus:border-cyan-500/50 transition-all font-medium"
               />
               {searchQuery && (
                 <button
@@ -637,7 +637,7 @@ export const CatalogBrowser: React.FC<Props> = ({
                     setSearchQuery('');
                     setTimeout(() => searchCatalog(), 50);
                   }}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white transition-colors"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 dark:text-zinc-500 dark:hover:text-white transition-colors"
                   title="Clear query"
                 >
                   <X className="w-3.5 h-3.5" />
@@ -661,7 +661,7 @@ export const CatalogBrowser: React.FC<Props> = ({
             <button
               type="button"
               onClick={() => setIsSaveModalOpen(true)}
-              className="px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-zinc-300 border border-white/10 text-xs font-medium flex items-center gap-1.5 transition-colors"
+              className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10 text-slate-700 dark:text-zinc-300 border border-slate-200 dark:border-white/10 text-xs font-medium flex items-center gap-1.5 transition-colors"
               title="Save search criteria preset"
             >
               <BookmarkPlus className="w-3.5 h-3.5 text-zinc-400" />
@@ -671,7 +671,7 @@ export const CatalogBrowser: React.FC<Props> = ({
             <button
               type="button"
               onClick={() => setIsSourcesModalOpen(true)}
-              className="px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-zinc-300 border border-white/10 text-xs font-medium flex items-center gap-1.5 transition-colors"
+              className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10 text-slate-700 dark:text-zinc-300 border border-slate-200 dark:border-white/10 text-xs font-medium flex items-center gap-1.5 transition-colors"
               title="Manage OPDS Catalog Sources"
             >
               <Radio className="w-3.5 h-3.5 text-zinc-400" />
@@ -702,7 +702,7 @@ export const CatalogBrowser: React.FC<Props> = ({
                 <button
                   type="button"
                   onClick={() => setIsSavedSearchesOpen((prev) => !prev)}
-                  className="px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-zinc-300 border border-white/10 text-xs font-medium flex items-center gap-1.5 transition-colors"
+                  className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10 text-slate-700 dark:text-zinc-300 border border-slate-200 dark:border-white/10 text-xs font-medium flex items-center gap-1.5 transition-colors"
                   title="View saved search presets"
                 >
                   <Bookmark className="w-3.5 h-3.5 text-zinc-400" />
@@ -748,10 +748,10 @@ export const CatalogBrowser: React.FC<Props> = ({
         </div>
 
         {/* Row 2: Reactive Filters (No 'Apply Filters' button needed, instant update on change) */}
-        <div className="flex flex-wrap items-center gap-2.5 pt-2.5 border-t border-white/10 text-xs">
+        <div className="flex flex-wrap items-center gap-2.5 pt-2.5 border-t border-slate-200 dark:border-white/10 text-xs">
           {/* Category Dropdown */}
-          <div className="flex items-center space-x-1.5 text-zinc-400">
-            <span className="text-zinc-500 text-[11px]">Category:</span>
+          <div className="flex items-center space-x-1.5 text-slate-600 dark:text-zinc-400">
+            <span className="text-slate-500 dark:text-zinc-500 text-[11px]">Category:</span>
             <select
               value={selectedCategory}
               onChange={(e) => {
@@ -759,13 +759,13 @@ export const CatalogBrowser: React.FC<Props> = ({
                 setSelectedCategory(val);
                 setTimeout(() => searchCatalog(), 50);
               }}
-              className="max-w-[190px] px-2.5 py-1.5 rounded-lg bg-white/5 border border-white/10 text-xs font-medium text-zinc-200 focus:outline-none focus:ring-1 focus:ring-cyan-500/50 cursor-pointer"
+              className="max-w-[190px] px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-xs font-medium text-slate-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-cyan-500/50 cursor-pointer"
             >
-              <option value="all" className="bg-[#0c1017] text-zinc-200">All Categories</option>
+              <option value="all" className="bg-white text-slate-800 dark:bg-[#0c1017] dark:text-zinc-200">All Categories</option>
               {categories
                 .filter((c) => !c.includes('<') && !c.includes('>'))
                 .map((c) => (
-                  <option key={c} value={c} className="bg-[#0c1017] text-zinc-200">
+                  <option key={c} value={c} className="bg-white text-slate-800 dark:bg-[#0c1017] dark:text-zinc-200">
                     {getCategoryLabel(c)}
                   </option>
                 ))}
@@ -773,8 +773,8 @@ export const CatalogBrowser: React.FC<Props> = ({
           </div>
 
           {/* Language Dropdown */}
-          <div className="flex items-center space-x-1.5 text-zinc-400">
-            <span className="text-zinc-500 text-[11px]">Language:</span>
+          <div className="flex items-center space-x-1.5 text-slate-600 dark:text-zinc-400">
+            <span className="text-slate-500 dark:text-zinc-500 text-[11px]">Language:</span>
             <select
               value={selectedLang}
               onChange={(e) => {
@@ -782,11 +782,11 @@ export const CatalogBrowser: React.FC<Props> = ({
                 setSelectedLang(val);
                 setTimeout(() => searchCatalog(), 50);
               }}
-              className="max-w-[210px] px-2.5 py-1.5 rounded-lg bg-white/5 border border-white/10 text-xs font-medium text-zinc-200 focus:outline-none focus:ring-1 focus:ring-cyan-500/50 cursor-pointer"
+              className="max-w-[210px] px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-xs font-medium text-slate-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-cyan-500/50 cursor-pointer"
             >
-              <option value="all" className="bg-[#0c1017] text-zinc-200">All Languages</option>
+              <option value="all" className="bg-white text-slate-800 dark:bg-[#0c1017] dark:text-zinc-200">All Languages</option>
               {sortedLanguages.map((l) => (
-                <option key={l.code} value={l.code} className="bg-[#0c1017] text-zinc-200">
+                <option key={l.code} value={l.code} className="bg-white text-slate-800 dark:bg-[#0c1017] dark:text-zinc-200">
                   {l.name} ({l.code.toUpperCase()})
                   {l.count ? ` • ${l.count.toLocaleString()}` : ''}
                 </option>
@@ -795,8 +795,8 @@ export const CatalogBrowser: React.FC<Props> = ({
           </div>
 
           {/* Max Size Dropdown */}
-          <div className="flex items-center space-x-1.5 text-zinc-400">
-            <span className="text-zinc-500 text-[11px]">Size:</span>
+          <div className="flex items-center space-x-1.5 text-slate-600 dark:text-zinc-400">
+            <span className="text-slate-500 dark:text-zinc-500 text-[11px]">Size:</span>
             <select
               value={selectedSize ?? ''}
               onChange={(e) => {
@@ -804,43 +804,43 @@ export const CatalogBrowser: React.FC<Props> = ({
                 setSelectedSize(val);
                 setTimeout(() => searchCatalog(), 50);
               }}
-              className="px-2.5 py-1.5 rounded-lg bg-white/5 border border-white/10 text-xs font-medium text-zinc-200 focus:outline-none focus:ring-1 focus:ring-cyan-500/50 cursor-pointer"
+              className="px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-xs font-medium text-slate-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-cyan-500/50 cursor-pointer"
             >
-              <option value="" className="bg-[#0c1017] text-zinc-200">Any Size</option>
-              <option value="524288000" className="bg-[#0c1017] text-zinc-200">&lt; 500 MB</option>
-              <option value="2147483648" className="bg-[#0c1017] text-zinc-200">&lt; 2 GB</option>
-              <option value="5368709120" className="bg-[#0c1017] text-zinc-200">&lt; 5 GB</option>
-              <option value="10737418240" className="bg-[#0c1017] text-zinc-200">&lt; 10 GB</option>
+              <option value="" className="bg-white text-slate-800 dark:bg-[#0c1017] dark:text-zinc-200">Any Size</option>
+              <option value="524288000" className="bg-white text-slate-800 dark:bg-[#0c1017] dark:text-zinc-200">&lt; 500 MB</option>
+              <option value="2147483648" className="bg-white text-slate-800 dark:bg-[#0c1017] dark:text-zinc-200">&lt; 2 GB</option>
+              <option value="5368709120" className="bg-white text-slate-800 dark:bg-[#0c1017] dark:text-zinc-200">&lt; 5 GB</option>
+              <option value="10737418240" className="bg-white text-slate-800 dark:bg-[#0c1017] dark:text-zinc-200">&lt; 10 GB</option>
             </select>
           </div>
 
           {/* Sorting Dropdown */}
-          <div className="flex items-center space-x-1.5 text-zinc-400">
-            <span className="text-zinc-500 text-[11px]">Sort:</span>
+          <div className="flex items-center space-x-1.5 text-slate-600 dark:text-zinc-400">
+            <span className="text-slate-500 dark:text-zinc-500 text-[11px]">Sort:</span>
             <select
               value={sortOption}
               onChange={(e) => {
                 setSortOption(e.target.value as SortOption);
               }}
-              className="px-2.5 py-1.5 rounded-lg bg-white/5 border border-white/10 text-xs font-medium text-zinc-200 focus:outline-none focus:ring-1 focus:ring-cyan-500/50 cursor-pointer"
+              className="px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-xs font-medium text-slate-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-cyan-500/50 cursor-pointer"
             >
-              <option value="relevance" className="bg-[#0c1017] text-zinc-200">Best Match</option>
-              <option value="title_asc" className="bg-[#0c1017] text-zinc-200">Title (A-Z)</option>
-              <option value="title_desc" className="bg-[#0c1017] text-zinc-200">Title (Z-A)</option>
-              <option value="size_desc" className="bg-[#0c1017] text-zinc-200">Size (Largest)</option>
-              <option value="size_asc" className="bg-[#0c1017] text-zinc-200">Size (Smallest)</option>
-              <option value="updated_desc" className="bg-[#0c1017] text-zinc-200">Recently Updated</option>
+              <option value="relevance" className="bg-white text-slate-800 dark:bg-[#0c1017] dark:text-zinc-200">Best Match</option>
+              <option value="title_asc" className="bg-white text-slate-800 dark:bg-[#0c1017] dark:text-zinc-200">Title (A-Z)</option>
+              <option value="title_desc" className="bg-white text-slate-800 dark:bg-[#0c1017] dark:text-zinc-200">Title (Z-A)</option>
+              <option value="size_desc" className="bg-white text-slate-800 dark:bg-[#0c1017] dark:text-zinc-200">Size (Largest)</option>
+              <option value="size_asc" className="bg-white text-slate-800 dark:bg-[#0c1017] dark:text-zinc-200">Size (Smallest)</option>
+              <option value="updated_desc" className="bg-white text-slate-800 dark:bg-[#0c1017] dark:text-zinc-200">Recently Updated</option>
             </select>
           </div>
         </div>
 
         {/* Row 3: Conditional Active Filters Bar with Inline Reset All */}
         {hasActiveFilters && (
-          <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-white/5 text-xs">
+          <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100 dark:border-white/5 text-xs">
             <span className="text-[11px] text-zinc-500">Active:</span>
 
             {searchQuery && (
-              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-white/5 text-zinc-300 border border-white/10">
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 dark:bg-white/5 text-slate-700 dark:text-zinc-300 border border-slate-200 dark:border-white/10">
                 "{searchQuery}"
                 <button
                   onClick={() => {
@@ -855,7 +855,7 @@ export const CatalogBrowser: React.FC<Props> = ({
             )}
 
             {selectedCategory !== 'all' && (
-              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-white/5 text-zinc-300 border border-white/10">
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 dark:bg-white/5 text-slate-700 dark:text-zinc-300 border border-slate-200 dark:border-white/10">
                 {getCategoryLabel(selectedCategory)}
                 <button
                   onClick={() => {
@@ -870,7 +870,7 @@ export const CatalogBrowser: React.FC<Props> = ({
             )}
 
             {selectedLang !== 'all' && (
-              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-white/5 text-zinc-300 border border-white/10">
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 dark:bg-white/5 text-slate-700 dark:text-zinc-300 border border-slate-200 dark:border-white/10">
                 {getLanguageLabel(selectedLang)}
                 <button
                   onClick={() => {
@@ -885,7 +885,7 @@ export const CatalogBrowser: React.FC<Props> = ({
             )}
 
             {selectedSize !== undefined && (
-              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-white/5 text-zinc-300 border border-white/10">
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 dark:bg-white/5 text-slate-700 dark:text-zinc-300 border border-slate-200 dark:border-white/10">
                 &lt; {formatBytes(selectedSize)}
                 <button
                   onClick={() => {
@@ -903,7 +903,7 @@ export const CatalogBrowser: React.FC<Props> = ({
             <button
               type="button"
               onClick={handleResetFilters}
-              className="text-xs text-zinc-400 hover:text-white transition-colors ml-1 underline decoration-zinc-600 underline-offset-2"
+              className="text-xs text-slate-500 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white transition-colors ml-1 underline decoration-slate-300 dark:decoration-zinc-600 underline-offset-2"
             >
               Reset all
             </button>
@@ -998,7 +998,7 @@ export const CatalogBrowser: React.FC<Props> = ({
               return (
                 <div
                   key={archive.id}
-                  className="group relative p-4 rounded-2xl bg-[#0a0a0c]/80 backdrop-blur-xl border border-white/10 hover:border-cyan-500/30 hover:bg-white/[0.02] transition-all duration-200 flex flex-col justify-between shadow-[0_4px_20px_rgb(0,0,0,0.3)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.5)]"
+                  className="group relative p-4 rounded-2xl bg-white dark:bg-[#0a0a0c]/80 backdrop-blur-xl border border-slate-200 dark:border-white/10 hover:border-cyan-500/40 dark:hover:border-cyan-500/30 hover:shadow-lg dark:hover:bg-white/[0.02] transition-all duration-200 flex flex-col justify-between shadow-[0_2px_12px_rgb(0,0,0,0.05)] dark:shadow-[0_4px_20px_rgb(0,0,0,0.3)]"
                 >
                   <div>
                     {/* Top Section: Icon + Title First, Subtitle below */}
@@ -1007,13 +1007,13 @@ export const CatalogBrowser: React.FC<Props> = ({
                         <img
                           src={archive.illustration_url}
                           alt={archive.title}
-                          className="w-11 h-11 rounded-xl object-contain bg-white/5 p-1 shrink-0 border border-white/10"
+                          className="w-11 h-11 rounded-xl object-contain bg-slate-50 dark:bg-white/5 p-1 shrink-0 border border-slate-200 dark:border-white/10"
                           onError={(e) => {
                             (e.target as HTMLElement).style.display = 'none';
                           }}
                         />
                       ) : (
-                        <div className="w-11 h-11 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center shrink-0 text-cyan-400">
+                        <div className="w-11 h-11 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 flex items-center justify-center shrink-0 text-cyan-600 dark:text-cyan-400">
                           <BookOpen className="w-5 h-5" />
                         </div>
                       )}
@@ -1023,13 +1023,13 @@ export const CatalogBrowser: React.FC<Props> = ({
                           <div className="min-w-0 flex-1">
                             {/* Main Archive Title in bold white */}
                             <h4
-                              className="text-base font-semibold text-white truncate leading-tight group-hover:text-cyan-200 transition-colors"
+                              className="text-base font-semibold text-slate-900 dark:text-white truncate leading-tight group-hover:text-cyan-600 dark:group-hover:text-cyan-200 transition-colors"
                               title={archive.title}
                             >
                               {archive.title}
                             </h4>
                             {/* Collection/Source as muted subtitle */}
-                            <p className="text-xs text-zinc-400 truncate mt-0.5">
+                            <p className="text-xs text-slate-500 dark:text-zinc-400 truncate mt-0.5">
                               {archive.category ? getCategoryLabel(archive.category) : 'General Reference'}
                             </p>
                           </div>
@@ -1055,27 +1055,27 @@ export const CatalogBrowser: React.FC<Props> = ({
                     </div>
 
                     {/* Description with fixed line-clamp-2 and minimum height */}
-                    <p className="text-xs text-zinc-400 line-clamp-2 mb-3.5 leading-relaxed min-h-[2.5rem]">
+                    <p className="text-xs text-slate-600 dark:text-zinc-400 line-clamp-2 mb-3.5 leading-relaxed min-h-[2.5rem]">
                       {archive.description || 'No description provided for this offline archive.'}
                     </p>
                   </div>
 
                   {/* Card Meta & Bottom Controls */}
-                  <div className="space-y-2.5 pt-2.5 border-t border-white/10">
+                  <div className="space-y-2.5 pt-2.5 border-t border-slate-100 dark:border-white/10">
                     {/* Meta Details */}
                     <div className="grid grid-cols-2 gap-2 text-[11px] font-mono text-zinc-400">
-                      <span className="flex items-center gap-1 font-medium text-zinc-300">
+                      <span className="flex items-center gap-1 font-medium text-slate-700 dark:text-zinc-300">
                         <HardDrive className="w-3 h-3 text-zinc-500" />
                         {formatBytes(archive.size_bytes)}
                       </span>
 
                       {archive.article_count !== undefined && archive.article_count !== null ? (
-                        <span className="flex items-center gap-1 text-right justify-end font-sans text-zinc-400">
+                        <span className="flex items-center gap-1 text-right justify-end font-sans text-slate-500 dark:text-zinc-400">
                           <FileText className="w-3 h-3 text-zinc-500" />
                           {archive.article_count.toLocaleString()} Articles
                         </span>
                       ) : (
-                        <span className="text-right text-zinc-500 font-sans">Full Archive</span>
+                        <span className="text-right text-slate-400 dark:text-zinc-500 font-sans">Full Archive</span>
                       )}
                     </div>
 
@@ -1084,7 +1084,7 @@ export const CatalogBrowser: React.FC<Props> = ({
                       <button
                         type="button"
                         onClick={() => setSelectedDetailsArchive(archive)}
-                        className="p-2 rounded-xl text-zinc-500 hover:text-zinc-200 hover:bg-white/5 border border-transparent hover:border-white/10 transition-colors shrink-0"
+                        className="p-2 rounded-xl text-slate-400 dark:text-zinc-500 hover:text-slate-800 dark:hover:text-zinc-200 hover:bg-slate-100 dark:hover:bg-white/5 border border-transparent hover:border-slate-200 dark:hover:border-white/10 transition-colors shrink-0"
                         title="View archive details & disk check"
                       >
                         <Info className="w-3.5 h-3.5" />
@@ -1101,8 +1101,8 @@ export const CatalogBrowser: React.FC<Props> = ({
                         }}
                         className={`p-2 rounded-xl text-xs transition-colors shrink-0 ${
                           selectedBundleArchiveIds.includes(archive.id)
-                            ? 'text-cyan-300 bg-cyan-500/20 border border-cyan-500/40'
-                            : 'text-zinc-500 hover:text-zinc-200 hover:bg-white/5 border border-transparent hover:border-white/10'
+                            ? 'text-cyan-600 dark:text-cyan-300 bg-cyan-500/15 dark:bg-cyan-500/20 border border-cyan-500/40'
+                            : 'text-slate-400 dark:text-zinc-500 hover:text-slate-800 dark:hover:text-zinc-200 hover:bg-slate-100 dark:hover:bg-white/5 border border-transparent hover:border-slate-200 dark:hover:border-white/10'
                         }`}
                         title={
                           selectedBundleArchiveIds.includes(archive.id)
@@ -1146,7 +1146,7 @@ export const CatalogBrowser: React.FC<Props> = ({
                           /* Tonal / Secondary Ghost CTA by default; solid bright cyan on hover */
                           <button
                             onClick={() => handleStartDownload(archive)}
-                            className="w-full py-2 px-3 rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/25 hover:bg-cyan-500 hover:text-slate-950 group-hover:bg-cyan-500 group-hover:text-slate-950 font-medium text-xs flex items-center justify-center gap-1.5 transition-all duration-200"
+                            className="w-full py-2 px-3 rounded-xl bg-cyan-500/10 text-cyan-700 dark:text-cyan-400 border border-cyan-500/25 hover:bg-cyan-500 hover:text-white dark:hover:text-slate-950 group-hover:bg-cyan-500 group-hover:text-white dark:group-hover:text-slate-950 font-medium text-xs flex items-center justify-center gap-1.5 transition-all duration-200"
                           >
                             <Download className="w-3.5 h-3.5" />
                             <span>Download Archive</span>

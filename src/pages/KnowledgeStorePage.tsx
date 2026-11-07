@@ -86,7 +86,7 @@ export default function KnowledgeStorePage() {
   ).length;
 
   return (
-    <div className="relative min-h-screen w-full bg-slate-50/50 dark:bg-[#07090e] transition-colors duration-300">
+    <div className="relative min-h-screen w-full bg-slate-50 dark:bg-[#07090e] text-slate-900 dark:text-white transition-colors duration-300">
       {/* Decorative background glow */}
       <div
         className="pointer-events-none absolute top-0 left-1/3 -translate-x-1/2 w-[700px] h-[350px] rounded-full opacity-20 dark:opacity-30 blur-3xl"
@@ -100,32 +100,32 @@ export default function KnowledgeStorePage() {
         {/* Page Header */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
-            <div className="flex items-center space-x-2 text-[11px] font-medium tracking-wide text-zinc-500 mb-1">
-              <Archive className="w-3.5 h-3.5 text-zinc-400" />
-              <span className="uppercase tracking-wider text-[10px] font-semibold text-zinc-400">Knowledge Store</span>
-              <span className="text-zinc-600">•</span>
+            <div className="flex items-center space-x-2 text-[11px] font-medium tracking-wide text-slate-500 dark:text-zinc-500 mb-1">
+              <Archive className="w-3.5 h-3.5 text-slate-500 dark:text-zinc-400" />
+              <span className="uppercase tracking-wider text-[10px] font-semibold text-slate-600 dark:text-zinc-400">Knowledge Store</span>
+              <span className="text-slate-300 dark:text-zinc-600">•</span>
               {/* Streamlined muted status indicator */}
-              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-medium bg-white/5 text-zinc-400 border border-white/10">
-                <span className={`w-1.5 h-1.5 rounded-full ${isCatalogOnline === false ? 'bg-amber-400' : 'bg-emerald-400'}`} />
+              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-medium bg-black/5 dark:bg-white/5 text-slate-700 dark:text-zinc-400 border border-black/10 dark:border-white/10">
+                <span className={`w-1.5 h-1.5 rounded-full ${isCatalogOnline === false ? 'bg-amber-500' : 'bg-emerald-500'}`} />
                 {isCatalogOnline === false ? 'Catalog Offline' : 'Catalog Online'}
               </span>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
               Knowledge Store & ZIM Archives
             </h1>
-            <p className="text-xs text-zinc-400 mt-1 max-w-2xl leading-relaxed">
+            <p className="text-xs text-slate-600 dark:text-zinc-400 mt-1 max-w-2xl leading-relaxed">
               Discover, download, search with SQLite FTS5, and study offline Kiwix ZIM encyclopedias, medical guidelines, and reference libraries directly inside Noectra AI.
             </p>
           </div>
 
           {/* Tab Bar with integrated Updates action */}
-          <div className="flex items-center p-1 rounded-2xl bg-[#0a0a0c]/90 backdrop-blur-xl border border-white/10 shadow-sm shrink-0 gap-1">
+          <div className="flex items-center p-1 rounded-2xl bg-white/90 dark:bg-[#0a0a0c]/90 backdrop-blur-xl border border-black/10 dark:border-white/10 shadow-sm shrink-0 gap-1">
             <button
               onClick={() => setActiveTab('catalog')}
               className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
                 activeTab === 'catalog'
                   ? 'bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20'
-                  : 'text-zinc-400 hover:text-white hover:bg-white/5'
+                  : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5'
               }`}
             >
               <Globe2 className="w-4 h-4" />
@@ -145,7 +145,7 @@ export default function KnowledgeStorePage() {
               className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all relative ${
                 activeTab === 'library'
                   ? 'bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20'
-                  : 'text-zinc-400 hover:text-white hover:bg-white/5'
+                  : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5'
               }`}
             >
               <HardDrive className="w-4 h-4" />
@@ -155,7 +155,7 @@ export default function KnowledgeStorePage() {
                   className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full ${
                     activeTab === 'library'
                       ? 'bg-slate-950/20 text-slate-950'
-                      : 'bg-white/10 text-zinc-400'
+                      : 'bg-black/5 dark:bg-white/10 text-slate-600 dark:text-zinc-400'
                   }`}
                 >
                   {installedArchives.length}
@@ -168,7 +168,7 @@ export default function KnowledgeStorePage() {
               className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
                 activeTab === 'search'
                   ? 'bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20'
-                  : 'text-zinc-400 hover:text-white hover:bg-white/5'
+                  : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5'
               }`}
             >
               <Search className="w-4 h-4" />
@@ -180,7 +180,7 @@ export default function KnowledgeStorePage() {
               className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
                 activeTab === 'medical'
                   ? 'bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20'
-                  : 'text-zinc-400 hover:text-white hover:bg-white/5'
+                  : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5'
               }`}
             >
               <HeartPulse className="w-4 h-4" />
@@ -192,7 +192,7 @@ export default function KnowledgeStorePage() {
               className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
                 activeTab === 'workspace'
                   ? 'bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20'
-                  : 'text-zinc-400 hover:text-white hover:bg-white/5'
+                  : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5'
               }`}
             >
               <Briefcase className="w-4 h-4" />
@@ -200,15 +200,15 @@ export default function KnowledgeStorePage() {
             </button>
 
             {/* Subtle Divider */}
-            <div className="h-4 w-px bg-white/10 mx-1" />
+            <div className="h-4 w-px bg-black/10 dark:bg-white/10 mx-1" />
 
             {/* Inline Updates Button */}
             <button
               onClick={() => setShowUpdateModal(true)}
-              className="p-1.5 rounded-xl text-zinc-400 hover:text-white border border-white/10 hover:border-white/20 hover:bg-white/5 transition flex items-center gap-1 text-xs"
+              className="p-1.5 rounded-xl text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white border border-black/10 dark:border-white/10 hover:border-black/20 dark:hover:border-white/20 hover:bg-black/5 dark:hover:bg-white/5 transition flex items-center gap-1 text-xs"
               title="Archive Updates (UPD-001 to UPD-003)"
             >
-              <RefreshCw className="w-3.5 h-3.5 text-cyan-400" />
+              <RefreshCw className="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400" />
               <span className="hidden sm:inline pr-1 text-[11px] font-medium">Updates</span>
             </button>
           </div>
