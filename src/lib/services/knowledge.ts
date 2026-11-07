@@ -67,6 +67,11 @@ export interface ZimLibraryItem {
   cluster_count: number;
   main_page_url?: string;
   is_external: boolean;
+  description?: string;
+  language?: string;
+  modified_at?: string;
+  status: 'downloaded' | 'linked' | 'missing' | string;
+  is_valid: boolean;
 }
 
 export interface ZimArticleSummary {
@@ -169,9 +174,19 @@ export class KnowledgeService {
     return res.json();
   }
 
-  static async deleteArchive(id: string): Promise<boolean> {
-    const res = await this.apiFetch(`/library/${encodeURIComponent(id)}`, {
-      method: 'DELETE',
+  static async deleteArchive(id: string, deleteFile = false): Promise<boolean> {
+    const res = await this.apiFetch(
+      `/library/${encodeURIComponent(id)}?delete_file=${deleteFile ? 'true' : 'false'}`,
+      {
+        method: 'DELETE',
+      }
+    );
+    return res.ok;
+  }
+
+  static async revealArchive(id: string): Promise<boolean> {
+    const res = await this.apiFetch(`/library/${encodeURIComponent(id)}/reveal`, {
+      method: 'POST',
     });
     return res.ok;
   }

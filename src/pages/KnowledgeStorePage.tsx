@@ -15,6 +15,8 @@ import {
   Globe2,
   Sparkles,
   BookOpen,
+  Wifi,
+  WifiOff,
 } from 'lucide-react';
 
 export default function KnowledgeStorePage() {
@@ -22,6 +24,7 @@ export default function KnowledgeStorePage() {
   const [downloads, setDownloads] = useState<DownloadTask[]>([]);
   const [installedArchives, setInstalledArchives] = useState<ZimLibraryItem[]>([]);
   const [activeReaderArchiveId, setActiveReaderArchiveId] = useState<string | null>(null);
+  const [isCatalogOnline, setIsCatalogOnline] = useState<boolean | null>(null);
 
   const fetchDownloads = async () => {
     try {
@@ -41,9 +44,19 @@ export default function KnowledgeStorePage() {
     }
   };
 
+  const checkCatalogHealth = async () => {
+    try {
+      const cats = await KnowledgeService.fetchCategories();
+      setIsCatalogOnline(cats.length > 0);
+    } catch {
+      setIsCatalogOnline(false);
+    }
+  };
+
   useEffect(() => {
     fetchDownloads();
     fetchInstalled();
+    checkCatalogHealth();
   }, []);
 
   // Periodic polling for downloads when active downloads exist
@@ -69,19 +82,26 @@ export default function KnowledgeStorePage() {
     <div className="relative min-h-screen w-full bg-slate-50/50 dark:bg-[#07090e] transition-colors duration-300">
       {/* Decorative background glow */}
       <div
-        className="pointer-events-none absolute top-0 left-1/3 -translate-x-1/2 w-[500px] h-[300px] rounded-full opacity-20 dark:opacity-30 blur-3xl"
+        className="pointer-events-none absolute top-0 left-1/3 -translate-x-1/2 w-[700px] h-[350px] rounded-full opacity-20 dark:opacity-30 blur-3xl"
         style={{
           background: 'radial-gradient(circle, rgba(14,165,233,0.3) 0%, transparent 70%)',
         }}
       />
 
-      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+      {/* Main content container with expansive max width for wide desktop monitors */}
+      <div className="relative z-10 w-full max-w-[1720px] mx-auto px-4 sm:px-6 lg:px-10 py-6 lg:py-8 space-y-6">
         {/* Page Header */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
             <div className="flex items-center space-x-2 text-xs font-bold uppercase tracking-wider text-sky-600 dark:text-sky-400 mb-1">
               <Archive className="w-4 h-4" />
               <span>Offline Knowledge Hub</span>
+              <span className="text-slate-300 dark:text-white/20">•</span>
+              {/* Online / Catalog status pill */}
+              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                {isCatalogOnline === false ? 'Catalog Offline' : 'OPDS Catalog Online'}
+              </span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
               Knowledge Store & ZIM Archives
@@ -103,6 +123,11 @@ export default function KnowledgeStorePage() {
             >
               <Globe2 className="w-4 h-4" />
               <span>Discover Catalog</span>
+              {activeDownloadCount > 0 && (
+                <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-amber-400 text-slate-950 animate-pulse">
+                  {activeDownloadCount} downloading
+                </span>
+              )}
             </button>
 
             <button
@@ -164,6 +189,7 @@ export default function KnowledgeStorePage() {
             onOpenReader={(archiveId) => {
               setActiveReaderArchiveId(archiveId);
             }}
+            onSwitchToCatalog={() => setActiveTab('catalog')}
           />
         )}
       </div>
@@ -178,4 +204,3 @@ export default function KnowledgeStorePage() {
     </div>
   );
 }
-

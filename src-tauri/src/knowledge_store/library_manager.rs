@@ -42,10 +42,34 @@ impl LibraryManager {
         // 2. Scan external imported files
         let externals = self.external_paths.read().await;
         for path in externals.iter() {
-            if path.exists() && !seen.contains(path) {
-                if let Ok(item) = self.inspect_zim_file(path, true) {
-                    seen.insert(path.clone());
-                    items.push(item);
+            if !seen.contains(path) {
+                seen.insert(path.clone());
+                if path.exists() {
+                    if let Ok(item) = self.inspect_zim_file(path, true) {
+                        items.push(item);
+                    }
+                } else {
+                    // Report missing file
+                    let file_name = path
+                        .file_name()
+                        .map(|f| f.to_string_lossy().to_string())
+                        .unwrap_or_else(|| "archive.zim".to_string());
+                    items.push(ZimLibraryItem {
+                        id: file_name.trim_end_matches(".zim").to_string(),
+                        title: file_name.trim_end_matches(".zim").replace('_', " "),
+                        file_name: file_name.clone(),
+                        file_path: path.to_string_lossy().to_string(),
+                        file_size: 0,
+                        article_count: 0,
+                        cluster_count: 0,
+                        main_page_url: None,
+                        is_external: true,
+                        description: Some("File path no longer exists on disk.".to_string()),
+                        language: None,
+                        modified_at: None,
+                        status: "missing".to_string(),
+                        is_valid: false,
+                    });
                 }
             }
         }
@@ -62,13 +86,17 @@ impl LibraryManager {
 
         let id = file_name.trim_end_matches(".zim").to_string();
 
-        let (title, article_count, cluster_count, main_page) = match Zim::new(path) {
+        let modified_at = meta.modified().ok().map(|t| {
+            let dt: chrono::DateTime<chrono::Utc> = t.into();
+            dt.format("%Y-%m-%d").to_string()
+        });
+
+        let (title, article_count, cluster_count, main_page, description, language, is_valid) = match Zim::new(path) {
             Ok(z) => {
                 let count = z.header.article_count;
                 let clusters = z.header.cluster_count;
                 let main_url = z.main_page().ok().flatten().map(|e| e.url);
 
-                // Try reading metadata title or fallback to filename
                 let mut title = file_name.trim_end_matches(".zim").replace('_', " ");
                 if let Ok(Some(content)) = z.metadata("Title") {
                     if let Ok(bytes) = content.to_vec() {
@@ -79,11 +107,19 @@ impl LibraryManager {
                     }
                 }
 
-                (title, count, clusters, main_url)
+                let desc = z.metadata("Description").ok().flatten().and_then(|c| {
+                    c.to_vec().ok().map(|b| String::from_utf8_lossy(&b).trim().to_string())
+                });
+
+                let lang = z.metadata("Language").ok().flatten().and_then(|c| {
+                    c.to_vec().ok().map(|b| String::from_utf8_lossy(&b).trim().to_string())
+                });
+
+                (title, count, clusters, main_url, desc, lang, true)
             }
             Err(_) => {
                 let fallback_title = file_name.trim_end_matches(".zim").replace('_', " ");
-                (fallback_title, 0, 0, None)
+                (fallback_title, 0, 0, None, None, None, false)
             }
         };
 
@@ -97,6 +133,11 @@ impl LibraryManager {
             cluster_count,
             main_page_url: main_page,
             is_external,
+            description,
+            language,
+            modified_at,
+            status: if is_external { "linked".to_string() } else { "downloaded".to_string() },
+            is_valid,
         })
     }
 
@@ -160,8 +201,7 @@ impl LibraryManager {
         }
     }
 
-    pub async fn delete_archive(&self, id_or_filename: &str) -> Result<(), String> {
-        // Check in app zim_dir
+    pub async fn remove_or_delete_archive(&self, id_or_filename: &str, delete_from_disk: bool) -> Result<(), String> {
         let in_dir = self.zim_dir.join(if id_or_filename.ends_with(".zim") {
             id_or_filename.to_string()
         } else {
@@ -169,18 +209,91 @@ impl LibraryManager {
         });
 
         if in_dir.exists() {
-            std::fs::remove_file(&in_dir).map_err(|e| e.to_string())?;
+            if delete_from_disk {
+                std::fs::remove_file(&in_dir).map_err(|e| e.to_string())?;
+            }
             return Ok(());
         }
 
         // Check in externals
         let mut externals = self.external_paths.write().await;
+        let mut found_path = None;
         externals.retain(|p| {
-            p.file_name()
-                .map(|f| f.to_string_lossy() != id_or_filename && f.to_string_lossy() != format!("{}.zim", id_or_filename))
-                .unwrap_or(true)
+            let is_match = p
+                .file_name()
+                .map(|f| {
+                    f.to_string_lossy() == id_or_filename
+                        || f.to_string_lossy() == format!("{}.zim", id_or_filename)
+                        || f.to_string_lossy().trim_end_matches(".zim") == id_or_filename
+                })
+                .unwrap_or(false);
+
+            if is_match {
+                found_path = Some(p.clone());
+                false
+            } else {
+                true
+            }
         });
 
+        if delete_from_disk {
+            if let Some(p) = found_path {
+                if p.exists() {
+                    let _ = std::fs::remove_file(&p);
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    pub async fn reveal_archive(&self, id_or_filename: &str) -> Result<(), String> {
+        let archives = self.list_archives().await;
+        let item = archives
+            .into_iter()
+            .find(|a| {
+                a.id == id_or_filename
+                    || a.file_name == id_or_filename
+                    || a.file_name == format!("{}.zim", id_or_filename)
+            })
+            .ok_or_else(|| "Archive not found".to_string())?;
+
+        let path = PathBuf::from(&item.file_path);
+        if !path.exists() {
+            return Err("File no longer exists on disk".to_string());
+        }
+
+        #[cfg(target_os = "windows")]
+        {
+            let _ = std::process::Command::new("explorer")
+                .args(["/select,", &path.to_string_lossy()])
+                .spawn()
+                .map_err(|e| format!("Failed to launch file explorer: {}", e))?;
+            return Ok(());
+        }
+
+        #[cfg(target_os = "macos")]
+        {
+            let _ = std::process::Command::new("open")
+                .arg("-R")
+                .arg(&path)
+                .spawn()
+                .map_err(|e| format!("Failed to launch finder: {}", e))?;
+            return Ok(());
+        }
+
+        #[cfg(target_os = "linux")]
+        {
+            if let Some(parent) = path.parent() {
+                let _ = std::process::Command::new("xdg-open")
+                    .arg(parent)
+                    .spawn()
+                    .map_err(|e| format!("Failed to launch file manager: {}", e))?;
+            }
+            return Ok(());
+        }
+
+        #[allow(unreachable_code)]
         Ok(())
     }
 }

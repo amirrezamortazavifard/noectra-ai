@@ -137,7 +137,7 @@ const Sidebar = ({ children }: { children: React.ReactNode }) => {
 
                     <span
                       className={cn(
-                        'text-[8.5px] tracking-wider uppercase font-medium mt-1 transition-colors duration-200',
+                        'text-[8px] tracking-tight uppercase font-medium mt-0.5 transition-colors duration-200 truncate max-w-[50px] text-center',
                         link.active
                           ? 'text-black/90 dark:text-[#4FC3F7] font-semibold'
                           : 'text-black/45 dark:text-[rgba(255,255,255,0.45)] group-hover:text-black/80 dark:group-hover:text-[rgba(255,255,255,0.85)]',
@@ -145,6 +145,11 @@ const Sidebar = ({ children }: { children: React.ReactNode }) => {
                     >
                       {link.label}
                     </span>
+
+                    {/* Desktop Hover Tooltip */}
+                    <div className="hidden lg:block absolute left-[calc(100%+12px)] top-1/2 -translate-y-1/2 px-2.5 py-1 rounded-lg bg-slate-950/90 dark:bg-[#121622]/95 border border-black/10 dark:border-white/10 text-white text-[11px] font-medium tracking-normal whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 transition-all duration-150 shadow-2xl z-50 backdrop-blur-md">
+                      {link.label === 'Knowledge' ? 'Knowledge Store (ZIM Archives)' : link.label}
+                    </div>
                   </Link>
                 );
               })}

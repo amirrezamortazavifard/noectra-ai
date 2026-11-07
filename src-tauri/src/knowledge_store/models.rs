@@ -109,5 +109,10 @@ pub struct ZimLibraryItem {
     pub cluster_count: u32,
     pub main_page_url: Option<String>,
     pub is_external: bool,
+    pub description: Option<String>,
+    pub language: Option<String>,
+    pub modified_at: Option<String>,
+    pub status: String,
+    pub is_valid: bool,
 }
 

@@ -4,6 +4,7 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
   const segments = useSelectedLayoutSegments();
   const isPdf = segments.includes('pdf');
   const isDiscover = segments.includes('discover');
+  const isKnowledge = segments.includes('knowledge');
   const isHome = segments.length === 0;
 
   if (isPdf) {
@@ -16,7 +17,7 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
 
   return (
     <main className="lg:pl-20 bg-light-primary dark:bg-dark-primary h-screen w-full overflow-y-auto overflow-x-hidden">
-      <div className={isDiscover || isHome ? "w-full min-h-full" : "max-w-screen-lg lg:mx-auto mx-4 min-h-full"}>
+      <div className={isDiscover || isHome || isKnowledge ? "w-full min-h-full" : "max-w-screen-lg lg:mx-auto mx-4 min-h-full"}>
         {children}
       </div>
     </main>

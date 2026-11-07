@@ -57,6 +57,7 @@ pub fn create_knowledge_router(state: KnowledgeStoreState) -> Router {
         .route("/api/knowledge/library", get(get_library_handler))
         .route("/api/knowledge/import", post(import_zim_handler))
         .route("/api/knowledge/library/:id", delete(delete_library_item_handler))
+        .route("/api/knowledge/library/:id/reveal", post(reveal_library_item_handler))
         .route("/api/knowledge/downloads", get(get_downloads_handler))
         .route("/api/knowledge/download", post(start_download_handler))
         .route("/api/knowledge/downloads/:id/pause", post(pause_download_handler))
@@ -156,13 +157,32 @@ async fn import_zim_handler(
     Ok(Json(item))
 }
 
+#[derive(Debug, Deserialize)]
+struct DeleteArchiveQuery {
+    delete_file: Option<bool>,
+}
+
 async fn delete_library_item_handler(
+    State(state): State<KnowledgeStoreState>,
+    AxumPath(id): AxumPath<String>,
+    Query(query): Query<DeleteArchiveQuery>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let delete_from_disk = query.delete_file.unwrap_or(false);
+    state
+        .library_manager
+        .remove_or_delete_archive(&id, delete_from_disk)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
+    Ok(Json(json!({ "success": true })))
+}
+
+async fn reveal_library_item_handler(
     State(state): State<KnowledgeStoreState>,
     AxumPath(id): AxumPath<String>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     state
         .library_manager
-        .delete_archive(&id)
+        .reveal_archive(&id)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
     Ok(Json(json!({ "success": true })))
