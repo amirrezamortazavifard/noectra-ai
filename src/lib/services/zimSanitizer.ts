@@ -138,6 +138,11 @@ export function sanitizeZimHtml(rawHtml: string, options: SanitizeOptions = {}):
       }
       el.setAttribute('loading', 'lazy');
     }
+
+    // 5. Style Sup and Wikipedia Citation Brackets [1][2]
+    if (el.tagName.toLowerCase() === 'sup') {
+      el.classList.add('zim-citation-sup');
+    }
   });
 
   return doc.body.innerHTML;

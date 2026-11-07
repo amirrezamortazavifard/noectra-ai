@@ -741,144 +741,154 @@ export const InstalledLibraryView: React.FC<Props> = ({
         </div>
       </div>
 
-      {/* Control & Filter Toolbar */}
-      <div className="p-4 rounded-2xl bg-white/80 dark:bg-[#0c1017]/80 backdrop-blur-xl border border-black/[0.06] dark:border-white/[0.08] shadow-sm flex flex-col lg:flex-row items-center justify-between gap-4">
-        {/* Search Input */}
-        <div className="relative flex-1 w-full lg:max-w-md">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-          <input
-            type="text"
-            value={filterQuery}
-            onChange={(e) => setFilterQuery(e.target.value)}
-            placeholder="Filter installed archives by title or path..."
-            className="w-full pl-10 pr-9 py-2 rounded-xl bg-slate-100/80 dark:bg-white/[0.05] border border-black/[0.04] dark:border-white/[0.08] text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500/40 transition-all"
-          />
-          {filterQuery && (
+      {/* Control & Filter Toolbar (Optimized 2-Row Balanced Layout) */}
+      <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#0a0a0c]/90 backdrop-blur-xl border border-slate-200 dark:border-white/10 shadow-sm space-y-3">
+        {/* Row 1: Primary Search + Scope Filter + Sort + Primary Import CTA */}
+        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2.5">
+          {/* Search Input */}
+          <div className="relative flex-1 min-w-[200px]">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-zinc-500" />
+            <input
+              type="text"
+              value={filterQuery}
+              onChange={(e) => setFilterQuery(e.target.value)}
+              placeholder="Search local library by title, category, or path..."
+              className="w-full pl-10 pr-9 py-2 rounded-xl bg-slate-50 dark:bg-white/[0.04] border border-slate-200 dark:border-white/10 text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-sky-500/40 transition-all font-medium"
+            />
+            {filterQuery && (
+              <button
+                onClick={() => setFilterQuery('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            {/* Status Filter Segmented Control */}
+            <div className="flex items-center gap-1 p-1 rounded-xl bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-xs font-medium">
+              <button
+                onClick={() => setStatusFilter('all')}
+                className={`px-3 py-1.5 rounded-lg transition-all ${
+                  statusFilter === 'all'
+                    ? 'bg-white dark:bg-white/15 text-slate-900 dark:text-white shadow-xs font-semibold'
+                    : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                All ({archives.length})
+              </button>
+              <button
+                onClick={() => setStatusFilter('downloaded')}
+                className={`px-3 py-1.5 rounded-lg transition-all ${
+                  statusFilter === 'downloaded'
+                    ? 'bg-white dark:bg-white/15 text-slate-900 dark:text-white shadow-xs font-semibold'
+                    : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                Managed ({stats.downloadedCount})
+              </button>
+              <button
+                onClick={() => setStatusFilter('linked')}
+                className={`px-3 py-1.5 rounded-lg transition-all ${
+                  statusFilter === 'linked'
+                    ? 'bg-white dark:bg-white/15 text-slate-900 dark:text-white shadow-xs font-semibold'
+                    : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                Linked ({stats.linkedCount})
+              </button>
+            </div>
+
+            {/* Sort Selector */}
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-xs">
+              <ArrowUpDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+              <select
+                value={sortOption}
+                onChange={(e) => setSortOption(e.target.value as SortOption)}
+                className="bg-transparent text-slate-900 dark:text-white font-medium focus:outline-none cursor-pointer pr-1"
+              >
+                <option value="date_desc" className="bg-white dark:bg-[#0c1017]">Newest First</option>
+                <option value="date_asc" className="bg-white dark:bg-[#0c1017]">Oldest First</option>
+                <option value="favorites" className="bg-white dark:bg-[#0c1017]">Starred Favorites First</option>
+                <option value="title_asc" className="bg-white dark:bg-[#0c1017]">Title (A-Z)</option>
+                <option value="title_desc" className="bg-white dark:bg-[#0c1017]">Title (Z-A)</option>
+                <option value="size_desc" className="bg-white dark:bg-[#0c1017]">Size (Largest)</option>
+                <option value="articles_desc" className="bg-white dark:bg-[#0c1017]">Articles (Most)</option>
+              </select>
+            </div>
+
+            {/* Import Action CTA Button */}
             <button
-              onClick={() => setFilterQuery('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+              onClick={handleBrowseFile}
+              className="px-4 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 active:scale-98 text-slate-950 text-xs font-bold uppercase tracking-wider shadow-sm transition-all flex items-center gap-1.5 shrink-0"
             >
-              <X className="w-3.5 h-3.5" />
+              <Plus className="w-3.5 h-3.5" />
+              <span>Import .zim</span>
             </button>
-          )}
+          </div>
         </div>
 
-        {/* Filter & Sort Controls */}
-        <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto justify-start lg:justify-end">
-          {/* Status Filter */}
-          <div className="flex items-center gap-1.5 p-1 rounded-xl bg-slate-100/80 dark:bg-white/[0.05] border border-black/[0.04] dark:border-white/[0.06] text-xs">
-            <button
-              onClick={() => setStatusFilter('all')}
-              className={`px-3 py-1 rounded-lg font-medium transition-colors ${
-                statusFilter === 'all'
-                  ? 'bg-white dark:bg-white/10 text-slate-900 dark:text-white shadow-sm'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-              }`}
-            >
-              All ({archives.length})
-            </button>
-            <button
-              onClick={() => setStatusFilter('downloaded')}
-              className={`px-3 py-1 rounded-lg font-medium transition-colors ${
-                statusFilter === 'downloaded'
-                  ? 'bg-white dark:bg-white/10 text-slate-900 dark:text-white shadow-sm'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-              }`}
-            >
-              Managed ({stats.downloadedCount})
-            </button>
-            <button
-              onClick={() => setStatusFilter('linked')}
-              className={`px-3 py-1 rounded-lg font-medium transition-colors ${
-                statusFilter === 'linked'
-                  ? 'bg-white dark:bg-white/10 text-slate-900 dark:text-white shadow-sm'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-              }`}
-            >
-              Linked ({stats.linkedCount})
-            </button>
+        {/* Row 2: Secondary Utility Tools Row */}
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100 dark:border-white/5">
+          <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-zinc-400 font-medium">
+            <span>Tools:</span>
           </div>
 
-          {/* Sort Selector */}
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100/80 dark:bg-white/[0.05] border border-black/[0.04] dark:border-white/[0.06] text-xs">
-            <ArrowUpDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-            <select
-              value={sortOption}
-              onChange={(e) => setSortOption(e.target.value as SortOption)}
-              className="bg-transparent text-slate-900 dark:text-white font-medium focus:outline-none cursor-pointer pr-1"
+          <div className="flex flex-wrap items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setShowCollectionsModal(true)}
+              className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10 text-slate-700 dark:text-zinc-300 text-xs font-medium flex items-center gap-1.5 transition-colors border border-slate-200 dark:border-white/10"
+              title="Manage Collections (LIB-003)"
             >
-              <option value="date_desc" className="bg-white dark:bg-[#0c1017]">Newest First</option>
-              <option value="date_asc" className="bg-white dark:bg-[#0c1017]">Oldest First</option>
-              <option value="favorites" className="bg-white dark:bg-[#0c1017]">Starred Favorites First</option>
-              <option value="title_asc" className="bg-white dark:bg-[#0c1017]">Title (A-Z)</option>
-              <option value="title_desc" className="bg-white dark:bg-[#0c1017]">Title (Z-A)</option>
-              <option value="size_desc" className="bg-white dark:bg-[#0c1017]">Size (Largest)</option>
-              <option value="articles_desc" className="bg-white dark:bg-[#0c1017]">Articles (Most)</option>
-            </select>
+              <Boxes className="w-3.5 h-3.5 text-indigo-500" />
+              <span>Collections ({collections.length})</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShowScannerModal(true)}
+              className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10 text-slate-700 dark:text-zinc-300 text-xs font-medium flex items-center gap-1.5 transition-colors border border-slate-200 dark:border-white/10"
+              title="Directory Auto Scanner (LIB-004)"
+            >
+              <FolderSearch className="w-3.5 h-3.5 text-sky-500" />
+              <span>Scanner</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleOpenDuplicates}
+              className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10 text-slate-700 dark:text-zinc-300 text-xs font-medium flex items-center gap-1.5 transition-colors border border-slate-200 dark:border-white/10"
+              title="Detect Duplicate Archives (LIB-005)"
+            >
+              <Copy className="w-3.5 h-3.5 text-amber-500" />
+              <span>Duplicates</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShowStorageModal(true)}
+              className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10 text-slate-700 dark:text-zinc-300 text-xs font-medium flex items-center gap-1.5 transition-colors border border-slate-200 dark:border-white/10"
+              title="Storage Roots & Drive Manager (LIB-008)"
+            >
+              <HardDrive className="w-3.5 h-3.5 text-emerald-500" />
+              <span>Storage</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                handleGenerateBackup();
+                setShowBackupModal(true);
+              }}
+              className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10 text-slate-700 dark:text-zinc-300 text-xs font-medium flex items-center gap-1.5 transition-colors border border-slate-200 dark:border-white/10"
+              title="Backup & Restore Library Snapshot (LIB-010)"
+            >
+              <FolderSync className="w-3.5 h-3.5 text-purple-500" />
+              <span>Backup</span>
+            </button>
           </div>
-
-          {/* Quick Action Utility Buttons (LIB-003 to LIB-010) */}
-          <button
-            type="button"
-            onClick={() => setShowCollectionsModal(true)}
-            className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/[0.05] dark:hover:bg-white/[0.10] text-slate-700 dark:text-slate-300 text-xs font-semibold flex items-center gap-1.5 transition-colors border border-black/[0.04] dark:border-white/[0.06]"
-            title="Manage Collections (LIB-003)"
-          >
-            <Boxes className="w-3.5 h-3.5 text-indigo-500" />
-            <span className="hidden sm:inline">Collections</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setShowScannerModal(true)}
-            className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/[0.05] dark:hover:bg-white/[0.10] text-slate-700 dark:text-slate-300 text-xs font-semibold flex items-center gap-1.5 transition-colors border border-black/[0.04] dark:border-white/[0.06]"
-            title="Directory Auto Scanner (LIB-004)"
-          >
-            <FolderSearch className="w-3.5 h-3.5 text-sky-500" />
-            <span className="hidden sm:inline">Scanner</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={handleOpenDuplicates}
-            className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/[0.05] dark:hover:bg-white/[0.10] text-slate-700 dark:text-slate-300 text-xs font-semibold flex items-center gap-1.5 transition-colors border border-black/[0.04] dark:border-white/[0.06]"
-            title="Detect Duplicate Archives (LIB-005)"
-          >
-            <Copy className="w-3.5 h-3.5 text-amber-500" />
-            <span className="hidden sm:inline">Duplicates</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setShowStorageModal(true)}
-            className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/[0.05] dark:hover:bg-white/[0.10] text-slate-700 dark:text-slate-300 text-xs font-semibold flex items-center gap-1.5 transition-colors border border-black/[0.04] dark:border-white/[0.06]"
-            title="Storage Roots & Drive Manager (LIB-008)"
-          >
-            <HardDrive className="w-3.5 h-3.5 text-emerald-500" />
-            <span className="hidden sm:inline">Storage</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              handleGenerateBackup();
-              setShowBackupModal(true);
-            }}
-            className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/[0.05] dark:hover:bg-white/[0.10] text-slate-700 dark:text-slate-300 text-xs font-semibold flex items-center gap-1.5 transition-colors border border-black/[0.04] dark:border-white/[0.06]"
-            title="Backup & Restore Library Snapshot (LIB-010)"
-          >
-            <FolderSync className="w-3.5 h-3.5 text-purple-500" />
-            <span className="hidden sm:inline">Backup</span>
-          </button>
-
-          {/* Import Action Button */}
-          <button
-            onClick={handleBrowseFile}
-            className="px-4 py-2 rounded-xl bg-sky-500 hover:bg-sky-600 active:scale-98 text-white text-xs font-semibold shadow-md shadow-sky-500/20 transition-all flex items-center gap-2 shrink-0 ml-auto lg:ml-0"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>Import Local .zim File</span>
-          </button>
         </div>
       </div>
 
@@ -1074,15 +1084,16 @@ export const InstalledLibraryView: React.FC<Props> = ({
                     </div>
                   </div>
 
-                  {/* Title & Description */}
+                  {/* Title & Description with RTL auto-detection */}
                   <div>
                     <h4
-                      className="text-base font-bold text-slate-900 dark:text-white line-clamp-1 group-hover:text-sky-500 transition-colors"
+                      className="text-base font-bold text-slate-900 dark:text-white line-clamp-2 leading-snug group-hover:text-sky-500 transition-colors"
                       title={
                         metaMap[archiveKey]?.custom_display_name ||
                         metaMap[archiveKey]?.displayName ||
                         archive.title
                       }
+                      dir="auto"
                     >
                       {metaMap[archiveKey]?.custom_display_name ||
                         metaMap[archiveKey]?.displayName ||
@@ -1090,12 +1101,12 @@ export const InstalledLibraryView: React.FC<Props> = ({
                     </h4>
                     {(metaMap[archiveKey]?.custom_display_name ||
                       metaMap[archiveKey]?.displayName) && (
-                      <p className="text-[10px] text-slate-400 italic truncate mt-0.5">
+                      <p className="text-[10px] text-slate-400 italic truncate mt-0.5" dir="auto">
                         Original: {archive.title}
                       </p>
                     )}
                     {archive.description && (
-                      <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 mt-1 leading-relaxed">
+                      <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 mt-1 leading-relaxed" dir="auto">
                         {archive.description}
                       </p>
                     )}

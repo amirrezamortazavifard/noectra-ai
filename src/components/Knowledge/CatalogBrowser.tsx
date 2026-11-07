@@ -1001,61 +1001,67 @@ export const CatalogBrowser: React.FC<Props> = ({
                   className="group relative p-4 rounded-2xl bg-white dark:bg-[#0a0a0c]/80 backdrop-blur-xl border border-slate-200 dark:border-white/10 hover:border-cyan-500/40 dark:hover:border-cyan-500/30 hover:shadow-lg dark:hover:bg-white/[0.02] transition-all duration-200 flex flex-col justify-between shadow-[0_2px_12px_rgb(0,0,0,0.05)] dark:shadow-[0_4px_20px_rgb(0,0,0,0.3)]"
                 >
                   <div>
-                    {/* Top Section: Icon + Title First, Subtitle below */}
-                    <div className="flex items-start space-x-3 mb-2.5">
-                      {archive.illustration_url ? (
-                        <img
-                          src={archive.illustration_url}
-                          alt={archive.title}
-                          className="w-11 h-11 rounded-xl object-contain bg-slate-50 dark:bg-white/5 p-1 shrink-0 border border-slate-200 dark:border-white/10"
-                          onError={(e) => {
-                            (e.target as HTMLElement).style.display = 'none';
-                          }}
-                        />
-                      ) : (
-                        <div className="w-11 h-11 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 flex items-center justify-center shrink-0 text-cyan-600 dark:text-cyan-400">
-                          <BookOpen className="w-5 h-5" />
+                    {/* Top Section: Decoupled Badges Header & Full-Width Icon + Title */}
+                    <div className="mb-2.5 space-y-2">
+                      {/* Top Badges Bar: Max 2 compact metadata pills on top-right */}
+                      <div className="flex items-center justify-between gap-1 min-h-[1.25rem]">
+                        <span className="text-[11px] font-medium text-slate-500 dark:text-zinc-400 truncate">
+                          {archive.category ? getCategoryLabel(archive.category) : 'General Reference'}
+                        </span>
+                        <div className="flex items-center gap-1 shrink-0">
+                          {matchLabel && (
+                            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 border border-cyan-500/25">
+                              {matchLabel}
+                            </span>
+                          )}
+                          {archive.is_installed ? (
+                            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/25 flex items-center gap-0.5">
+                              <CheckCircle2 className="w-2.5 h-2.5" />
+                              Installed
+                            </span>
+                          ) : (
+                            renderLanguageBadges(archive.language)
+                          )}
                         </div>
-                      )}
+                      </div>
 
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-start justify-between gap-1">
-                          <div className="min-w-0 flex-1">
-                            {/* Main Archive Title in bold white */}
-                            <h4
-                              className="text-base font-semibold text-slate-900 dark:text-white truncate leading-tight group-hover:text-cyan-600 dark:group-hover:text-cyan-200 transition-colors"
-                              title={archive.title}
-                            >
-                              {archive.title}
-                            </h4>
-                            {/* Collection/Source as muted subtitle */}
-                            <p className="text-xs text-slate-500 dark:text-zinc-400 truncate mt-0.5">
-                              {archive.category ? getCategoryLabel(archive.category) : 'General Reference'}
+                      {/* Icon + Title Block taking full width */}
+                      <div className="flex items-start space-x-3">
+                        {archive.illustration_url ? (
+                          <img
+                            src={archive.illustration_url}
+                            alt={archive.title}
+                            className="w-11 h-11 rounded-xl object-contain bg-slate-50 dark:bg-white/5 p-1 shrink-0 border border-slate-200 dark:border-white/10"
+                            onError={(e) => {
+                              (e.target as HTMLElement).style.display = 'none';
+                            }}
+                          />
+                        ) : (
+                          <div className="w-11 h-11 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 flex items-center justify-center shrink-0 text-cyan-600 dark:text-cyan-400">
+                            <BookOpen className="w-5 h-5" />
+                          </div>
+                        )}
+
+                        <div className="min-w-0 flex-1">
+                          {/* Main Archive Title with full width & up to 2 lines clamp */}
+                          <h4
+                            className="text-base font-semibold text-slate-900 dark:text-white line-clamp-2 leading-snug group-hover:text-cyan-600 dark:group-hover:text-cyan-300 transition-colors"
+                            title={archive.title}
+                            dir="auto"
+                          >
+                            {archive.title}
+                          </h4>
+                          {archive.name && archive.name !== archive.title && (
+                            <p className="text-[11px] text-slate-400 dark:text-zinc-500 truncate mt-0.5 font-mono">
+                              {archive.name}
                             </p>
-                          </div>
-
-                          {/* Max 2 compact metadata pills on top-right */}
-                          <div className="flex items-center gap-1 shrink-0 pt-0.5">
-                            {matchLabel && (
-                              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-300 border border-cyan-500/20">
-                                {matchLabel}
-                              </span>
-                            )}
-                            {archive.is_installed ? (
-                              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/25 flex items-center gap-0.5">
-                                <CheckCircle2 className="w-2.5 h-2.5" />
-                                Installed
-                              </span>
-                            ) : (
-                              renderLanguageBadges(archive.language)
-                            )}
-                          </div>
+                          )}
                         </div>
                       </div>
                     </div>
 
                     {/* Description with fixed line-clamp-2 and minimum height */}
-                    <p className="text-xs text-slate-600 dark:text-zinc-400 line-clamp-2 mb-3.5 leading-relaxed min-h-[2.5rem]">
+                    <p className="text-xs text-slate-600 dark:text-zinc-400 line-clamp-2 mb-3.5 leading-relaxed min-h-[2.5rem]" dir="auto">
                       {archive.description || 'No description provided for this offline archive.'}
                     </p>
                   </div>

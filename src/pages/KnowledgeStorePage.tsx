@@ -122,11 +122,10 @@ export default function KnowledgeStorePage() {
           <div className="flex items-center p-1 rounded-2xl bg-white/90 dark:bg-[#0a0a0c]/90 backdrop-blur-xl border border-black/10 dark:border-white/10 shadow-sm shrink-0 gap-1">
             <button
               onClick={() => setActiveTab('catalog')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
-                activeTab === 'catalog'
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${activeTab === 'catalog'
                   ? 'bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20'
                   : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5'
-              }`}
+                }`}
             >
               <Globe2 className="w-4 h-4" />
               <span>Catalog</span>
@@ -142,21 +141,19 @@ export default function KnowledgeStorePage() {
                 setActiveTab('library');
                 fetchInstalled();
               }}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all relative ${
-                activeTab === 'library'
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all relative ${activeTab === 'library'
                   ? 'bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20'
                   : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5'
-              }`}
+                }`}
             >
               <HardDrive className="w-4 h-4" />
               <span>My Library</span>
               {installedArchives.length > 0 && (
                 <span
-                  className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full ${
-                    activeTab === 'library'
+                  className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full ${activeTab === 'library'
                       ? 'bg-slate-950/20 text-slate-950'
                       : 'bg-black/5 dark:bg-white/10 text-slate-600 dark:text-zinc-400'
-                  }`}
+                    }`}
                 >
                   {installedArchives.length}
                 </span>
@@ -165,11 +162,10 @@ export default function KnowledgeStorePage() {
 
             <button
               onClick={() => setActiveTab('search')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
-                activeTab === 'search'
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${activeTab === 'search'
                   ? 'bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20'
                   : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5'
-              }`}
+                }`}
             >
               <Search className="w-4 h-4" />
               <span>Global FTS</span>
@@ -177,11 +173,10 @@ export default function KnowledgeStorePage() {
 
             <button
               onClick={() => setActiveTab('medical')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
-                activeTab === 'medical'
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${activeTab === 'medical'
                   ? 'bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20'
                   : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5'
-              }`}
+                }`}
             >
               <HeartPulse className="w-4 h-4" />
               <span>Medical Hub</span>
@@ -189,11 +184,10 @@ export default function KnowledgeStorePage() {
 
             <button
               onClick={() => setActiveTab('workspace')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
-                activeTab === 'workspace'
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${activeTab === 'workspace'
                   ? 'bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20'
                   : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5'
-              }`}
+                }`}
             >
               <Briefcase className="w-4 h-4" />
               <span>Workspace & AI</span>
