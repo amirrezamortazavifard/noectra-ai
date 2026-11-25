@@ -94,6 +94,34 @@ pub struct ZimArticleSummary {
     pub title: String,
     pub namespace: String,
     pub mime_type: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub match_type: Option<String>,
+    #[serde(default)]
+    pub is_redirect: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ZimSearchResponse {
+    pub query: String,
+    pub total_articles: u32,
+    pub total_indexed: usize,
+    pub search_mode: String,
+    pub elapsed_ms: u64,
+    pub results: Vec<ZimArticleSummary>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ZimLibrarySearchHit {
+    pub archive_id: String,
+    pub archive_title: String,
+    pub url: String,
+    pub title: String,
+    pub namespace: String,
+    pub mime_type: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub match_type: Option<String>,
+    #[serde(default)]
+    pub is_redirect: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

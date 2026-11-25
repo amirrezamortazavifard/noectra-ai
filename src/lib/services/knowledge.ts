@@ -188,6 +188,22 @@ export interface ZimArticleSummary {
   title: string;
   namespace: string;
   mime_type: string;
+  match_type?: 'exact' | 'prefix' | 'word_prefix' | 'contains' | 'main_page' | string;
+  is_redirect?: boolean;
+}
+
+export interface ZimSearchResponse {
+  query: string;
+  total_articles: number;
+  total_indexed: number;
+  search_mode: string;
+  elapsed_ms: number;
+  results: ZimArticleSummary[];
+}
+
+export interface ZimLibrarySearchHit extends ZimArticleSummary {
+  archive_id: string;
+  archive_title: string;
 }
 
 export interface ZimArticleContent {
@@ -594,11 +610,55 @@ export class KnowledgeService {
     return res.ok;
   }
 
-  static async searchArticles(archiveId: string, q = '', limit = 60): Promise<ZimArticleSummary[]> {
+  static async searchArticles(
+    archiveId: string,
+    q = '',
+    limit = 60,
+    signal?: AbortSignal
+  ): Promise<ZimArticleSummary[]> {
     const params = new URLSearchParams({ q, limit: limit.toString() });
-    const res = await this.apiFetch(`/zim/${encodeURIComponent(archiveId)}/articles?${params.toString()}`);
+    const res = await this.apiFetch(
+      `/zim/${encodeURIComponent(archiveId)}/articles?${params.toString()}`,
+      { signal }
+    );
     if (!res.ok) {
       throw new Error(`Failed to search articles: ${res.statusText}`);
+    }
+    return res.json();
+  }
+
+  static async suggestArticles(
+    archiveId: string,
+    q = '',
+    limit = 40,
+    signal?: AbortSignal
+  ): Promise<ZimSearchResponse> {
+    const params = new URLSearchParams({ q, limit: limit.toString() });
+    const res = await this.apiFetch(
+      `/zim/${encodeURIComponent(archiveId)}/suggest?${params.toString()}`,
+      { signal }
+    );
+    if (!res.ok) {
+      throw new Error(`Failed to load ZIM suggestions: ${res.statusText}`);
+    }
+    return res.json();
+  }
+
+  static async suggestLibraryArticles(
+    q: string,
+    archiveId?: string,
+    limit = 20,
+    signal?: AbortSignal
+  ): Promise<ZimLibrarySearchHit[]> {
+    const trimmed = q.trim();
+    if (!trimmed) return [];
+    const params = new URLSearchParams({ q: trimmed, limit: limit.toString() });
+    if (archiveId && archiveId !== 'all') {
+      params.append('archive_id', archiveId);
+    }
+    const res = await this.apiFetch(`/library/suggest?${params.toString()}`, { signal });
+    if (!res.ok) {
+      return [];
     }
     return res.json();
   }

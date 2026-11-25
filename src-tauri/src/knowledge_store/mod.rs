@@ -27,8 +27,8 @@ use download_manager::DownloadManager;
 use library_manager::LibraryManager;
 use models::{
     CatalogLanguage, CatalogQuery, CatalogResponse, DownloadTask, ImportLocalZimRequest,
-    StartDownloadRequest, ZimArchive, ZimArticleContent, ZimArticleSummary,
-    ZimLibraryItem,
+    StartDownloadRequest, ZimArchive, ZimArticleContent, ZimArticleSummary, ZimLibraryItem,
+    ZimLibrarySearchHit, ZimSearchResponse,
 };
 use serde::Deserialize;
 use serde_json::json;
@@ -77,8 +77,10 @@ pub fn create_knowledge_router(state: KnowledgeStoreState) -> Router {
         .route("/api/knowledge/downloads/:id/resume", post(resume_download_handler))
         .route("/api/knowledge/downloads/:id/cancel", post(cancel_download_handler))
         .route("/api/knowledge/zim/:id/articles", get(get_zim_articles_handler))
+        .route("/api/knowledge/zim/:id/suggest", get(get_zim_suggest_handler))
         .route("/api/knowledge/zim/:id/article", get(get_zim_article_content_handler))
         .route("/api/knowledge/zim/:id/resource", get(get_zim_resource_handler))
+        .route("/api/knowledge/library/suggest", get(get_library_suggest_handler))
         .route("/api/knowledge/saved-searches", get(get_saved_searches_handler).post(save_search_handler))
         .route("/api/knowledge/saved-searches/:id", delete(delete_saved_search_handler))
         .route("/api/knowledge/disk-space", get(get_disk_space_handler))
@@ -279,6 +281,13 @@ async fn delete_library_item_handler(
     AxumPath(id): AxumPath<String>,
     Query(query): Query<DeleteArchiveQuery>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let archives = state.library_manager.list_archives().await;
+    if let Some(target) = archives
+        .into_iter()
+        .find(|a| a.id == id || a.file_name == id || a.file_name == format!("{}.zim", id))
+    {
+        ZimReader::invalidate_cache(Path::new(&target.file_path));
+    }
     let delete_from_disk = query.delete_file.unwrap_or(false);
     state
         .library_manager
@@ -386,6 +395,109 @@ async fn get_zim_articles_handler(
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
 
     Ok(Json(results))
+}
+
+async fn get_zim_suggest_handler(
+    State(state): State<KnowledgeStoreState>,
+    AxumPath(id): AxumPath<String>,
+    Query(params): Query<SearchArticlesQuery>,
+) -> Result<Json<ZimSearchResponse>, (StatusCode, String)> {
+    let archives = state.library_manager.list_archives().await;
+    let target = archives
+        .into_iter()
+        .find(|a| a.id == id || a.file_name == id || a.file_name == format!("{}.zim", id))
+        .ok_or_else(|| (StatusCode::NOT_FOUND, "ZIM archive not found".to_string()))?;
+
+    let path = PathBuf::from(&target.file_path);
+    let q = params.q.unwrap_or_default();
+    let limit = params.limit.unwrap_or(30);
+
+    let resp = tokio::task::spawn_blocking(move || {
+        ZimReader::search_articles_detailed(&path, &q, limit)
+    })
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
+
+    Ok(Json(resp))
+}
+
+#[derive(Debug, Deserialize)]
+struct LibrarySuggestQuery {
+    q: String,
+    archive_id: Option<String>,
+    limit: Option<usize>,
+}
+
+async fn get_library_suggest_handler(
+    State(state): State<KnowledgeStoreState>,
+    Query(params): Query<LibrarySuggestQuery>,
+) -> Result<Json<Vec<ZimLibrarySearchHit>>, (StatusCode, String)> {
+    let q = params.q.trim().to_string();
+    if q.is_empty() {
+        return Ok(Json(Vec::new()));
+    }
+
+    let limit = params.limit.unwrap_or(20).min(60);
+    let archives = state.library_manager.list_archives().await;
+    let targets: Vec<ZimLibraryItem> = archives
+        .into_iter()
+        .filter(|a| a.is_valid && a.status != "missing")
+        .filter(|a| {
+            if let Some(ref filter_id) = params.archive_id {
+                filter_id == "all"
+                    || &a.id == filter_id
+                    || &a.file_name == filter_id
+            } else {
+                true
+            }
+        })
+        .collect();
+
+    let hits = tokio::task::spawn_blocking(move || {
+        let mut combined: Vec<(u8, ZimLibrarySearchHit)> = Vec::new();
+        let per_archive_limit = if targets.len() <= 1 { limit } else { (limit / 2).max(10) };
+
+        for item in targets {
+            let p = PathBuf::from(&item.file_path);
+            if let Ok(articles) = ZimReader::search_articles(&p, &q, per_archive_limit) {
+                for art in articles {
+                    let rank = match art.match_type.as_deref() {
+                        Some("exact") => 0,
+                        Some("prefix") => 1,
+                        Some("word_prefix") => 2,
+                        _ => 3,
+                    };
+                    combined.push((
+                        rank,
+                        ZimLibrarySearchHit {
+                            archive_id: item.id.clone(),
+                            archive_title: item.title.clone(),
+                            url: art.url,
+                            title: art.title,
+                            namespace: art.namespace,
+                            mime_type: art.mime_type,
+                            match_type: art.match_type,
+                            is_redirect: art.is_redirect,
+                        },
+                    ));
+                }
+            }
+        }
+
+        combined.sort_by(|a, b| {
+            a.0.cmp(&b.0)
+                .then(a.1.is_redirect.cmp(&b.1.is_redirect))
+                .then(a.1.title.len().cmp(&b.1.title.len()))
+                .then(a.1.title.cmp(&b.1.title))
+        });
+
+        combined.into_iter().take(limit).map(|(_, h)| h).collect::<Vec<_>>()
+    })
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    Ok(Json(hits))
 }
 
 #[derive(Debug, Deserialize)]
@@ -842,6 +954,7 @@ async fn relink_archive_handler(
     Json(payload): Json<RelinkArchivePayload>,
 ) -> Result<Json<ZimLibraryItem>, (StatusCode, String)> {
     let path = PathBuf::from(&payload.new_path);
+    ZimReader::invalidate_cache(&path);
     let updated = state
         .library_manager
         .relink_archive(&id, &path)

@@ -1,10 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   KnowledgeService,
   GlobalSearchResult,
   IndexingStatus,
   ZimLibraryItem,
+  ZimLibrarySearchHit,
 } from '@/lib/services/knowledge';
+import {
+  splitTitleForHighlight,
+  getMatchBadgeLabel,
+} from '@/lib/services/zimSearchHighlight';
 import {
   Search,
   Database,
@@ -18,6 +23,8 @@ import {
   Layers,
   ChevronRight,
   Filter,
+  Loader2,
+  X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -42,9 +49,64 @@ export const GlobalSearchAndIndexingView: React.FC<Props> = ({ onOpenArticle }) 
   const [isIndexing, setIsIndexing] = useState(false);
   const [indexingArchiveId, setIndexingArchiveId] = useState<string | null>(null);
 
+  // Instant title typeahead suggestions across installed ZIMs
+  const [liveSuggestions, setLiveSuggestions] = useState<ZimLibrarySearchHit[]>([]);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const suggestAbortRef = useRef<AbortController | null>(null);
+  const searchBoxRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     loadLibraryAndStatus();
   }, []);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (searchBoxRef.current && !searchBoxRef.current.contains(e.target as Node)) {
+        setShowSuggestions(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    const trimmed = query.trim();
+    if (!trimmed) {
+      suggestAbortRef.current?.abort();
+      setLiveSuggestions([]);
+      setLoadingSuggestions(false);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      suggestAbortRef.current?.abort();
+      const controller = new AbortController();
+      suggestAbortRef.current = controller;
+      setLoadingSuggestions(true);
+      try {
+        const hits = await KnowledgeService.suggestLibraryArticles(
+          trimmed,
+          selectedArchiveId,
+          18,
+          controller.signal
+        );
+        if (!controller.signal.aborted) {
+          setLiveSuggestions(hits);
+        }
+      } catch (e: any) {
+        if (e?.name !== 'AbortError') {
+          setLiveSuggestions([]);
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setLoadingSuggestions(false);
+        }
+      }
+    }, 65);
+
+    return () => clearTimeout(timer);
+  }, [query, selectedArchiveId]);
 
   const loadLibraryAndStatus = async () => {
     try {
@@ -190,15 +252,95 @@ export const GlobalSearchAndIndexingView: React.FC<Props> = ({ onOpenArticle }) 
         </div>
 
         <form onSubmit={handleSearch} className="flex flex-col sm:flex-row items-center gap-3">
-          <div className="relative flex-1 w-full">
-            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+          <div ref={searchBoxRef} className="relative flex-1 w-full">
+            {loadingSuggestions ? (
+              <Loader2 className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-sky-500 animate-spin" />
+            ) : (
+              <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+            )}
             <input
               type="text"
+              dir="auto"
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search across all articles, terms, drugs, or procedures..."
-              className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500/30"
+              onFocus={() => {
+                if (query.trim()) setShowSuggestions(true);
+              }}
+              onChange={(e) => {
+                const v = e.target.value;
+                setQuery(v);
+                setShowSuggestions(Boolean(v.trim()));
+              }}
+              placeholder="Type to see instant ZIM title suggestions or search full text..."
+              className="w-full pl-10 pr-8 py-2.5 rounded-2xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500/30"
             />
+            {query && (
+              <button
+                type="button"
+                onClick={() => {
+                  setQuery('');
+                  setLiveSuggestions([]);
+                  setShowSuggestions(false);
+                }}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                title="Clear query"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+
+            {showSuggestions && query.trim() && (liveSuggestions.length > 0 || loadingSuggestions) && (
+              <div className="absolute left-0 right-0 top-full mt-1.5 z-40 rounded-2xl bg-white dark:bg-[#121722] border border-slate-200 dark:border-white/15 shadow-2xl overflow-hidden">
+                <div className="px-3.5 py-1.5 border-b border-slate-100 dark:border-white/10 bg-slate-50 dark:bg-white/[0.03] flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400">
+                  <span>
+                    {loadingSuggestions
+                      ? 'Matching installed ZIM titles...'
+                      : `${liveSuggestions.length} instant ZIM article suggestion${liveSuggestions.length === 1 ? '' : 's'}`}
+                  </span>
+                  <span>Click to open directly</span>
+                </div>
+                <div className="max-h-72 overflow-y-auto divide-y divide-slate-100 dark:divide-white/5">
+                  {liveSuggestions.map((hit, idx) => {
+                    const { before, match, after } = splitTitleForHighlight(hit.title, query);
+                    const badge = getMatchBadgeLabel(hit.match_type);
+                    return (
+                      <button
+                        key={`${hit.archive_id}-${hit.url}-${idx}`}
+                        type="button"
+                        onClick={() => {
+                          setShowSuggestions(false);
+                          onOpenArticle(hit.archive_id, hit.url);
+                        }}
+                        className="w-full text-left px-3.5 py-2.5 hover:bg-sky-50 dark:hover:bg-sky-500/10 flex items-center justify-between gap-2 transition-colors"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="text-xs font-medium text-slate-900 dark:text-white truncate" dir="auto">
+                            {match ? (
+                              <>
+                                {before}
+                                <mark className="bg-sky-500/20 text-sky-700 dark:bg-sky-400/25 dark:text-sky-300 font-bold rounded-xs px-0.5">
+                                  {match}
+                                </mark>
+                                {after}
+                              </>
+                            ) : (
+                              hit.title
+                            )}
+                          </div>
+                          <div className="text-[10px] text-slate-400 truncate mt-0.5">
+                            {hit.archive_title} • <span className="font-mono">{hit.url}</span>
+                          </div>
+                        </div>
+                        {badge && (
+                          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-600 dark:text-sky-400 shrink-0">
+                            {badge}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Scope Selector */}
@@ -206,11 +348,11 @@ export const GlobalSearchAndIndexingView: React.FC<Props> = ({ onOpenArticle }) 
             <select
               value={selectedArchiveId}
               onChange={(e) => setSelectedArchiveId(e.target.value)}
-              className="w-full px-3 py-2.5 rounded-2xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-xs font-medium text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500/30"
+              className="w-full px-3 py-2.5 rounded-2xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-xs font-medium text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-500/30"
             >
-              <option value="all">All Installed Archives</option>
+              <option value="all" className="bg-white dark:bg-[#0c1017] text-slate-900 dark:text-white">All Installed Archives</option>
               {archives.map((a) => (
-                <option key={a.id} value={a.id}>
+                <option key={a.id} value={a.id} className="bg-white dark:bg-[#0c1017] text-slate-900 dark:text-white">
                   {a.title}
                 </option>
               ))}

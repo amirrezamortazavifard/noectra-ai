@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   KnowledgeService,
   ZimArticleSummary,
@@ -6,7 +6,12 @@ import {
   ArticleAnnotation,
   ArticleBookmark,
 } from '@/lib/services/knowledge';
+import {
+  splitTitleForHighlight,
+  getMatchBadgeLabel,
+} from '@/lib/services/zimSearchHighlight';
 import { sanitizeZimHtml } from '@/lib/services/zimSanitizer';
+import { openExternalLink } from '@/lib/openExternal';
 import {
   Search,
   X,
@@ -37,6 +42,7 @@ import { toast } from 'sonner';
 
 interface Props {
   archiveId: string;
+  initialArticleUrl?: string;
   onClose: () => void;
 }
 
@@ -54,13 +60,37 @@ interface TocItem {
   level: number;
 }
 
-export const ZimArticleReaderModal: React.FC<Props> = ({ archiveId, onClose }) => {
-  // Articles listing
+export const ZimArticleReaderModal: React.FC<Props> = ({
+  archiveId,
+  initialArticleUrl,
+  onClose,
+}) => {
+  // Articles listing & live typeahead state
   const [articles, setArticles] = useState<ZimArticleSummary[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loadingList, setLoadingList] = useState(true);
+  const [isSearching, setIsSearching] = useState(false);
+  const [indexStats, setIndexStats] = useState<{
+    totalArticles: number;
+    totalIndexed: number;
+    elapsedMs: number;
+    searchMode: string;
+  } | null>(null);
   const [page, setPage] = useState(1);
   const pageSize = 50;
+
+  // Quick-jump autocomplete suggestions state (typeahead dropdown)
+  const [quickQuery, setQuickQuery] = useState('');
+  const [quickSuggestions, setQuickSuggestions] = useState<ZimArticleSummary[]>([]);
+  const [quickOpen, setQuickOpen] = useState(false);
+  const [quickLoading, setQuickLoading] = useState(false);
+  const [quickElapsedMs, setQuickElapsedMs] = useState<number | null>(null);
+  const [highlightedSuggestionIdx, setHighlightedSuggestionIdx] = useState(0);
+  const quickInputRef = useRef<HTMLInputElement>(null);
+  const quickDropdownRef = useRef<HTMLDivElement>(null);
+  const sidebarAbortRef = useRef<AbortController | null>(null);
+  const quickAbortRef = useRef<AbortController | null>(null);
+  const initialOpenedRef = useRef(false);
 
   // READ-003: Multi-tab Reading
   const [tabs, setTabs] = useState<TabItem[]>([]);
@@ -114,11 +144,21 @@ export const ZimArticleReaderModal: React.FC<Props> = ({ archiveId, onClose }) =
   // Reading container ref for tracking scroll
   const articleContainerRef = useRef<HTMLDivElement>(null);
 
-  // Close on Escape
+  // Close on Escape & focus quick search on Ctrl+K / Cmd+K
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        quickInputRef.current?.focus();
+        quickInputRef.current?.select();
+        setQuickOpen(true);
+        return;
+      }
+
       if (e.key === 'Escape') {
-        if (lightboxSrc) {
+        if (quickOpen) {
+          setQuickOpen(false);
+        } else if (lightboxSrc) {
           setLightboxSrc(null);
         } else if (showCitationModal) {
           setShowCitationModal(false);
@@ -129,26 +169,182 @@ export const ZimArticleReaderModal: React.FC<Props> = ({ archiveId, onClose }) =
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onClose, lightboxSrc, showCitationModal]);
+  }, [onClose, lightboxSrc, showCitationModal, quickOpen]);
 
-  // Load article index
+  // Close quick-jump dropdown when clicking outside
   useEffect(() => {
-    fetchArticleList(searchQuery);
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        quickDropdownRef.current &&
+        !quickDropdownRef.current.contains(e.target as Node)
+      ) {
+        setQuickOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Open initialArticleUrl immediately if provided (e.g. from Global Search)
+  useEffect(() => {
+    initialOpenedRef.current = false;
+    if (initialArticleUrl) {
+      initialOpenedRef.current = true;
+      openInNewTab(initialArticleUrl, initialArticleUrl);
+    }
+  }, [archiveId, initialArticleUrl]);
+
+  // Load sidebar article index / debounced cancellable search
+  useEffect(() => {
+    const delay = searchQuery.trim() ? 65 : 0;
+    const timer = setTimeout(() => {
+      fetchArticleList(searchQuery);
+    }, delay);
+
+    return () => {
+      clearTimeout(timer);
+    };
   }, [archiveId, searchQuery]);
 
+  // Live letter-by-letter autocomplete suggestions for the Quick-Jump bar
+  useEffect(() => {
+    const trimmed = quickQuery.trim();
+    if (!trimmed) {
+      quickAbortRef.current?.abort();
+      setQuickSuggestions([]);
+      setQuickLoading(false);
+      setQuickElapsedMs(null);
+      setHighlightedSuggestionIdx(0);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      quickAbortRef.current?.abort();
+      const controller = new AbortController();
+      quickAbortRef.current = controller;
+      setQuickLoading(true);
+      try {
+        const resp = await KnowledgeService.suggestArticles(
+          archiveId,
+          trimmed,
+          25,
+          controller.signal
+        );
+        if (!controller.signal.aborted) {
+          setQuickSuggestions(resp.results);
+          setQuickElapsedMs(resp.elapsed_ms);
+          setHighlightedSuggestionIdx(0);
+          setIndexStats({
+            totalArticles: resp.total_articles,
+            totalIndexed: resp.total_indexed,
+            elapsedMs: resp.elapsed_ms,
+            searchMode: resp.search_mode,
+          });
+        }
+      } catch (e: any) {
+        if (e?.name !== 'AbortError') {
+          console.warn('Suggestion fetch error:', e);
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setQuickLoading(false);
+        }
+      }
+    }, 55);
+
+    return () => clearTimeout(timer);
+  }, [archiveId, quickQuery]);
+
   const fetchArticleList = async (query = '') => {
-    setLoadingList(true);
+    sidebarAbortRef.current?.abort();
+    const controller = new AbortController();
+    sidebarAbortRef.current = controller;
+
+    if (articles.length === 0) {
+      setLoadingList(true);
+    } else {
+      setIsSearching(true);
+    }
+
     try {
-      const list = await KnowledgeService.searchArticles(archiveId, query, 250);
-      setArticles(list);
+      const resp = await KnowledgeService.suggestArticles(
+        archiveId,
+        query,
+        query.trim() ? 150 : 250,
+        controller.signal
+      );
+      if (controller.signal.aborted) return;
+
+      setArticles(resp.results);
+      setIndexStats({
+        totalArticles: resp.total_articles,
+        totalIndexed: resp.total_indexed,
+        elapsedMs: resp.elapsed_ms,
+        searchMode: resp.search_mode,
+      });
       setPage(1);
-      if (list.length > 0 && tabs.length === 0) {
-        openInNewTab(list[0].url, list[0].title);
+
+      if (resp.results.length > 0 && !initialOpenedRef.current && tabs.length === 0) {
+        initialOpenedRef.current = true;
+        openInNewTab(resp.results[0].url, resp.results[0].title);
       }
     } catch (e: any) {
-      toast.error(`Failed to load article index: ${e.message}`);
+      if (e?.name !== 'AbortError') {
+        toast.error(`Failed to load article index: ${e.message}`);
+      }
     } finally {
-      setLoadingList(false);
+      if (!controller.signal.aborted) {
+        setLoadingList(false);
+        setIsSearching(false);
+      }
+    }
+  };
+
+  const renderHighlightedTitle = useCallback((title: string, query: string) => {
+    const { before, match, after } = splitTitleForHighlight(title, query);
+    if (!match) {
+      return <>{title}</>;
+    }
+    return (
+      <>
+        {before}
+        <mark className="bg-sky-500/20 text-sky-700 dark:bg-sky-400/25 dark:text-sky-300 font-bold rounded-xs px-0.5">
+          {match}
+        </mark>
+        {after}
+      </>
+    );
+  }, []);
+
+  const handleSelectQuickSuggestion = (art: ZimArticleSummary) => {
+    openInNewTab(art.url, art.title);
+    setQuickOpen(false);
+  };
+
+  const handleQuickKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!quickOpen || quickSuggestions.length === 0) {
+      if (e.key === 'ArrowDown' && quickSuggestions.length > 0) {
+        setQuickOpen(true);
+      }
+      return;
+    }
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setHighlightedSuggestionIdx((prev) =>
+        prev + 1 < quickSuggestions.length ? prev + 1 : 0
+      );
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setHighlightedSuggestionIdx((prev) =>
+        prev - 1 >= 0 ? prev - 1 : quickSuggestions.length - 1
+      );
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      const chosen = quickSuggestions[highlightedSuggestionIdx] || quickSuggestions[0];
+      if (chosen) {
+        handleSelectQuickSuggestion(chosen);
+      }
     }
   };
 
@@ -389,7 +585,7 @@ export const ZimArticleReaderModal: React.FC<Props> = ({ archiveId, onClose }) =
       if (href) {
         if (href.startsWith('http://') || href.startsWith('https://')) {
           e.preventDefault();
-          window.open(href, '_blank');
+          openExternalLink(href, e);
         } else if (href.startsWith('#')) {
           // anchor jump
         } else {
@@ -504,16 +700,16 @@ export const ZimArticleReaderModal: React.FC<Props> = ({ archiveId, onClose }) =
       <div className="relative w-full h-[95vh] max-w-7xl bg-white dark:bg-[#0c1017] rounded-3xl shadow-2xl border border-slate-200 dark:border-white/10 flex flex-col overflow-hidden text-slate-800 dark:text-slate-100">
         
         {/* Top Control Bar */}
-        <div className="px-6 py-3.5 border-b border-slate-200 dark:border-white/10 flex items-center justify-between shrink-0 bg-slate-50 dark:bg-white/[0.02]">
+        <div className="px-4 sm:px-6 py-3 border-b border-slate-200 dark:border-white/10 flex items-center justify-between gap-3 shrink-0 bg-slate-50 dark:bg-white/[0.02]">
           
           {/* Navigation Controls & Title */}
-          <div className="flex items-center space-x-3 truncate">
-            <div className="p-2 rounded-xl bg-sky-50 dark:bg-sky-500/10 text-sky-600 dark:text-sky-400">
+          <div className="flex items-center space-x-3 min-w-0">
+            <div className="p-2 rounded-xl bg-sky-50 dark:bg-sky-500/10 text-sky-600 dark:text-sky-400 shrink-0">
               <BookOpen className="w-5 h-5" />
             </div>
 
             {/* Back / Forward History Stack (READ-006) */}
-            <div className="flex items-center space-x-1 border-r border-slate-200 dark:border-white/10 pr-2">
+            <div className="flex items-center space-x-1 border-r border-slate-200 dark:border-white/10 pr-2 shrink-0">
               <button
                 onClick={handleNavBack}
                 disabled={navPointer <= 0}
@@ -532,14 +728,130 @@ export const ZimArticleReaderModal: React.FC<Props> = ({ archiveId, onClose }) =
               </button>
             </div>
 
-            <div className="truncate">
+            <div className="truncate max-w-[220px] xl:max-w-[280px]">
               <h3 className="font-semibold text-sm truncate text-slate-900 dark:text-white" dir="auto">
                 {articleContent ? articleContent.title : 'Offline Reading Studio'}
               </h3>
               <p className="text-[11px] text-slate-500 dark:text-slate-400 font-mono truncate">
                 {archiveId}
+                {indexStats ? ` • ${indexStats.totalIndexed.toLocaleString()} indexed` : ''}
               </p>
             </div>
+          </div>
+
+          {/* Live Typeahead Quick-Jump Autocomplete Search */}
+          <div ref={quickDropdownRef} className="relative flex-1 max-w-md hidden sm:block">
+            <div className="relative flex items-center">
+              {quickLoading ? (
+                <Loader2 className="w-4 h-4 absolute left-3 text-sky-500 animate-spin pointer-events-none" />
+              ) : (
+                <Search className="w-4 h-4 absolute left-3 text-slate-400 pointer-events-none" />
+              )}
+              <input
+                ref={quickInputRef}
+                type="text"
+                dir="auto"
+                value={quickQuery}
+                onFocus={() => {
+                  if (quickQuery.trim()) setQuickOpen(true);
+                }}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setQuickQuery(val);
+                  setQuickOpen(Boolean(val.trim()));
+                }}
+                onKeyDown={handleQuickKeyDown}
+                placeholder="Quick search articles (prefix suggestions)... Ctrl+K"
+                className="w-full pl-9 pr-8 py-1.5 rounded-xl bg-white dark:bg-[#131824] border border-slate-200 dark:border-white/10 text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500/40 shadow-xs"
+              />
+              {quickQuery && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setQuickQuery('');
+                    setQuickSuggestions([]);
+                    setQuickOpen(false);
+                  }}
+                  className="absolute right-2.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5"
+                  title="Clear quick search"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
+            {/* Instant Autocomplete Suggestions Popover */}
+            {quickOpen && quickQuery.trim() && (
+              <div className="absolute left-0 right-0 top-full mt-1.5 z-50 rounded-2xl bg-white dark:bg-[#121722] border border-slate-200 dark:border-white/15 shadow-2xl overflow-hidden">
+                <div className="px-3 py-1.5 border-b border-slate-100 dark:border-white/10 bg-slate-50 dark:bg-white/[0.03] flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400">
+                  <span>
+                    {quickLoading
+                      ? 'Searching archive index...'
+                      : `${quickSuggestions.length} suggestion${quickSuggestions.length === 1 ? '' : 's'}`}
+                  </span>
+                  {quickElapsedMs !== null && !quickLoading && (
+                    <span className="font-mono text-sky-600 dark:text-sky-400">
+                      {quickElapsedMs} ms
+                    </span>
+                  )}
+                </div>
+
+                <div className="max-h-80 overflow-y-auto divide-y divide-slate-100 dark:divide-white/5">
+                  {quickSuggestions.length === 0 && !quickLoading ? (
+                    <div className="px-4 py-6 text-center text-xs text-slate-500 dark:text-slate-400">
+                      No articles matching &ldquo;{quickQuery}&rdquo;
+                    </div>
+                  ) : (
+                    quickSuggestions.map((art, idx) => {
+                      const badge = getMatchBadgeLabel(art.match_type);
+                      const isActive = idx === highlightedSuggestionIdx;
+                      return (
+                        <button
+                          key={art.url}
+                          type="button"
+                          onMouseEnter={() => setHighlightedSuggestionIdx(idx)}
+                          onClick={() => handleSelectQuickSuggestion(art)}
+                          className={`w-full text-left px-3.5 py-2.5 flex items-center justify-between gap-2 transition-colors ${
+                            isActive
+                              ? 'bg-sky-50 dark:bg-sky-500/15'
+                              : 'hover:bg-slate-50 dark:hover:bg-white/5'
+                          }`}
+                        >
+                          <div className="min-w-0 flex-1">
+                            <div
+                              className="text-xs font-medium text-slate-900 dark:text-slate-100 truncate"
+                              dir="auto"
+                            >
+                              {renderHighlightedTitle(art.title, quickQuery)}
+                            </div>
+                            <div className="text-[10px] font-mono text-slate-400 truncate mt-0.5">
+                              {art.url}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {badge && (
+                              <span
+                                className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-md ${
+                                  art.match_type === 'exact'
+                                    ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
+                                    : art.match_type === 'prefix'
+                                    ? 'bg-sky-500/15 text-sky-700 dark:text-sky-300'
+                                    : 'bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-300'
+                                }`}
+                              >
+                                {badge}
+                              </span>
+                            )}
+                            <ArrowRight className="w-3.5 h-3.5 text-slate-400" />
+                          </div>
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Action Toolbar */}
@@ -694,25 +1006,55 @@ export const ZimArticleReaderModal: React.FC<Props> = ({ archiveId, onClose }) =
         {/* Main Body Layout */}
         <div className="flex-1 flex overflow-hidden">
           
-          {/* Left Sidebar: Article Index & Pagination (READ-010) */}
+          {/* Left Sidebar: Article Index & Live Typeahead (READ-010) */}
           <div className="w-80 shrink-0 border-r border-slate-200 dark:border-white/10 flex flex-col bg-slate-50/50 dark:bg-white/[0.01]">
             
             {/* Search filter */}
-            <div className="p-3 border-b border-slate-200 dark:border-white/10">
+            <div className="p-3 border-b border-slate-200 dark:border-white/10 space-y-1.5">
               <div className="relative">
-                <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                {isSearching ? (
+                  <Loader2 className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-sky-500 animate-spin" />
+                ) : (
+                  <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                )}
                 <input
                   type="text"
+                  dir="auto"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Filter articles..."
-                  className="w-full pl-9 pr-3 py-1.5 rounded-xl bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500/30"
+                  placeholder="Type to search articles (prefix first)..."
+                  className="w-full pl-9 pr-8 py-1.5 rounded-xl bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500/30"
                 />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5"
+                    title="Clear search"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </div>
+
+              {indexStats && (
+                <div className="flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400 px-1">
+                  <span>
+                    {searchQuery.trim()
+                      ? `${articles.length} suggestion${articles.length === 1 ? '' : 's'}`
+                      : `${indexStats.totalIndexed.toLocaleString()} readable articles`}
+                  </span>
+                  <span className="font-mono">{indexStats.elapsedMs} ms</span>
+                </div>
+              )}
             </div>
 
             {/* Articles List */}
-            <div className="flex-1 overflow-y-auto p-2 space-y-1">
+            <div
+              className={`flex-1 overflow-y-auto p-2 space-y-1 transition-opacity duration-150 ${
+                isSearching ? 'opacity-70' : 'opacity-100'
+              }`}
+            >
               {loadingList ? (
                 <div className="flex items-center justify-center p-8 space-x-2 text-slate-400 text-xs">
                   <Loader2 className="w-4 h-4 animate-spin text-sky-500" />
@@ -725,26 +1067,44 @@ export const ZimArticleReaderModal: React.FC<Props> = ({ archiveId, onClose }) =
               ) : (
                 paginatedArticles.map((art) => {
                   const isSelected = selectedArticleUrl === art.url;
+                  const badge = searchQuery.trim() ? getMatchBadgeLabel(art.match_type) : null;
                   return (
                     <button
                       key={art.url}
                       onClick={() => openInNewTab(art.url, art.title)}
-                      className={`w-full text-left px-3 py-2 rounded-xl text-xs flex items-center justify-between group transition ${
+                      className={`w-full text-left px-3 py-2 rounded-xl text-xs flex items-center justify-between gap-2 group transition ${
                         isSelected
                           ? 'bg-sky-500/10 text-sky-600 dark:text-sky-400 font-semibold'
                           : 'text-slate-700 dark:text-slate-300 hover:bg-slate-200/50 dark:hover:bg-white/5'
                       }`}
                     >
-                      <span className="truncate pr-2" dir="auto">
-                        {art.title}
+                      <span className="truncate flex-1" dir="auto">
+                        {searchQuery.trim()
+                          ? renderHighlightedTitle(art.title, searchQuery)
+                          : art.title}
                       </span>
-                      <ChevronRight
-                        className={`w-3.5 h-3.5 shrink-0 transition-opacity ${
-                          isSelected
-                            ? 'opacity-100 text-sky-500'
-                            : 'opacity-0 group-hover:opacity-75 text-slate-400'
-                        }`}
-                      />
+                      <div className="flex items-center gap-1 shrink-0">
+                        {badge && (
+                          <span
+                            className={`text-[9px] font-semibold px-1.5 py-0.5 rounded ${
+                              art.match_type === 'exact'
+                                ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
+                                : art.match_type === 'prefix'
+                                ? 'bg-sky-500/15 text-sky-700 dark:text-sky-300'
+                                : 'bg-slate-200/70 dark:bg-white/10 text-slate-500 dark:text-slate-400'
+                            }`}
+                          >
+                            {badge}
+                          </span>
+                        )}
+                        <ChevronRight
+                          className={`w-3.5 h-3.5 shrink-0 transition-opacity ${
+                            isSelected
+                              ? 'opacity-100 text-sky-500'
+                              : 'opacity-0 group-hover:opacity-75 text-slate-400'
+                          }`}
+                        />
+                      </div>
                     </button>
                   );
                 })

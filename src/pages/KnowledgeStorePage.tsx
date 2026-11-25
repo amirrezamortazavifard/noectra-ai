@@ -30,6 +30,7 @@ export default function KnowledgeStorePage() {
   const [downloads, setDownloads] = useState<DownloadTask[]>([]);
   const [installedArchives, setInstalledArchives] = useState<ZimLibraryItem[]>([]);
   const [activeReaderArchiveId, setActiveReaderArchiveId] = useState<string | null>(null);
+  const [activeReaderInitialArticle, setActiveReaderInitialArticle] = useState<string | undefined>(undefined);
   const [isCatalogOnline, setIsCatalogOnline] = useState<boolean | null>(null);
   const [showUpdateModal, setShowUpdateModal] = useState(false);
 
@@ -229,6 +230,7 @@ export default function KnowledgeStorePage() {
               fetchDownloads();
             }}
             onOpenArchiveReader={(archiveId) => {
+              setActiveReaderInitialArticle(undefined);
               setActiveReaderArchiveId(archiveId);
             }}
           />
@@ -239,6 +241,7 @@ export default function KnowledgeStorePage() {
             archives={installedArchives}
             onRefresh={fetchInstalled}
             onOpenReader={(archiveId) => {
+              setActiveReaderInitialArticle(undefined);
               setActiveReaderArchiveId(archiveId);
             }}
             onSwitchToCatalog={() => setActiveTab('catalog')}
@@ -247,7 +250,8 @@ export default function KnowledgeStorePage() {
 
         {activeTab === 'search' && (
           <GlobalSearchAndIndexingView
-            onOpenArticle={(archiveId) => {
+            onOpenArticle={(archiveId, articlePath) => {
+              setActiveReaderInitialArticle(articlePath);
               setActiveReaderArchiveId(archiveId);
             }}
           />
@@ -262,7 +266,11 @@ export default function KnowledgeStorePage() {
       {activeReaderArchiveId && (
         <ZimArticleReaderModal
           archiveId={activeReaderArchiveId}
-          onClose={() => setActiveReaderArchiveId(null)}
+          initialArticleUrl={activeReaderInitialArticle}
+          onClose={() => {
+            setActiveReaderArchiveId(null);
+            setActiveReaderInitialArticle(undefined);
+          }}
         />
       )}
 
