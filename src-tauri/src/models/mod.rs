@@ -365,10 +365,6 @@ impl ModelService {
                 }
                 let req_body = Value::Object(req_obj);
 
-                let mut req = client.post(&url).json(&req_body).timeout(Duration::from_secs(300));
-                if provider_type == "openrouter" {
-                    req = req.header("HTTP-Referer", "https://noectra.ai").header("X-Title", "Noectra AI");
-                }
                 let auto_key = if api_key.map(|s| s.trim().is_empty()).unwrap_or(true) {
                     if provider_type == "9router" || effective_base.contains("20128") {
                         get_9router_api_key()
@@ -385,21 +381,41 @@ impl ModelService {
                     .map(|s| s.to_string())
                     .or(auto_key);
 
-                if let Some(ref key) = resolved_key {
-                    req = req.header("Authorization", format!("Bearer {}", key));
+                let is_local_llama = (effective_base.contains("127.0.0.1") || effective_base.contains("localhost"))
+                    && !effective_base.contains("20128")
+                    && provider_type != "9router";
+
+                let mut res_opt = None;
+                for attempt in 0..25 {
+                    let mut req = client.post(&url).json(&req_body).timeout(Duration::from_secs(300));
+                    if provider_type == "openrouter" {
+                        req = req.header("HTTP-Referer", "https://noectra.ai").header("X-Title", "Noectra AI");
+                    }
+                    if let Some(ref key) = resolved_key {
+                        req = req.header("Authorization", format!("Bearer {}", key));
+                    }
+
+                    let resp = req.send().await.map_err(|e| {
+                        if e.is_builder() {
+                            format!("Builder error (Invalid URL: {}): {}", url, e)
+                        } else if e.is_connect() {
+                            format!("Connection refused (Failed to reach host at {}): {}", effective_base, e)
+                        } else if e.is_timeout() {
+                            format!("Stream timeout error: {}", e)
+                        } else {
+                            format!("Stream request failed: {}", e)
+                        }
+                    })?;
+
+                    if resp.status().as_u16() == 503 && is_local_llama && attempt < 24 {
+                        tokio::time::sleep(Duration::from_secs(1)).await;
+                        continue;
+                    }
+                    res_opt = Some(resp);
+                    break;
                 }
 
-                let res = req.send().await.map_err(|e| {
-                    if e.is_builder() {
-                        format!("Builder error (Invalid URL: {}): {}", url, e)
-                    } else if e.is_connect() {
-                        format!("Connection refused (Failed to reach host at {}): {}", effective_base, e)
-                    } else if e.is_timeout() {
-                        format!("Stream timeout error: {}", e)
-                    } else {
-                        format!("Stream request failed: {}", e)
-                    }
-                })?;
+                let res = res_opt.ok_or_else(|| "No response received from model server".to_string())?;
 
                 if !res.status().is_success() {
                     let status = res.status();

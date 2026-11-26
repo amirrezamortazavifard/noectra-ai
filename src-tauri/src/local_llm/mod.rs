@@ -145,15 +145,18 @@ impl LocalLlmState {
         })?;
 
         let mut server_cfg = cfg.server_config.clone();
+        // When switching to a new model or n_ctx == 0 (auto), apply hardware-aware defaults so low-VRAM GPUs don't OOM
+        if server_cfg.model_path != target_path || server_cfg.n_ctx == 0 {
+            let sys = self.get_system_info_cached();
+            let size_mb = (target.size_bytes / (1024 * 1024)).max(512);
+            let suggested = server::suggest_server_config(&target_path, size_mb, &sys);
+            server_cfg.n_gpu_layers = suggested.n_gpu_layers;
+            server_cfg.n_ctx = suggested.n_ctx;
+            server_cfg.cache_type_k = suggested.cache_type_k;
+            server_cfg.cache_type_v = suggested.cache_type_v;
+        }
         server_cfg.model_path = target_path.clone();
         server_cfg.mmproj_path = target.mmproj_path.map(|p| p.to_string_lossy().to_string());
-        if server_cfg.n_ctx == 0 {
-            if let Some(ctx) = target.context_length {
-                server_cfg.n_ctx = (ctx as u32).min(32768);
-            } else {
-                server_cfg.n_ctx = 8192;
-            }
-        }
 
         // Persist active selection
         {

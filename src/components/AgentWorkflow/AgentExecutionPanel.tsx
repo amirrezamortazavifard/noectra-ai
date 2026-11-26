@@ -67,7 +67,7 @@ export const AgentExecutionPanel: React.FC<AgentExecutionPanelProps> = ({
   isLast,
   query,
 }) => {
-  const { researchEnded, loading, optimizationMode, chatModelProvider } = useChat();
+  const { researchEnded, loading, optimizationMode, chatModelProvider, modelMode } = useChat();
 
   // Progressive Disclosure:
   // Level 1: Minimal summary banner
@@ -121,12 +121,35 @@ export const AgentExecutionPanel: React.FC<AgentExecutionPanelProps> = ({
       planReasoning = firstReasoning.reasoning;
     }
 
+    const isOfflineFlow =
+      modelMode === 'offline' ||
+      subSteps.some(
+        (s) =>
+          (s.type === 'searching' &&
+            Array.isArray(s.searching) &&
+            s.searching.some(
+              (q) =>
+                typeof q === 'string' &&
+                (q.toLowerCase().includes('offline') || q.toLowerCase().includes('gguf')),
+            )) ||
+          ((s.type === 'search_results' || s.type === 'reading') &&
+            Array.isArray(s.reading) &&
+            s.reading.some((r: any) => {
+              const u = r?.metadata?.url || r?.url || '';
+              return u.startsWith('zim://') || u.startsWith('myfile://');
+            })),
+      );
+
     steps.push({
       id: 'step-plan',
       phaseId: 'plan',
-      title: 'Understanding & Research Strategy',
-      intent: 'Analyze core intent, identify key constraints, and establish retrieval plan',
-      outcome: `Plan established · Mode: ${optimizationMode.toUpperCase()}`,
+      title: isOfflineFlow ? 'Offline Reasoning & Retrieval' : 'Understanding & Research Strategy',
+      intent: isOfflineFlow
+        ? 'Prepare local GGUF engine and search offline encyclopedias & personal files'
+        : 'Analyze core intent, identify key constraints, and establish retrieval plan',
+      outcome: isOfflineFlow
+        ? 'Plan established · Mode: OFFLINE'
+        : `Plan established · Mode: ${optimizationMode.toUpperCase()}`,
       state: 'completed',
       icon: <Brain className="w-4 h-4 text-violet-500" />,
       details: {
@@ -142,7 +165,7 @@ export const AgentExecutionPanel: React.FC<AgentExecutionPanelProps> = ({
         steps.push({
           id: sub.id || `search-${idx}`,
           phaseId: 'search',
-          title: 'Live Web Discovery',
+          title: isOfflineFlow ? 'Offline Library & Engine' : 'Live Web Discovery',
           intent: `Execute targeted search across index for ${qList.length} ${qList.length === 1 ? 'topic' : 'topics'}`,
           outcome: `${qList.length} search ${qList.length === 1 ? 'query' : 'queries'} executed`,
           state: 'completed',

@@ -174,7 +174,7 @@ async fn force_free_port(port: u16) {
     }
 }
 
-async fn check_http_health(port: u16) -> bool {
+async fn check_tcp_open(port: u16) -> bool {
     use tokio::net::TcpStream;
     let addr = format!("127.0.0.1:{}", port);
     matches!(
@@ -187,9 +187,25 @@ async fn check_http_health(port: u16) -> bool {
     )
 }
 
+/// Actually query `GET http://127.0.0.1:<port>/health` and return `true` ONLY when HTTP status is 200 OK.
+/// While llama-server is still loading weights into RAM/VRAM it returns 503 Service Unavailable.
+async fn check_http_health(port: u16) -> bool {
+    let url = format!("http://127.0.0.1:{}/health", port);
+    let Ok(client) = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_millis(900))
+        .build()
+    else {
+        return false;
+    };
+    match client.get(&url).send().await {
+        Ok(resp) => resp.status().is_success(),
+        Err(_) => false,
+    }
+}
+
 async fn wait_for_port_free(port: u16) -> bool {
     for _ in 0..20 {
-        if !check_http_health(port).await {
+        if !check_tcp_open(port).await {
             return true;
         }
         tokio::time::sleep(std::time::Duration::from_millis(300)).await;
@@ -349,10 +365,10 @@ pub async fn start_server(
         let mut success = false;
         let mut cancelled = false;
         let attempt_start = std::time::Instant::now();
-        let max_attempt_secs: u64 = 90;
+        let max_attempt_secs: u64 = 180;
 
         loop {
-            tokio::time::sleep(std::time::Duration::from_millis(400)).await;
+            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
             let elapsed = attempt_start.elapsed().as_secs();
 
             if elapsed >= max_attempt_secs {
@@ -363,7 +379,8 @@ pub async fn start_server(
                 cancelled = true;
                 break;
             }
-            if started.load(std::sync::atomic::Ordering::Relaxed) || check_http_health(port).await {
+            // Wait until llama-server logs it is ready AND /health returns HTTP 200 OK (not 503 Loading model)
+            if check_http_health(port).await {
                 success = true;
                 break;
             }

@@ -1117,10 +1117,41 @@ async fn run_chat_agent(
     let query = body.message.content;
     let config = state.config.get_config();
 
+    let mut effective_provider_id = body.chat_model.provider_id.clone();
     let mut effective_model_key = body.chat_model.key.clone();
     let mut gguf_load_error: Option<String> = None;
 
-    let provider: Option<ConfigModelProvider> = if body.chat_model.provider_id == "local-gguf" {
+    // Guarantee Offline Mode never accidentally calls an online provider (such as 9Router)
+    if body.model_mode.as_deref() == Some("offline") && effective_provider_id != "local-gguf" {
+        let selected_is_offline = config
+            .model_providers
+            .iter()
+            .find(|p| p.id == effective_provider_id)
+            .map_or(false, |p| classify_provider_mode(p) == "offline");
+
+        if !selected_is_offline {
+            let installed_gguf = state.local_llm.list_installed_models();
+            if let Some(first_gguf) = installed_gguf.first() {
+                effective_provider_id = "local-gguf".to_string();
+                effective_model_key = first_gguf.path.to_string_lossy().to_string();
+            } else if let Some(off_prov) = config
+                .model_providers
+                .iter()
+                .find(|p| classify_provider_mode(p) == "offline" && !p.chat_models.is_empty())
+            {
+                effective_provider_id = off_prov.id.clone();
+                effective_model_key = off_prov.chat_models[0].key.clone();
+            } else {
+                gguf_load_error = Some(
+                    "Offline mode is active, but no offline GGUF, Ollama, or LM Studio model is selected. Select an offline model from the model picker or open Settings -> Models -> Offline Engine & GGUF.".to_string(),
+                );
+            }
+        }
+    }
+
+    let provider: Option<ConfigModelProvider> = if gguf_load_error.is_some() {
+        None
+    } else if effective_provider_id == "local-gguf" {
         let status_block_id = Uuid::new_v4().to_string();
         let status_step_id = Uuid::new_v4().to_string();
         let start_block = json!({
@@ -1141,7 +1172,7 @@ async fn run_chat_agent(
             )))
             .await;
 
-        match state.local_llm.ensure_model_running(&body.chat_model.key).await {
+        match state.local_llm.ensure_model_running(&effective_model_key).await {
             Ok((base_url, model_name)) => {
                 effective_model_key = model_name;
                 let done_patch = json!({
@@ -1179,12 +1210,12 @@ async fn run_chat_agent(
         config
             .model_providers
             .iter()
-            .find(|p| p.id == body.chat_model.provider_id)
+            .find(|p| p.id == effective_provider_id)
             .cloned()
     };
 
     let is_offline_mode = body.model_mode.as_deref() == Some("offline")
-        || body.chat_model.provider_id == "local-gguf"
+        || effective_provider_id == "local-gguf"
         || provider
             .as_ref()
             .map_or(false, |p| classify_provider_mode(p) == "offline");

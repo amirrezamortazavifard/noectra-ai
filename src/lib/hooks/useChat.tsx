@@ -397,6 +397,65 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
     setModelModeState(mode);
     localStorage.setItem('modelMode', mode);
     syncSurvivalSetting({ modelMode: mode });
+
+    // Save current model under its previous mode and auto-switch if current provider belongs to the other mode
+    fetch('/api/providers')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { providers?: MinimalProvider[] } | null) => {
+        const list = data?.providers ?? [];
+        const isProvOffline = (p: MinimalProvider) => {
+          const t = (p.type || '').toLowerCase();
+          const n = (p.name || '').toLowerCase();
+          if (t === '9router' || n.includes('9router') || p.baseUrl?.includes('20128')) {
+            return false;
+          }
+          if (p.mode === 'offline' || p.mode === 'online') return p.mode === 'offline';
+          return p.id === 'local-gguf' || t === 'ollama' || t === 'lmstudio';
+        };
+
+        const currentProv = list.find((p) => p.id === chatModelProvider.providerId);
+        const currentlyOffline = currentProv
+          ? isProvOffline(currentProv)
+          : chatModelProvider.providerId === 'local-gguf';
+
+        if (chatModelProvider.providerId && chatModelProvider.key) {
+          localStorage.setItem(
+            currentlyOffline ? 'lastOfflineModel' : 'lastOnlineModel',
+            JSON.stringify(chatModelProvider),
+          );
+        }
+
+        const wantOffline = mode === 'offline';
+        if (currentlyOffline === wantOffline && currentProv && currentProv.chatModels.length > 0) {
+          return;
+        }
+
+        // Restore last used model for target mode if valid, else pick first available in that mode
+        const savedRaw = localStorage.getItem(wantOffline ? 'lastOfflineModel' : 'lastOnlineModel');
+        let chosen: { providerId: string; key: string } | null = null;
+        if (savedRaw) {
+          try {
+            const parsed = JSON.parse(savedRaw);
+            const p = list.find((x) => x.id === parsed.providerId && isProvOffline(x) === wantOffline);
+            if (p && p.chatModels.some((m) => m.key === parsed.key)) {
+              chosen = parsed;
+            }
+          } catch {}
+        }
+        if (!chosen) {
+          const matchProv = list.find((p) => isProvOffline(p) === wantOffline && p.chatModels.length > 0);
+          if (matchProv) {
+            chosen = { providerId: matchProv.id, key: matchProv.chatModels[0].key };
+          }
+        }
+
+        if (chosen) {
+          setChatModelProvider(chosen);
+          localStorage.setItem('chatModelProviderId', chosen.providerId);
+          localStorage.setItem('chatModelKey', chosen.key);
+        }
+      })
+      .catch(() => {});
   };
   const setUseOfflineLibrary = (enabled: boolean) => {
     setUseOfflineLibraryState(enabled);
