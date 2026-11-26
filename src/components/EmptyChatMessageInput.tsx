@@ -1,4 +1,4 @@
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, BookOpen, Cloud, Cpu } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import TextareaAutosize from 'react-textarea-autosize';
 import Sources from './MessageInputActions/Sources';
@@ -14,9 +14,18 @@ import { toast } from 'sonner';
 import { soundService } from '@/lib/sound/soundService';
 
 const EmptyChatMessageInput = () => {
-  const { sendMessage, files, setFiles, fileIds, setFileIds } = useChat();
+  const {
+    sendMessage,
+    files,
+    setFiles,
+    fileIds,
+    setFileIds,
+    modelMode,
+    setModelMode,
+    useOfflineLibrary,
+    setUseOfflineLibrary,
+  } = useChat();
 
-  /* const [copilotEnabled, setCopilotEnabled] = useState(false); */
   const [message, setMessage] = useState('');
   const [isDragging, setIsDragging] = useState(false);
 
@@ -38,7 +47,6 @@ const EmptyChatMessageInput = () => {
     };
 
     document.addEventListener('keydown', handleKeyDown);
-
     inputRef.current?.focus();
 
     return () => {
@@ -97,39 +105,107 @@ const EmptyChatMessageInput = () => {
           <p className="text-sky-500 font-medium text-lg">Drop files to attach</p>
         </div>
       )}
-      <div className="flex flex-col bg-light-secondary dark:bg-dark-secondary px-3 pt-5 pb-3 rounded-2xl w-full border border-light-200 dark:border-dark-200 shadow-sm shadow-light-200/10 dark:shadow-black/20 transition-all duration-200 focus-within:border-light-300 dark:focus-within:border-dark-300">
-        <TextareaAutosize
-          ref={inputRef}
-          value={message}
-          onChange={(e) => setMessage(e.target.value)}
-          minRows={2}
-          className="px-2 bg-transparent placeholder:text-[15px] placeholder:text-black/50 dark:placeholder:text-white/50 text-sm text-black dark:text-white resize-none focus:outline-none w-full max-h-24 lg:max-h-36 xl:max-h-48"
-          placeholder="Ask anything..."
-        />
-        <div className="flex flex-col gap-2 mt-4">
-          <div className="flex flex-row items-center justify-between">
-            <div className="flex flex-row items-center space-x-1.5">
-              <WebSearchToggle />
-              <Optimization />
-            </div>
-            <div className="flex flex-row items-center space-x-2">
-              <div className="flex flex-row items-center space-x-1">
-                <Sources />
-                <ModelSelector />
-                <Attach />
-                <VoiceInput onTranscript={(text) => setMessage((prev) => prev + text)} />
-              </div>
+      <div className="flex flex-col bg-light-secondary dark:bg-dark-secondary rounded-2xl w-full border border-light-200 dark:border-dark-200 shadow-sm shadow-black/5 dark:shadow-black/30 transition-all duration-200 focus-within:border-sky-500/40 focus-within:ring-2 focus-within:ring-sky-500/10">
+        <div className="px-4 pt-4 pb-2">
+          <TextareaAutosize
+            ref={inputRef}
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            minRows={2}
+            className="bg-transparent placeholder:text-[15px] placeholder:text-black/45 dark:placeholder:text-white/45 text-[15px] leading-relaxed text-black dark:text-white resize-none focus:outline-none w-full max-h-36 xl:max-h-48"
+            placeholder={
+              modelMode === 'offline'
+                ? 'Ask offline AI (searches your local ZIM library & files)...'
+                : 'Ask anything...'
+            }
+          />
+        </div>
+
+        {/* Row 1: Primary Mode, Search/Library & Model Bar */}
+        <div className="flex flex-wrap items-center justify-between gap-2 px-3 pb-2.5">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {/* Offline / Online Segmented Switch */}
+            <div
+              className="inline-flex items-center h-8 rounded-xl p-0.5 bg-black/[0.04] dark:bg-white/[0.05] border border-light-200/80 dark:border-white/10"
+              title="Switch between Offline local models and Online API models"
+            >
               <button
-                disabled={message.trim().length === 0}
-                className="bg-sky-500 text-white disabled:text-black/50 dark:disabled:text-white/50 disabled:bg-[#e0e0dc] dark:disabled:bg-[#ececec21] hover:bg-opacity-85 transition duration-100 rounded-full p-2"
+                type="button"
+                onClick={() => setModelMode('offline')}
+                className={`inline-flex items-center gap-1.5 h-7 px-2.5 rounded-[9px] text-xs font-medium transition ${
+                  modelMode === 'offline'
+                    ? 'bg-emerald-600 text-white shadow-sm'
+                    : 'text-slate-700 dark:text-white/70 hover:text-slate-950 dark:hover:text-white'
+                }`}
               >
-                <ArrowRight className="bg-background" size={17} />
+                <Cpu size={13} /> Offline
+              </button>
+              <button
+                type="button"
+                onClick={() => setModelMode('online')}
+                className={`inline-flex items-center gap-1.5 h-7 px-2.5 rounded-[9px] text-xs font-medium transition ${
+                  modelMode === 'online'
+                    ? 'bg-sky-600 text-white shadow-sm'
+                    : 'text-slate-700 dark:text-white/70 hover:text-slate-950 dark:hover:text-white'
+                }`}
+              >
+                <Cloud size={13} /> Online
               </button>
             </div>
+
+            {modelMode === 'offline' ? (
+              <button
+                type="button"
+                onClick={() => setUseOfflineLibrary(!useOfflineLibrary)}
+                title="Search installed ZIM archives and Your Files before answering"
+                className={`inline-flex items-center gap-1.5 h-8 px-2.5 rounded-xl border text-xs font-medium transition ${
+                  useOfflineLibrary
+                    ? 'border-emerald-500/35 bg-emerald-500/12 text-emerald-700 dark:text-emerald-300'
+                    : 'border-light-200/80 dark:border-white/10 bg-white/75 dark:bg-white/[0.04] text-slate-600 dark:text-white/70 hover:bg-light-200/60 dark:hover:bg-white/10'
+                }`}
+              >
+                <BookOpen size={13} />
+                <span>Offline Library</span>
+              </button>
+            ) : (
+              <>
+                <WebSearchToggle />
+                <Optimization />
+                <Sources />
+                <button
+                  type="button"
+                  onClick={() => setUseOfflineLibrary(!useOfflineLibrary)}
+                  title="Also search installed offline ZIM archives and Your Files"
+                  className={`inline-flex items-center gap-1 h-8 px-2.5 rounded-xl border text-xs font-medium transition ${
+                    useOfflineLibrary
+                      ? 'border-emerald-500/35 bg-emerald-500/12 text-emerald-700 dark:text-emerald-300'
+                      : 'border-light-200/80 dark:border-white/10 bg-white/75 dark:bg-white/[0.04] text-slate-600 dark:text-white/70 hover:bg-light-200/60 dark:hover:bg-white/10'
+                  }`}
+                >
+                  <BookOpen size={13} />
+                  <span>Library</span>
+                </button>
+              </>
+            )}
           </div>
-          <div className="pt-2 border-t border-light-200/60 dark:border-dark-200/60">
-            <SurvivalControlsBar />
+
+          <div className="flex items-center gap-1.5 ml-auto">
+            <ModelSelector />
+            <Attach />
+            <VoiceInput onTranscript={(text) => setMessage((prev) => prev + text)} />
+            <button
+              disabled={message.trim().length === 0}
+              className="h-8 w-8 flex items-center justify-center bg-sky-500 hover:bg-sky-600 text-white disabled:text-black/35 dark:disabled:text-white/35 disabled:bg-black/10 dark:disabled:bg-white/10 transition duration-150 rounded-full shrink-0"
+              title="Send message"
+            >
+              <ArrowRight size={16} />
+            </button>
           </div>
+        </div>
+
+        {/* Row 2: Sleek Utility & Survival Tuning Bar */}
+        <div className="px-3 py-1.5 bg-black/[0.02] dark:bg-white/[0.02] border-t border-light-200/60 dark:border-white/[0.06] rounded-b-2xl">
+          <SurvivalControlsBar />
         </div>
       </div>
     </form>

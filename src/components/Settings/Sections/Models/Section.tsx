@@ -22,8 +22,22 @@ const Models = ({
 }) => {
   const [providers, setProviders] = useState<ConfigModelProvider[]>(values);
   const [liveProviders, setLiveProviders] = useState<ConfigModelProvider[]>(values);
-  const [activeTab, setActiveTab] = useState<ModelSettingsTab>('overview');
+  const [activeTab, setActiveTab] = useState<ModelSettingsTab>(() => {
+    const saved = sessionStorage.getItem('settingsModelsTab') as ModelSettingsTab | null;
+    if (saved) sessionStorage.removeItem('settingsModelsTab');
+    return saved || 'overview';
+  });
   const { modelMode, setModelMode } = useChat();
+
+  useEffect(() => {
+    const handler = (e: any) => {
+      if (e.detail && ['overview', 'offline', 'online'].includes(e.detail)) {
+        setActiveTab(e.detail);
+      }
+    };
+    window.addEventListener('models-tab-change', handler);
+    return () => window.removeEventListener('models-tab-change', handler);
+  }, []);
 
   const refreshLiveProviders = useCallback(async () => {
     try {

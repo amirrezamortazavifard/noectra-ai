@@ -88,6 +88,10 @@ const SettingsDialogue = ({
       if (e.detail?.section) {
         setActiveSection(e.detail.section);
       }
+      if (e.detail?.tab) {
+        sessionStorage.setItem('settingsModelsTab', e.detail.tab);
+        window.dispatchEvent(new CustomEvent('models-tab-change', { detail: e.detail.tab }));
+      }
     };
     window.addEventListener('open-settings', handleOpenSettings);
     return () => window.removeEventListener('open-settings', handleOpenSettings);

@@ -16,9 +16,7 @@ const SettingsButton = () => {
       >
         <Settings size={18} className="transition-transform duration-300 group-hover:rotate-45" />
       </button>
-      <AnimatePresence>
-        {isOpen && <SettingsDialogue isOpen={isOpen} setIsOpen={setIsOpen} />}
-      </AnimatePresence>
+      <SettingsDialogue isOpen={isOpen} setIsOpen={setIsOpen} />
     </>
   );
 };

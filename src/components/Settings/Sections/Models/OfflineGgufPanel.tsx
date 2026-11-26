@@ -184,6 +184,7 @@ const OfflineGgufPanel = ({
         toast.success('GGUF model added to local library.');
         await loadAll();
         onModelsUpdated?.();
+        window.dispatchEvent(new CustomEvent('providers-updated'));
       }
     } catch (e: any) {
       toast.error(`Failed to add GGUF file: ${e.message}`);
@@ -198,9 +199,27 @@ const OfflineGgufPanel = ({
         toast.success('GGUF scan directory added.');
         await loadAll();
         onModelsUpdated?.();
+        window.dispatchEvent(new CustomEvent('providers-updated'));
       }
     } catch (e: any) {
       toast.error(`Failed to add folder: ${e.message}`);
+    }
+  };
+
+  const handleRemoveModelsDir = async (dirPath: string) => {
+    try {
+      const res = await fetch('/api/local-llm/models/dirs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'remove', path: dirPath }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      toast.success('Scan directory removed.');
+      await loadAll();
+      onModelsUpdated?.();
+      window.dispatchEvent(new CustomEvent('providers-updated'));
+    } catch (e: any) {
+      toast.error(`Failed to remove folder: ${e.message}`);
     }
   };
 
@@ -541,6 +560,29 @@ const OfflineGgufPanel = ({
             </button>
           </div>
         </div>
+
+        {config && config.model_dirs.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+            <span className="text-slate-500 dark:text-white/50 font-medium">Scan Folders:</span>
+            {config.model_dirs.map((dir) => (
+              <span
+                key={dir}
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md border border-light-200 dark:border-white/10 bg-light-secondary/70 dark:bg-white/[0.04] text-slate-700 dark:text-white/80 font-mono max-w-[280px]"
+                title={dir}
+              >
+                <span className="truncate">{dir}</span>
+                <button
+                  type="button"
+                  onClick={() => handleRemoveModelsDir(dir)}
+                  className="text-slate-400 hover:text-rose-500 ml-0.5"
+                  title="Remove folder"
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
 
         {installedModels.length === 0 ? (
           <div className="text-center py-6 text-xs text-slate-600 dark:text-white/60 border border-dashed border-light-200 dark:border-white/10 rounded-lg">

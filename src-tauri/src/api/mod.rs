@@ -40,6 +40,10 @@ pub struct AppState {
 
 fn classify_provider_mode(p: &ConfigModelProvider) -> &'static str {
     let base = p.base_url.as_deref().unwrap_or("").to_ascii_lowercase();
+    let name_low = p.name.to_ascii_lowercase();
+    if p.provider_type == "9router" || name_low.contains("9router") || base.contains("20128") {
+        return "online";
+    }
     if matches!(p.provider_type.as_str(), "local-gguf" | "ollama" | "lmstudio")
         || base.contains("localhost")
         || base.contains("127.0.0.1")
