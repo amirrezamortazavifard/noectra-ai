@@ -6,10 +6,12 @@ mod api;
 mod config;
 mod db;
 mod knowledge_store;
+mod local_llm;
 mod models;
 mod ocr;
 mod scraper;
 mod searxng;
+mod survival;
 mod tools;
 mod tray;
 
@@ -239,15 +241,27 @@ async fn main() {
         .unwrap_or("dark")
         .to_string();
 
+    let library_manager = std::sync::Arc::new(
+        knowledge_store::library_manager::LibraryManager::new(&data_dir),
+    );
+    let local_llm_state = local_llm::LocalLlmState::new(&data_dir, http_client.clone());
+    let survival_state = survival::SurvivalState::new(&data_dir, db.clone(), library_manager)
+        .expect("Failed to initialize survival offline engine");
+
     let state = AppState {
         db: db.clone(),
         config,
         http_client,
+        local_llm: local_llm_state.clone(),
+        survival: survival_state.clone(),
     };
 
-    let knowledge_state = knowledge_store::KnowledgeStoreState::new(&data_dir, db, None);
+    let knowledge_state =
+        knowledge_store::KnowledgeStoreState::new(&data_dir, db, None);
     let router = api::create_router(state)
-        .merge(knowledge_store::create_knowledge_router(knowledge_state));
+        .merge(knowledge_store::create_knowledge_router(knowledge_state))
+        .merge(local_llm::create_local_llm_router(local_llm_state.clone()))
+        .merge(survival::create_survival_router(survival_state));
 
     // Spawn local Axum API server on 127.0.0.1:3001
     tokio::spawn(async move {
@@ -285,6 +299,7 @@ async fn main() {
             let tray_state = tray::setup_tray(app.handle())
                 .expect("Failed to initialize system tray");
             app.manage(tray_state);
+            app.manage(local_llm_state);
 
             // Check if launched on boot with --minimized or --silent flag
             let is_minimized_launch = std::env::args().any(|arg| arg == "--minimized" || arg == "--silent");

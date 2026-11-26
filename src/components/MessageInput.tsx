@@ -8,13 +8,14 @@ import Optimization from './MessageInputActions/Optimization';
 import Sources from './MessageInputActions/Sources';
 import WebSearchToggle from './MessageInputActions/WebSearchToggle';
 import VoiceInput from './MessageInputActions/VoiceInput';
+import SurvivalControlsBar from './Survival/SurvivalControlsBar';
 import { useChat } from '@/lib/hooks/useChat';
 import { uploadDroppedFiles } from '@/lib/services/uploadService';
 import { toast } from 'sonner';
 import { soundService } from '@/lib/sound/soundService';
 
 const MessageInput = () => {
-  const { loading, sendMessage, files, setFiles, fileIds, setFileIds } = useChat();
+  const { loading, sendMessage, stopGeneration, files, setFiles, fileIds, setFileIds } = useChat();
   const [message, setMessage] = useState('');
   const [isDragging, setIsDragging] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
@@ -107,41 +108,46 @@ const MessageInput = () => {
         </div>
 
         {/* Bottom Toolbar */}
-        <div className="flex flex-row items-center justify-between w-full px-3 py-2 bg-light-secondary/50 dark:bg-dark-secondary/50 border-t border-light-200/50 dark:border-dark-200/50 rounded-b-2xl">
-
-          {/* Left Actions (Optimization Mode) */}
-          <div className="flex flex-row items-center space-x-1.5">
-            <WebSearchToggle />
-            <Optimization placement="top" />
-          </div>
-
-          {/* Right Actions (Sources, Model Selector, Attach, Send/Stop) */}
-          <div className="flex flex-row items-center space-x-2">
-            <div className="flex flex-row items-center space-x-1">
-              <Sources placement="top" />
-              <ModelSelector placement="top" />
-              <AttachSmall />
-              <VoiceInput onTranscript={(text) => setMessage((prev) => prev + text)} />
+        <div className="flex flex-col w-full bg-light-secondary/50 dark:bg-dark-secondary/50 border-t border-light-200/50 dark:border-dark-200/50 rounded-b-2xl">
+          <div className="flex flex-row items-center justify-between w-full px-3 py-2">
+            {/* Left Actions (Optimization Mode) */}
+            <div className="flex flex-row items-center space-x-1.5">
+              <WebSearchToggle />
+              <Optimization placement="top" />
             </div>
 
-            {loading ? (
-              <button
-                type="button"
-                className="flex items-center justify-center p-2 rounded-full bg-red-500/10 text-red-500 hover:bg-red-500/20 transition-all duration-200"
-              >
-                <Square size={16} fill="currentColor" strokeWidth={0} />
-              </button>
-            ) : (
-              <button
-                disabled={message.trim().length === 0}
-                type="submit"
-                className="flex items-center justify-center p-2 rounded-full bg-[#24A0ED] text-white disabled:bg-light-200 dark:disabled:bg-dark-200 disabled:text-black/30 dark:disabled:text-white/30 hover:bg-blue-500 transition-all duration-200"
-              >
-                <ArrowUp size={18} strokeWidth={2.5} />
-              </button>
-            )}
-          </div>
+            {/* Right Actions (Sources, Model Selector, Attach, Send/Stop) */}
+            <div className="flex flex-row items-center space-x-2">
+              <div className="flex flex-row items-center space-x-1">
+                <Sources placement="top" />
+                <ModelSelector placement="top" />
+                <AttachSmall />
+                <VoiceInput onTranscript={(text) => setMessage((prev) => prev + text)} />
+              </div>
 
+              {loading ? (
+                <button
+                  type="button"
+                  onClick={stopGeneration}
+                  title="Stop generation"
+                  className="flex items-center justify-center p-2 rounded-full bg-red-500/15 text-red-500 hover:bg-red-500/25 transition-all duration-200"
+                >
+                  <Square size={16} fill="currentColor" strokeWidth={0} />
+                </button>
+              ) : (
+                <button
+                  disabled={message.trim().length === 0}
+                  type="submit"
+                  className="flex items-center justify-center p-2 rounded-full bg-[#24A0ED] text-white disabled:bg-light-200 dark:disabled:bg-dark-200 disabled:text-black/30 dark:disabled:text-white/30 hover:bg-blue-500 transition-all duration-200"
+                >
+                  <ArrowUp size={18} strokeWidth={2.5} />
+                </button>
+              )}
+            </div>
+          </div>
+          <div className="px-3 pb-2 pt-1.5 border-t border-light-200/40 dark:border-dark-200/40">
+            <SurvivalControlsBar />
+          </div>
         </div>
       </form>
     </div>

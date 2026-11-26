@@ -25,6 +25,12 @@ import { getAutoMediaSearch } from '../config/clientRegistry';
 import { applyPatch } from 'rfc6902';
 import { soundService } from '../sound/soundService';
 import { Widget } from '@/components/ChatWindow';
+import {
+  LengthLimit,
+  MemoryEvent,
+  ModelMode,
+  ReasoningBudget,
+} from '../localLlm/types';
 
 export type Section = {
   message: Message;
@@ -53,11 +59,24 @@ type ChatContext = {
   chatModelProvider: ChatModelProvider;
   embeddingModelProvider: EmbeddingModelProvider;
   researchEnded: boolean;
+  modelMode: ModelMode;
+  useOfflineLibrary: boolean;
+  reasoningBudget: ReasoningBudget;
+  lengthLimit: LengthLimit;
+  memoryEvents: Record<string, MemoryEvent[]>;
+  activeOfflineDocId: string | null;
   setResearchEnded: (ended: boolean) => void;
   setOptimizationMode: (mode: string) => void;
   setSources: (sources: string[]) => void;
   setFiles: (files: File[]) => void;
   setFileIds: (fileIds: string[]) => void;
+  setModelMode: (mode: ModelMode) => void;
+  setUseOfflineLibrary: (enabled: boolean) => void;
+  setReasoningBudget: (budget: ReasoningBudget) => void;
+  setLengthLimit: (limit: LengthLimit) => void;
+  setActiveOfflineDocId: (id: string | null) => void;
+  undoMemoryEvent: (messageId: string, idx: number, event: MemoryEvent) => Promise<void>;
+  stopGeneration: () => void;
   sendMessage: (
     message: string,
     messageId?: string,
@@ -121,43 +140,40 @@ const checkConfig = async (
 
     const chatModelProvider =
       providers.find((p) => p.id === chatModelProviderId) ??
-      providers.find((p) => p.chatModels.length > 0);
-
-    if (!chatModelProvider) {
-      throw new Error(
-        'No chat models found, pleae configure them in the settings page.',
-      );
-    }
+      providers.find((p) => p.chatModels.length > 0) ??
+      providers[0];
 
     chatModelProviderId = chatModelProvider.id;
 
     const chatModel =
       chatModelProvider.chatModels.find((m) => m.key === chatModelKey) ??
       chatModelProvider.chatModels[0];
-    chatModelKey = chatModel.key;
+    chatModelKey = chatModel?.key ?? '';
 
     const embeddingModelProvider =
       providers.find((p) => p.id === embeddingModelProviderId) ??
       providers.find((p) => p.embeddingModels.length > 0);
 
-    if (!embeddingModelProvider) {
-      throw new Error(
-        'No embedding models found, pleae configure them in the settings page.',
-      );
+    if (embeddingModelProvider) {
+      embeddingModelProviderId = embeddingModelProvider.id;
+      const embeddingModel =
+        embeddingModelProvider.embeddingModels.find(
+          (m) => m.key === embeddingModelKey,
+        ) ?? embeddingModelProvider.embeddingModels[0];
+      embeddingModelKey = embeddingModel?.key ?? '';
+    } else {
+      embeddingModelProviderId = embeddingModelProviderId ?? '';
+      embeddingModelKey = embeddingModelKey ?? '';
     }
-
-    embeddingModelProviderId = embeddingModelProvider.id;
-
-    const embeddingModel =
-      embeddingModelProvider.embeddingModels.find(
-        (m) => m.key === embeddingModelKey,
-      ) ?? embeddingModelProvider.embeddingModels[0];
-    embeddingModelKey = embeddingModel.key;
 
     localStorage.setItem('chatModelKey', chatModelKey);
     localStorage.setItem('chatModelProviderId', chatModelProviderId);
-    localStorage.setItem('embeddingModelKey', embeddingModelKey);
-    localStorage.setItem('embeddingModelProviderId', embeddingModelProviderId);
+    if (embeddingModelKey) {
+      localStorage.setItem('embeddingModelKey', embeddingModelKey);
+    }
+    if (embeddingModelProviderId) {
+      localStorage.setItem('embeddingModelProviderId', embeddingModelProviderId);
+    }
 
     setChatModelProvider({
       key: chatModelKey,
@@ -263,6 +279,12 @@ export const chatContext = createContext<ChatContext>({
   chatModelProvider: { key: '', providerId: '' },
   embeddingModelProvider: { key: '', providerId: '' },
   researchEnded: false,
+  modelMode: 'online',
+  useOfflineLibrary: true,
+  reasoningBudget: 'medium',
+  lengthLimit: 'normal',
+  memoryEvents: {},
+  activeOfflineDocId: null,
   rewrite: () => {},
   sendMessage: async () => {},
   setFileIds: () => {},
@@ -272,6 +294,13 @@ export const chatContext = createContext<ChatContext>({
   setChatModelProvider: () => {},
   setEmbeddingModelProvider: () => {},
   setResearchEnded: () => {},
+  setModelMode: () => {},
+  setUseOfflineLibrary: () => {},
+  setReasoningBudget: () => {},
+  setLengthLimit: () => {},
+  setActiveOfflineDocId: () => {},
+  undoMemoryEvent: async () => {},
+  stopGeneration: () => {},
 });
 
 export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
@@ -337,6 +366,88 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
   const [isConfigReady, setIsConfigReady] = useState(false);
   const [hasError, setHasError] = useState(false);
   const [isReady, setIsReady] = useState(false);
+
+  const [modelMode, setModelModeState] = useState<ModelMode>(() => {
+    const saved = localStorage.getItem('modelMode');
+    return saved === 'offline' ? 'offline' : 'online';
+  });
+  const [useOfflineLibrary, setUseOfflineLibraryState] = useState<boolean>(() => {
+    const saved = localStorage.getItem('useOfflineLibrary');
+    return saved === null ? true : saved === 'true';
+  });
+  const [reasoningBudget, setReasoningBudgetState] = useState<ReasoningBudget>(() => {
+    return (localStorage.getItem('reasoningBudget') as ReasoningBudget) || 'medium';
+  });
+  const [lengthLimit, setLengthLimitState] = useState<LengthLimit>(() => {
+    return (localStorage.getItem('lengthLimit') as LengthLimit) || 'normal';
+  });
+  const [memoryEvents, setMemoryEvents] = useState<Record<string, MemoryEvent[]>>({});
+  const [activeOfflineDocId, setActiveOfflineDocId] = useState<string | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  const syncSurvivalSetting = (patch: Record<string, any>) => {
+    fetch('/api/survival/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patch),
+    }).catch(() => {});
+  };
+
+  const setModelMode = (mode: ModelMode) => {
+    setModelModeState(mode);
+    localStorage.setItem('modelMode', mode);
+    syncSurvivalSetting({ modelMode: mode });
+  };
+  const setUseOfflineLibrary = (enabled: boolean) => {
+    setUseOfflineLibraryState(enabled);
+    localStorage.setItem('useOfflineLibrary', String(enabled));
+    syncSurvivalSetting({ offlineLibraryEnabled: enabled });
+  };
+  const setReasoningBudget = (budget: ReasoningBudget) => {
+    setReasoningBudgetState(budget);
+    localStorage.setItem('reasoningBudget', budget);
+    syncSurvivalSetting({ reasoningBudget: budget });
+  };
+  const setLengthLimit = (limit: LengthLimit) => {
+    setLengthLimitState(limit);
+    localStorage.setItem('lengthLimit', limit);
+    syncSurvivalSetting({ lengthLimit: limit });
+  };
+
+  const stopGeneration = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    setLoading(false);
+    setResearchEnded(true);
+    setMessages((prev) =>
+      prev.map((m) => (m.status === 'answering' ? { ...m, status: 'completed' } : m)),
+    );
+  };
+
+  const undoMemoryEvent = async (
+    messageId: string,
+    idx: number,
+    event: MemoryEvent,
+  ) => {
+    try {
+      const res = await fetch('/api/survival/memory/undo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(event),
+      });
+      if (res.ok) {
+        setMemoryEvents((prev) => ({
+          ...prev,
+          [messageId]: (prev[messageId] ?? []).filter((_, i) => i !== idx),
+        }));
+        toast.success('Memory change undone.');
+      }
+    } catch {
+      toast.error('Failed to undo memory change.');
+    }
+  };
 
   const messagesRef = useRef<Message[]>([]);
   const initialMessageSentRef = useRef<string | null>(null);
@@ -601,6 +712,14 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
         return;
       }
 
+      if (data.type === 'memoryUpdate' && data.event) {
+        setMemoryEvents((prev) => ({
+          ...prev,
+          [messageId]: [...(prev[messageId] ?? []), data.event],
+        }));
+        return;
+      }
+
       if (data.type === 'researchComplete') {
         setResearchEnded(true);
         if (
@@ -780,66 +899,84 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
 
     const messageIndex = messages.findIndex((m) => m.messageId === messageId);
 
-    const res = await fetch('/api/chat', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        content: message,
-        message: {
-          messageId: messageId,
-          chatId: chatId!,
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
+    try {
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        signal: controller.signal,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
           content: message,
-        },
-        chatId: chatId!,
-        files: fileIds,
-        sources: sources,
-        optimizationMode: optimizationMode,
-        history: rewrite
-          ? chatHistory.current.slice(
-              0,
-              messageIndex === -1 ? undefined : messageIndex,
-            )
-          : chatHistory.current,
-        chatModel: {
-          key: chatModelProvider.key,
-          providerId: chatModelProvider.providerId,
-        },
-        embeddingModel: {
-          key: embeddingModelProvider.key,
-          providerId: embeddingModelProvider.providerId,
-        },
-        systemInstructions: localStorage.getItem('systemInstructions'),
-      }),
-    });
+          message: {
+            messageId: messageId,
+            chatId: chatId!,
+            content: message,
+          },
+          chatId: chatId!,
+          files: fileIds,
+          sources: sources,
+          optimizationMode: optimizationMode,
+          modelMode,
+          useOfflineLibrary,
+          reasoningBudget,
+          lengthLimit,
+          history: rewrite
+            ? chatHistory.current.slice(
+                0,
+                messageIndex === -1 ? undefined : messageIndex,
+              )
+            : chatHistory.current,
+          chatModel: {
+            key: chatModelProvider.key,
+            providerId: chatModelProvider.providerId,
+          },
+          embeddingModel: {
+            key: embeddingModelProvider.key,
+            providerId: embeddingModelProvider.providerId,
+          },
+          systemInstructions: localStorage.getItem('systemInstructions'),
+        }),
+      });
 
-    if (!res.body) throw new Error('No response body');
+      if (!res.body) throw new Error('No response body');
 
-    const reader = res.body?.getReader();
-    const decoder = new TextDecoder('utf-8');
+      const reader = res.body?.getReader();
+      const decoder = new TextDecoder('utf-8');
 
-    let partialChunk = '';
+      let partialChunk = '';
 
-    const messageHandler = getMessageHandler(newMessage);
+      const messageHandler = getMessageHandler(newMessage);
 
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
 
-      partialChunk += decoder.decode(value, { stream: true });
+        partialChunk += decoder.decode(value, { stream: true });
 
-      try {
-        const messages = partialChunk.split('\n');
-        for (const msg of messages) {
-          if (!msg.trim()) continue;
-          const json = JSON.parse(msg);
-          messageHandler(json);
+        try {
+          const lines = partialChunk.split('\n');
+          for (const msg of lines) {
+            if (!msg.trim()) continue;
+            const parsed = JSON.parse(msg);
+            messageHandler(parsed);
+          }
+          partialChunk = '';
+        } catch {
+          console.warn('Incomplete JSON, waiting for next chunk...');
         }
-        partialChunk = '';
-      } catch (error) {
-        console.warn('Incomplete JSON, waiting for next chunk...');
       }
+    } catch (err: any) {
+      if (err?.name !== 'AbortError') {
+        console.error('Chat stream error:', err);
+        toast.error(err?.message || 'Stream connection error');
+        setLoading(false);
+      }
+    } finally {
+      abortControllerRef.current = null;
     }
   };
 
@@ -860,10 +997,23 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
         messageAppeared,
         notFound,
         optimizationMode,
+        modelMode,
+        useOfflineLibrary,
+        reasoningBudget,
+        lengthLimit,
+        memoryEvents,
+        activeOfflineDocId,
         setFileIds,
         setFiles,
         setSources,
         setOptimizationMode,
+        setModelMode,
+        setUseOfflineLibrary,
+        setReasoningBudget,
+        setLengthLimit,
+        setActiveOfflineDocId,
+        undoMemoryEvent,
+        stopGeneration,
         rewrite,
         sendMessage,
         setChatModelProvider,

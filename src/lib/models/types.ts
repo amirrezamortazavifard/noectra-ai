@@ -17,9 +17,15 @@ export type MinimalProvider = {
   id: string;
   name: string;
   type?: string;
+  mode?: 'offline' | 'online';
   baseUrl?: string;
   chatModels: Model[];
   embeddingModels: Model[];
+  serverStatus?: {
+    running: boolean;
+    model?: string | null;
+    port: number;
+  };
 };
 
 export type ModelWithProvider = {

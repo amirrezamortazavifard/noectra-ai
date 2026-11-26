@@ -34,6 +34,68 @@ pub struct AppState {
     pub db: Database,
     pub config: ConfigManager,
     pub http_client: Client,
+    pub local_llm: crate::local_llm::LocalLlmState,
+    pub survival: crate::survival::SurvivalState,
+}
+
+fn classify_provider_mode(p: &ConfigModelProvider) -> &'static str {
+    let base = p.base_url.as_deref().unwrap_or("").to_ascii_lowercase();
+    if matches!(p.provider_type.as_str(), "local-gguf" | "ollama" | "lmstudio")
+        || base.contains("localhost")
+        || base.contains("127.0.0.1")
+    {
+        "offline"
+    } else {
+        "online"
+    }
+}
+
+async fn build_virtual_gguf_provider(state: &AppState) -> Value {
+    let models = state.local_llm.list_installed_models();
+    let chat_models: Vec<Value> = models
+        .into_iter()
+        .map(|m| {
+            let mut label = m.name.clone();
+            if let Some(ref q) = m.quant {
+                if !label.contains(q) {
+                    label = format!("{} [{}]", label, q);
+                }
+            }
+            json!({
+                "key": m.path.to_string_lossy().to_string(),
+                "name": label
+            })
+        })
+        .collect();
+
+    let (running, model_path, port) = {
+        let srv = state.local_llm.server.lock().unwrap();
+        let port = match srv.status {
+            crate::local_llm::server::ServerStatus::Running { port, .. } => port,
+            _ => state.local_llm.get_config().server_config.port,
+        };
+        (srv.is_running(), srv.loaded_model_path.clone(), port)
+    };
+
+    let server_status = json!({
+        "running": running,
+        "model": model_path,
+        "port": port
+    });
+
+    json!({
+        "id": "local-gguf",
+        "name": "Local GGUF Engine (llama.cpp)",
+        "type": "local-gguf",
+        "mode": "offline",
+        "chatModels": chat_models,
+        "embeddingModels": [],
+        "config": {
+            "baseUrl": format!("http://127.0.0.1:{}/v1", port)
+        },
+        "hash": "local-gguf",
+        "serverStatus": server_status
+    })
 }
 
 pub fn create_router(state: AppState) -> Router {
@@ -151,7 +213,17 @@ async fn setup_complete(State(state): State<AppState>) -> Json<Value> {
 // Provider Handlers
 async fn get_providers(State(state): State<AppState>) -> Json<Value> {
     let config = state.config.get_config();
-    Json(json!({ "providers": config.model_providers }))
+    let mut providers: Vec<Value> = Vec::with_capacity(config.model_providers.len() + 1);
+    providers.push(build_virtual_gguf_provider(&state).await);
+    for p in &config.model_providers {
+        if let Ok(mut v) = serde_json::to_value(p) {
+            if let Some(obj) = v.as_object_mut() {
+                obj.insert("mode".to_string(), json!(classify_provider_mode(p)));
+            }
+            providers.push(v);
+        }
+    }
+    Json(json!({ "providers": providers }))
 }
 
 async fn add_provider(
@@ -186,6 +258,13 @@ async fn get_provider_models(
     State(state): State<AppState>,
     AxumPath(id): AxumPath<String>,
 ) -> Json<Value> {
+    if id == "local-gguf" {
+        let virt = build_virtual_gguf_provider(&state).await;
+        return Json(json!({
+            "chatModels": virt["chatModels"],
+            "embeddingModels": []
+        }));
+    }
     let config = state.config.get_config();
     if let Some(p) = config.model_providers.iter().find(|prov| prov.id == id) {
         if p.provider_type == "ollama" {
@@ -959,6 +1038,14 @@ struct ChatReqBody {
     chat_model: ProviderModelSelection,
     #[serde(rename = "systemInstructions", default)]
     system_instructions: Option<String>,
+    #[serde(rename = "modelMode", default)]
+    model_mode: Option<String>,
+    #[serde(rename = "useOfflineLibrary", default)]
+    use_offline_library: Option<bool>,
+    #[serde(rename = "reasoningBudget", default)]
+    reasoning_budget: Option<String>,
+    #[serde(rename = "lengthLimit", default)]
+    length_limit: Option<String>,
 }
 
 fn default_opt_mode() -> String {
@@ -1026,11 +1113,101 @@ async fn run_chat_agent(
     let query = body.message.content;
     let config = state.config.get_config();
 
-    let provider = config
-        .model_providers
-        .iter()
-        .find(|p| p.id == body.chat_model.provider_id)
-        .cloned();
+    let mut effective_model_key = body.chat_model.key.clone();
+    let mut gguf_load_error: Option<String> = None;
+
+    let provider: Option<ConfigModelProvider> = if body.chat_model.provider_id == "local-gguf" {
+        let status_block_id = Uuid::new_v4().to_string();
+        let status_step_id = Uuid::new_v4().to_string();
+        let start_block = json!({
+            "id": status_block_id,
+            "type": "research",
+            "data": {
+                "subSteps": [{
+                    "id": status_step_id,
+                    "type": "searching",
+                    "searching": ["Loading offline GGUF model into llama.cpp engine..."]
+                }]
+            }
+        });
+        let _ = tx
+            .send(Ok(format!(
+                "{}\n",
+                json!({ "type": "block", "block": start_block })
+            )))
+            .await;
+
+        match state.local_llm.ensure_model_running(&body.chat_model.key).await {
+            Ok((base_url, model_name)) => {
+                effective_model_key = model_name;
+                let done_patch = json!({
+                    "type": "updateBlock",
+                    "blockId": status_block_id,
+                    "patch": [{
+                        "op": "replace",
+                        "path": "/data/subSteps",
+                        "value": [{
+                            "id": status_step_id,
+                            "type": "searching",
+                            "searching": [format!("Offline GGUF engine ready ({})", effective_model_key)]
+                        }]
+                    }]
+                });
+                let _ = tx.send(Ok(format!("{}\n", done_patch))).await;
+                Some(ConfigModelProvider {
+                    id: "local-gguf".to_string(),
+                    name: "Local GGUF Engine".to_string(),
+                    provider_type: "openai".to_string(),
+                    base_url: Some(base_url),
+                    api_key: None,
+                    config: json!({}),
+                    chat_models: vec![],
+                    embedding_models: vec![],
+                    custom_models: vec![],
+                })
+            }
+            Err(e) => {
+                gguf_load_error = Some(e);
+                None
+            }
+        }
+    } else {
+        config
+            .model_providers
+            .iter()
+            .find(|p| p.id == body.chat_model.provider_id)
+            .cloned()
+    };
+
+    let is_offline_mode = body.model_mode.as_deref() == Some("offline")
+        || body.chat_model.provider_id == "local-gguf"
+        || provider
+            .as_ref()
+            .map_or(false, |p| classify_provider_mode(p) == "offline");
+
+    let survival_settings = state.survival.memory.load_settings();
+    let use_offline_library = body.use_offline_library.unwrap_or_else(|| {
+        is_offline_mode
+            || body.sources.iter().any(|s| s == "offline")
+            || survival_settings.offline_library_enabled
+    });
+
+    let reasoning_key = body
+        .reasoning_budget
+        .as_deref()
+        .unwrap_or(&survival_settings.reasoning_budget);
+    let length_key = body
+        .length_limit
+        .as_deref()
+        .unwrap_or(&survival_settings.length_limit);
+
+    let stream_params = crate::models::StreamChatParams {
+        max_tokens: crate::survival::prompts::length_limit_tokens(length_key),
+        reasoning_budget_tokens: crate::survival::prompts::reasoning_budget_tokens(reasoning_key),
+        temperature: Some(0.5),
+        top_p: None,
+        top_k: None,
+    };
 
     let mut current_messages: Vec<ChatMessage> = body
         .history
@@ -1055,76 +1232,351 @@ async fn run_chat_agent(
     });
 
     let mut response_blocks: Vec<Value> = Vec::new();
-
-    // Check if web search is enabled / requested
-    // Only search if the sources array explicitly contains web-related sources.
-    let web_search_enabled = body
-        .sources
-        .iter()
-        .any(|s| s == "web" || s == "academic" || s == "discussions");
+    let web_search_enabled = !is_offline_mode
+        && body
+            .sources
+            .iter()
+            .any(|s| s == "web" || s == "academic" || s == "discussions");
 
     let mut gathered_sources: Vec<ChunkSource> = Vec::new();
+    let existing_notes = state.survival.memory.notes();
+    let file_summaries = state.survival.my_files.file_summaries();
+    let memory_section = crate::survival::memory::build_prompt_section(
+        &existing_notes,
+        survival_settings.memory_ai_writes,
+        &file_summaries,
+        true,
+    );
 
-    if web_search_enabled {
-        let research_block_id = Uuid::new_v4().to_string();
-        let brave_key = config.search.brave_api_key.as_deref();
-        let searx_url = &config.search.searxng_url;
+    if let Some(ref prov) = provider {
+        if use_offline_library {
+            use crate::survival::library::{verify_cited_sources, LibrarySearchHit};
+            use crate::survival::prompts;
 
-        let (sources, final_research_block) = run_research_agent(
-            &state.http_client,
-            provider.as_ref(),
-            &body.chat_model.key,
-            &query,
-            &current_messages,
-            &body.optimization_mode,
-            brave_key,
-            searx_url,
-            &research_block_id,
-            &tx,
-        )
-        .await;
-
-        gathered_sources = sources;
-
-        if !gathered_sources.is_empty() {
-            // Emit Source block for UI card presentation
-            let source_items: Vec<Value> = gathered_sources
-                .iter()
-                .map(|s| {
-                    json!({
-                        "content": s.content,
-                        "metadata": s.metadata
-                    })
-                })
-                .collect();
-
-            let source_block = json!({
-                "id": Uuid::new_v4().to_string(),
-                "type": "source",
-                "data": source_items
+            let research_block_id = Uuid::new_v4().to_string();
+            let mut sub_steps: Vec<Value> = Vec::new();
+            let search_step_id = Uuid::new_v4().to_string();
+            sub_steps.push(json!({
+                "id": search_step_id,
+                "type": "searching",
+                "searching": ["Searching offline ZIM archives & personal files..."]
+            }));
+            let init_block = json!({
+                "id": research_block_id,
+                "type": "research",
+                "data": { "subSteps": sub_steps }
             });
-            response_blocks.push(source_block.clone());
             let _ = tx
                 .send(Ok(format!(
                     "{}\n",
-                    json!({ "type": "block", "block": source_block })
+                    json!({ "type": "block", "block": init_block })
                 )))
                 .await;
-        }
 
-        response_blocks.push(final_research_block);
-        let _ = tx
-            .send(Ok(format!(
-                "{}\n",
-                json!({ "type": "researchComplete" })
-            )))
+            let base_instructions = survival_settings
+                .custom_instructions
+                .as_deref()
+                .filter(|s| !s.trim().is_empty())
+                .unwrap_or(prompts::DEFAULT_SYSTEM_INSTRUCTIONS);
+            let extra_instr = body
+                .system_instructions
+                .as_deref()
+                .map(|s| s.trim())
+                .filter(|s| !s.is_empty())
+                .map(|s| format!("\n\nAdditional user preferences: {s}"))
+                .unwrap_or_default();
+            let survival_system = format!(
+                "{base_instructions}{extra_instr}\n\n{}\n\n{}\n\n{memory_section}",
+                prompts::LIBRARY_PROMPT,
+                prompts::RULES
+            );
+
+            let mut tool_messages = current_messages.clone();
+            tool_messages.insert(
+                0,
+                ChatMessage {
+                    role: "system".to_string(),
+                    content: survival_system.clone(),
+                    tool_calls: None,
+                    tool_call_id: None,
+                },
+            );
+
+            let base_url = prov.get_effective_base_url();
+            let api_key = prov.get_effective_api_key();
+            let tools = json!(prompts::survival_tool_defs());
+
+            let mut retrieved_hits: HashMap<String, LibrarySearchHit> = HashMap::new();
+            let mut opened_ids: Vec<String> = Vec::new();
+            let mut tool_iterations = 0usize;
+
+            for _round in 0..4 {
+                let msg_res = crate::models::ModelService::complete_with_tools(
+                    &state.http_client,
+                    &prov.provider_type,
+                    base_url.as_deref(),
+                    api_key.as_deref(),
+                    &effective_model_key,
+                    tool_messages.clone(),
+                    tools.clone(),
+                )
+                .await;
+
+                let Ok(assistant_msg) = msg_res else {
+                    break;
+                };
+                let Some(tool_calls) = assistant_msg["tool_calls"].as_array() else {
+                    break;
+                };
+                if tool_calls.is_empty() {
+                    break;
+                }
+
+                tool_iterations += 1;
+                tool_messages.push(ChatMessage {
+                    role: "assistant".to_string(),
+                    content: assistant_msg["content"]
+                        .as_str()
+                        .unwrap_or("")
+                        .to_string(),
+                    tool_calls: Some(json!(tool_calls)),
+                    tool_call_id: None,
+                });
+
+                for tc in tool_calls {
+                    let call_id = tc["id"].as_str().unwrap_or("call_0").to_string();
+                    let fn_name = tc["function"]["name"].as_str().unwrap_or("");
+                    let args_raw = tc["function"]["arguments"].as_str().unwrap_or("{}");
+                    let args: Value = serde_json::from_str(args_raw).unwrap_or_else(|_| json!({}));
+
+                    let tool_output = match fn_name {
+                        "search_library" => {
+                            let q = args["query"].as_str().unwrap_or(&query);
+                            sub_steps.push(json!({
+                                "id": Uuid::new_v4().to_string(),
+                                "type": "searching",
+                                "searching": [q]
+                            }));
+                            let hits = state.survival.library.search(q, 8).await;
+                            for h in &hits {
+                                retrieved_hits.insert(h.id.clone(), h.clone());
+                            }
+                            if hits.is_empty() {
+                                "No matching passages found in offline library.".to_string()
+                            } else {
+                                hits.iter()
+                                    .map(|h| {
+                                        format!(
+                                            "ID: {}\nTitle: {}\nSource: {}\nSnippet: {}",
+                                            h.id, h.title, h.source_label, h.snippet
+                                        )
+                                    })
+                                    .collect::<Vec<_>>()
+                                    .join("\n---\n")
+                            }
+                        }
+                        "read_article" | "show_article" => {
+                            let id = args["id"].as_str().unwrap_or("");
+                            if fn_name == "show_article" && !id.is_empty() {
+                                opened_ids.push(id.to_string());
+                            }
+                            match state.survival.library.read_passage_context(id).await {
+                                Some((title, label, text)) => {
+                                    retrieved_hits.entry(id.to_string()).or_insert_with(|| {
+                                        LibrarySearchHit {
+                                            id: id.to_string(),
+                                            title: title.clone(),
+                                            source_label: label.clone(),
+                                            source_key: if id.starts_with("myfile://") {
+                                                "personal".to_string()
+                                            } else {
+                                                "zim".to_string()
+                                            },
+                                            url: id.to_string(),
+                                            snippet: text.chars().take(240).collect(),
+                                            authority: 3,
+                                            score: 3.0,
+                                        }
+                                    });
+                                    format!("Title: {title}\nSource: {label}\nContent:\n{text}")
+                                }
+                                None => format!("Passage '{id}' not found."),
+                            }
+                        }
+                        _ => "Unsupported tool.".to_string(),
+                    };
+
+                    tool_messages.push(ChatMessage {
+                        role: "tool".to_string(),
+                        content: tool_output,
+                        tool_calls: None,
+                        tool_call_id: Some(call_id),
+                    });
+                }
+
+                let _ = tx
+                    .send(Ok(format!(
+                        "{}\n",
+                        json!({
+                            "type": "updateBlock",
+                            "blockId": research_block_id,
+                            "patch": [{ "op": "replace", "path": "/data/subSteps", "value": sub_steps }]
+                        })
+                    )))
+                    .await;
+            }
+
+            // Rescue / automatic fallback search when model did not emit structured tool_calls
+            if retrieved_hits.is_empty() && !query.trim().is_empty() {
+                let rescue_hits = state.survival.library.search(&query, 6).await;
+                if !rescue_hits.is_empty() {
+                    let mut excerpt_parts = Vec::new();
+                    for h in rescue_hits {
+                        let snippet_or_full = state
+                            .survival
+                            .library
+                            .read_passage_context(&h.id)
+                            .await
+                            .map(|(_, _, text)| text.chars().take(1800).collect::<String>())
+                            .unwrap_or_else(|| h.snippet.clone());
+                        excerpt_parts.push(format!(
+                            "[Source: {} | Title: {} | ID: {}]\n{}",
+                            h.source_label, h.title, h.id, snippet_or_full
+                        ));
+                        retrieved_hits.insert(h.id.clone(), h);
+                    }
+                    if let Some(last) = tool_messages.last_mut() {
+                        last.content.push_str(prompts::RESCUE_NOTE);
+                        last.content.push_str("\n\n");
+                        last.content.push_str(&excerpt_parts.join("\n\n---\n\n"));
+                    }
+                }
+            } else if tool_iterations >= 4 {
+                tool_messages.push(ChatMessage {
+                    role: "system".to_string(),
+                    content: prompts::FINAL_NUDGE.to_string(),
+                    tool_calls: None,
+                    tool_call_id: None,
+                });
+            }
+
+            if !retrieved_hits.is_empty() {
+                let verified = verify_cited_sources(&query, &retrieved_hits, &opened_ids);
+                let result_items: Vec<Value> = verified
+                    .iter()
+                    .take(8)
+                    .map(|h| {
+                        json!({
+                            "content": h.snippet,
+                            "metadata": {
+                                "title": h.title,
+                                "url": h.url,
+                                "source": h.source_label,
+                                "offlineId": h.id
+                            }
+                        })
+                    })
+                    .collect();
+                sub_steps.push(json!({
+                    "id": Uuid::new_v4().to_string(),
+                    "type": "search_results",
+                    "results": result_items
+                }));
+
+                let source_block = json!({
+                    "id": Uuid::new_v4().to_string(),
+                    "type": "source",
+                    "data": result_items
+                });
+                response_blocks.push(source_block.clone());
+                let _ = tx
+                    .send(Ok(format!(
+                        "{}\n",
+                        json!({ "type": "block", "block": source_block })
+                    )))
+                    .await;
+            }
+
+            let final_research_block = json!({
+                "id": research_block_id,
+                "type": "research",
+                "data": { "subSteps": sub_steps }
+            });
+            response_blocks.push(final_research_block);
+            let _ = tx
+                .send(Ok(format!(
+                    "{}\n",
+                    json!({
+                        "type": "updateBlock",
+                        "blockId": research_block_id,
+                        "patch": [{ "op": "replace", "path": "/data/subSteps", "value": sub_steps }]
+                    })
+                )))
+                .await;
+            let _ = tx
+                .send(Ok(format!("{}\n", json!({ "type": "researchComplete" }))))
+                .await;
+
+            // Replace current_messages so final writer uses Survival system prompt + retrieved tool context
+            current_messages = tool_messages;
+        } else if web_search_enabled {
+            let research_block_id = Uuid::new_v4().to_string();
+            let brave_key = config.search.brave_api_key.as_deref();
+            let searx_url = &config.search.searxng_url;
+
+            let (sources, final_research_block) = run_research_agent(
+                &state.http_client,
+                Some(prov),
+                &effective_model_key,
+                &query,
+                &current_messages,
+                &body.optimization_mode,
+                brave_key,
+                searx_url,
+                &research_block_id,
+                &tx,
+            )
             .await;
+
+            gathered_sources = sources;
+
+            if !gathered_sources.is_empty() {
+                let source_items: Vec<Value> = gathered_sources
+                    .iter()
+                    .map(|s| {
+                        json!({
+                            "content": s.content,
+                            "metadata": s.metadata
+                        })
+                    })
+                    .collect();
+
+                let source_block = json!({
+                    "id": Uuid::new_v4().to_string(),
+                    "type": "source",
+                    "data": source_items
+                });
+                response_blocks.push(source_block.clone());
+                let _ = tx
+                    .send(Ok(format!(
+                        "{}\n",
+                        json!({ "type": "block", "block": source_block })
+                    )))
+                    .await;
+            }
+
+            response_blocks.push(final_research_block);
+            let _ = tx
+                .send(Ok(format!("{}\n", json!({ "type": "researchComplete" }))))
+                .await;
+        } else {
+            let _ = tx
+                .send(Ok(format!("{}\n", json!({ "type": "researchComplete" }))))
+                .await;
+        }
     } else {
         let _ = tx
-            .send(Ok(format!(
-                "{}\n",
-                json!({ "type": "researchComplete" })
-            )))
+            .send(Ok(format!("{}\n", json!({ "type": "researchComplete" }))))
             .await;
     }
 
@@ -1143,25 +1595,33 @@ async fn run_chat_agent(
         )))
         .await;
 
-    // 3. Writer streaming with citations
+    // 3. Writer streaming with Survival params
     let mut full_text = String::new();
     if let Some(ref prov) = provider {
         let (token_tx, mut token_rx) = mpsc::channel::<String>(100);
 
         let http_client = state.http_client.clone();
         let prov_clone = prov.clone();
-        let chat_model_key = body.chat_model.key.clone();
+        let chat_model_key = effective_model_key.clone();
         let current_messages_clone = current_messages.clone();
         let gathered_sources_clone = gathered_sources.clone();
         let system_instructions = body.system_instructions.clone().unwrap_or_default();
         let optimization_mode = body.optimization_mode.clone();
         let query_clone = query.clone();
+        let custom_instr_opt = survival_settings.custom_instructions.clone();
+        let memory_section_clone = memory_section.clone();
+        let stream_params_clone = stream_params.clone();
 
         tokio::spawn(async move {
             let base_url = prov_clone.get_effective_base_url();
             let api_key = prov_clone.get_effective_api_key();
 
             let stream_res = if !gathered_sources_clone.is_empty() {
+                let merged_instructions = if !memory_section_clone.is_empty() {
+                    format!("{system_instructions}\n\n{memory_section_clone}")
+                } else {
+                    system_instructions
+                };
                 stream_writer(
                     &http_client,
                     &prov_clone.provider_type,
@@ -1171,7 +1631,7 @@ async fn run_chat_agent(
                     &query_clone,
                     &current_messages_clone,
                     &gathered_sources_clone,
-                    &system_instructions,
+                    &merged_instructions,
                     &optimization_mode,
                     token_tx.clone(),
                 )
@@ -1179,23 +1639,30 @@ async fn run_chat_agent(
             } else {
                 let mut agent_messages = current_messages_clone;
                 if !agent_messages.iter().any(|m| m.role == "system") {
-                    agent_messages.insert(0, ChatMessage {
-                        role: "system".to_string(),
-                        content: format!(
-                            "You are Noectra AI, an intelligent research and search assistant. Thoroughly address the user's inquiry with depth, precision, clear markdown headings, and informative explanations. If external web search results are not attached, provide a direct, comprehensive, and helpful answer based on your deep knowledge base. Never say you cannot search the web or lack real-time access; respond directly and authoritatively.\n\nUser instructions: {}",
-                            system_instructions
-                        ),
-                        tool_calls: None,
-                        tool_call_id: None,
-                    });
+                    let base = custom_instr_opt
+                        .as_deref()
+                        .filter(|s| !s.trim().is_empty())
+                        .unwrap_or("You are Noectra AI, an accurate, calm, and practical AI assistant.");
+                    agent_messages.insert(
+                        0,
+                        ChatMessage {
+                            role: "system".to_string(),
+                            content: format!(
+                                "{base}\n\n{system_instructions}\n\n{memory_section_clone}"
+                            ),
+                            tool_calls: None,
+                            tool_call_id: None,
+                        },
+                    );
                 }
-                crate::models::ModelService::stream_chat(
+                crate::models::ModelService::stream_chat_with_params(
                     &http_client,
                     &prov_clone.provider_type,
                     base_url.as_deref(),
                     api_key.as_deref(),
                     &chat_model_key,
                     agent_messages,
+                    stream_params_clone,
                     token_tx.clone(),
                 )
                 .await
@@ -1203,7 +1670,9 @@ async fn run_chat_agent(
 
             if let Err(e) = stream_res {
                 eprintln!("Error in LLM stream: {}", e);
-                let _ = token_tx.send(format!("\n\n*Error generating response: {}*", e)).await;
+                let _ = token_tx
+                    .send(format!("\n\n*Error generating response: {}*", e))
+                    .await;
             }
         });
 
@@ -1223,7 +1692,8 @@ async fn run_chat_agent(
             let _ = tx.send(Ok(format!("{}\n", patch_msg))).await;
         }
     } else {
-        full_text = "Please configure an active AI provider in settings.".to_string();
+        full_text = gguf_load_error
+            .unwrap_or_else(|| "Please configure an active AI provider or install an offline GGUF model in Settings -> Models.".to_string());
         let patch_msg = json!({
             "type": "updateBlock",
             "blockId": text_block_id,
@@ -1245,7 +1715,7 @@ async fn run_chat_agent(
         }
     }
 
-    // 4. Immediately conclude message stream so UI unblocks with zero delay (turns red stop square to send button instantly)
+    // 4. Immediately conclude message stream so UI unblocks with zero delay
     let _ = tx.send(Ok(format!("{}\n", json!({ "type": "messageEnd" })))).await;
 
     let _ = state.db.update_message_response(
@@ -1255,13 +1725,76 @@ async fn run_chat_agent(
         "completed",
     );
 
-    // 5. Asynchronously generate follow-up suggestions in the background without blocking the user
+    // 5. Post-answer Survival Memory update check & background follow-up suggestions
     if let Some(prov) = provider {
+        if survival_settings.memory_ai_writes
+            && (crate::survival::prompts::has_about_them(&query)
+                || !existing_notes.is_empty())
+        {
+            let http_client_mem = state.http_client.clone();
+            let prov_type_mem = prov.provider_type.clone();
+            let base_url_mem = prov.get_effective_base_url();
+            let api_key_mem = prov.get_effective_api_key();
+            let model_mem = effective_model_key.clone();
+            let memory_store = state.survival.memory.clone();
+            let query_mem = query.clone();
+            let tx_mem = tx.clone();
+
+            tokio::spawn(async move {
+                let current_notes = memory_store.notes();
+                let notes_text = if current_notes.is_empty() {
+                    "(none)".to_string()
+                } else {
+                    current_notes
+                        .iter()
+                        .map(|n| format!("- {n}"))
+                        .collect::<Vec<_>>()
+                        .join("\n")
+                };
+                let mem_messages = vec![
+                    ChatMessage {
+                        role: "system".to_string(),
+                        content: crate::survival::prompts::MEMORY_CHECK_PROMPT.to_string(),
+                        tool_calls: None,
+                        tool_call_id: None,
+                    },
+                    ChatMessage {
+                        role: "user".to_string(),
+                        content: format!(
+                            "Existing Memory notes:\n{notes_text}\n\nLatest user message:\n{query_mem}"
+                        ),
+                        tool_calls: None,
+                        tool_call_id: None,
+                    },
+                ];
+                if let Ok(raw_plan) = crate::models::ModelService::complete(
+                    &http_client_mem,
+                    &prov_type_mem,
+                    base_url_mem.as_deref(),
+                    api_key_mem.as_deref(),
+                    &model_mem,
+                    mem_messages,
+                )
+                .await
+                {
+                    let plan = crate::survival::memory::parse_ai_memory_plan(&raw_plan, &query_mem);
+                    for ev in memory_store.apply(&plan) {
+                        let _ = tx_mem
+                            .send(Ok(format!(
+                                "{}\n",
+                                json!({ "type": "memoryUpdate", "event": ev })
+                            )))
+                            .await;
+                    }
+                }
+            });
+        }
+
         let http_client = state.http_client.clone();
         let prov_type = prov.provider_type.clone();
         let base_url = prov.get_effective_base_url();
         let api_key = prov.get_effective_api_key();
-        let chat_model_key = body.chat_model.key.clone();
+        let chat_model_key = effective_model_key;
         let mut messages_for_suggestions = current_messages.clone();
         messages_for_suggestions.push(ChatMessage {
             role: "assistant".to_string(),

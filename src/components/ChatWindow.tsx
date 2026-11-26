@@ -8,6 +8,7 @@ import { useChat } from '@/lib/hooks/useChat';
 import SettingsButtonMobile from './Settings/SettingsButtonMobile';
 import { Block } from '@/lib/types';
 import Loader from './ui/Loader';
+import OfflineSourceDrawer from './Survival/OfflineSourceDrawer';
 
 export interface BaseMessage {
   chatId: string;
@@ -34,7 +35,14 @@ export interface Widget {
 }
 
 const ChatWindow = () => {
-  const { hasError, notFound, messages, isReady } = useChat();
+  const {
+    hasError,
+    notFound,
+    messages,
+    isReady,
+    activeOfflineDocId,
+    setActiveOfflineDocId,
+  } = useChat();
 
   if (hasError) {
     return (
@@ -64,6 +72,10 @@ const ChatWindow = () => {
         ) : (
           <EmptyChat />
         )}
+        <OfflineSourceDrawer
+          docId={activeOfflineDocId}
+          onClose={() => setActiveOfflineDocId(null)}
+        />
       </div>
     )
   ) : (

@@ -5,12 +5,14 @@ import React, { MutableRefObject } from 'react';
 import { cn } from '@/lib/utils';
 import {
   BookCopy,
+  Brain,
   Disc3,
   Volume2,
   StopCircle,
   Layers3,
   Plus,
   CornerDownRight,
+  Undo2,
 } from 'lucide-react';
 import Markdown, { MarkdownToJSX, RuleType } from 'markdown-to-jsx';
 import Copy from './MessageActions/Copy';
@@ -57,7 +59,11 @@ const MessageBox = ({
     messages,
     researchEnded,
     chatHistory,
+    memoryEvents,
+    undoMemoryEvent,
   } = useChat();
+
+  const msgMemoryEvents = memoryEvents[section.message.messageId] ?? [];
 
   const parsedMessage = section.parsedTextBlocks.join('\n\n');
   const speechMessage = section.speechMessage || '';
@@ -246,6 +252,36 @@ const MessageBox = ({
                         )}
                       </button>
                     </div>
+                  </div>
+                )}
+
+                {msgMemoryEvents.length > 0 && (
+                  <div className="flex flex-wrap gap-2 pt-2">
+                    {msgMemoryEvents.map((ev, idx) => (
+                      <div
+                        key={idx}
+                        className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border border-emerald-500/25 bg-emerald-500/10 text-xs text-emerald-800 dark:text-emerald-300"
+                      >
+                        <Brain size={13} className="shrink-0" />
+                        <span>
+                          {ev.action === 'add' && `Remembered: ${ev.note}`}
+                          {ev.action === 'change' && `Updated memory: ${ev.note}`}
+                          {ev.action === 'delete' && `Forgot: ${ev.old}`}
+                          {ev.action === 'full' && `Memory full — could not save: ${ev.note}`}
+                        </span>
+                        {ev.action !== 'full' && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              undoMemoryEvent(section.message.messageId, idx, ev)
+                            }
+                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-white/70 dark:bg-black/30 hover:bg-white dark:hover:bg-black/50 text-[11px] font-medium transition"
+                          >
+                            <Undo2 size={11} /> Undo
+                          </button>
+                        )}
+                      </div>
+                    ))}
                   </div>
                 )}
 

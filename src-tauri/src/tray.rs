@@ -132,5 +132,8 @@ pub fn open_route_cmd(app: AppHandle, route: String) {
 
 #[tauri::command]
 pub fn exit_app_cmd(app: AppHandle) {
+    if let Some(llm) = app.try_state::<crate::local_llm::LocalLlmState>() {
+        crate::local_llm::server::kill_server_sync(&llm.server);
+    }
     app.exit(0);
 }

@@ -6,12 +6,32 @@ import {
   Transition,
   TransitionChild,
 } from '@headlessui/react';
-import { File } from 'lucide-react';
+import { BookOpen, File } from 'lucide-react';
 import { Fragment, useState } from 'react';
 import { Chunk } from '@/lib/types';
+import { useChat } from '@/lib/hooks/useChat';
+import { openExternalLink } from '@/lib/openExternal';
+
+const isOfflineSourceUrl = (url?: string) =>
+  Boolean(
+    url &&
+      (url.startsWith('zim://') ||
+        url.startsWith('myfile://') ||
+        url.startsWith('doc_')),
+  );
 
 const MessageSources = ({ sources }: { sources: Chunk[] }) => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const { setActiveOfflineDocId } = useChat();
+
+  const handleSourceClick = (e: React.MouseEvent, url: string) => {
+    if (isOfflineSourceUrl(url)) {
+      e.preventDefault();
+      setActiveOfflineDocId(url);
+    } else if (url.startsWith('http://') || url.startsWith('https://')) {
+      openExternalLink(url, e as any);
+    }
+  };
 
   const closeModal = () => {
     setIsDialogOpen(false);
@@ -27,18 +47,22 @@ const MessageSources = ({ sources }: { sources: Chunk[] }) => {
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
       {sources.slice(0, 3).map((source, i) => (
         <a
-          className="bg-light-100 hover:bg-light-200 dark:bg-dark-100 dark:hover:bg-dark-200 transition duration-200 rounded-lg p-3 flex flex-col space-y-2 font-medium"
+          className="bg-light-100 hover:bg-light-200 dark:bg-dark-100 dark:hover:bg-dark-200 transition duration-200 rounded-lg p-3 flex flex-col space-y-2 font-medium cursor-pointer"
           key={i}
           href={source.metadata.url}
-          target="_blank"
+          onClick={(e) => handleSourceClick(e, source.metadata.url)}
         >
           <p className="dark:text-white text-xs overflow-hidden whitespace-nowrap text-ellipsis">
             {source.metadata.title}
           </p>
           <div className="flex flex-row items-center justify-between">
-            <div className="flex flex-row items-center space-x-1">
-              {source.metadata.url.includes('file_id://') ? (
-                <div className="bg-dark-200 hover:bg-dark-100 transition duration-200 flex items-center justify-center w-6 h-6 rounded-full">
+            <div className="flex flex-row items-center space-x-1 min-w-0">
+              {isOfflineSourceUrl(source.metadata.url) ? (
+                <div className="bg-emerald-500/15 flex items-center justify-center w-6 h-6 rounded-full shrink-0">
+                  <BookOpen size={12} className="text-emerald-600 dark:text-emerald-400" />
+                </div>
+              ) : source.metadata.url.includes('file_id://') ? (
+                <div className="bg-dark-200 hover:bg-dark-100 transition duration-200 flex items-center justify-center w-6 h-6 rounded-full shrink-0">
                   <File size={12} className="text-white/70" />
                 </div>
               ) : (
@@ -47,16 +71,19 @@ const MessageSources = ({ sources }: { sources: Chunk[] }) => {
                   width={16}
                   height={16}
                   alt="favicon"
-                  className="rounded-lg h-4 w-4"
+                  className="rounded-lg h-4 w-4 shrink-0"
                 />
               )}
               <p className="text-xs text-black/50 dark:text-white/50 overflow-hidden whitespace-nowrap text-ellipsis">
-                {source.metadata.url.includes('file_id://')
-                  ? 'Uploaded File'
-                  : source.metadata.url.replace(/.+\/\/|www.|\..+/g, '')}
+                {source.metadata.source ||
+                  (source.metadata.url.includes('file_id://')
+                    ? 'Uploaded File'
+                    : isOfflineSourceUrl(source.metadata.url)
+                    ? 'Offline Library'
+                    : source.metadata.url.replace(/.+\/\/|www.|\..+/g, ''))}
               </p>
             </div>
-            <div className="flex flex-row items-center space-x-1 text-black/50 dark:text-white/50 text-xs">
+            <div className="flex flex-row items-center space-x-1 text-black/50 dark:text-white/50 text-xs shrink-0">
               <div className="bg-black/50 dark:bg-white/50 h-[4px] w-[4px] rounded-full" />
               <span>{i + 1}</span>
             </div>
@@ -114,18 +141,27 @@ const MessageSources = ({ sources }: { sources: Chunk[] }) => {
                   <div className="grid grid-cols-2 gap-2 overflow-auto max-h-[300px] mt-2 pr-2">
                     {sources.map((source, i) => (
                       <a
-                        className="bg-light-secondary hover:bg-light-200 dark:bg-dark-secondary dark:hover:bg-dark-200 border border-light-200 dark:border-dark-200 transition duration-200 rounded-lg p-3 flex flex-col space-y-2 font-medium"
+                        className="bg-light-secondary hover:bg-light-200 dark:bg-dark-secondary dark:hover:bg-dark-200 border border-light-200 dark:border-dark-200 transition duration-200 rounded-lg p-3 flex flex-col space-y-2 font-medium cursor-pointer"
                         key={i}
                         href={source.metadata.url}
-                        target="_blank"
+                        onClick={(e) => {
+                          if (isOfflineSourceUrl(source.metadata.url)) {
+                            closeModal();
+                          }
+                          handleSourceClick(e, source.metadata.url);
+                        }}
                       >
                         <p className="dark:text-white text-xs overflow-hidden whitespace-nowrap text-ellipsis">
                           {source.metadata.title}
                         </p>
                         <div className="flex flex-row items-center justify-between">
-                          <div className="flex flex-row items-center space-x-1">
-                            {source.metadata.url === 'File' ? (
-                              <div className="bg-dark-200 hover:bg-dark-100 transition duration-200 flex items-center justify-center w-6 h-6 rounded-full">
+                          <div className="flex flex-row items-center space-x-1 min-w-0">
+                            {isOfflineSourceUrl(source.metadata.url) ? (
+                              <div className="bg-emerald-500/15 flex items-center justify-center w-6 h-6 rounded-full shrink-0">
+                                <BookOpen size={12} className="text-emerald-600 dark:text-emerald-400" />
+                              </div>
+                            ) : source.metadata.url === 'File' || source.metadata.url.includes('file_id://') ? (
+                              <div className="bg-dark-200 hover:bg-dark-100 transition duration-200 flex items-center justify-center w-6 h-6 rounded-full shrink-0">
                                 <File size={12} className="text-white/70" />
                               </div>
                             ) : (
@@ -134,17 +170,20 @@ const MessageSources = ({ sources }: { sources: Chunk[] }) => {
                                 width={16}
                                 height={16}
                                 alt="favicon"
-                                className="rounded-lg h-4 w-4"
+                                className="rounded-lg h-4 w-4 shrink-0"
                               />
                             )}
                             <p className="text-xs text-black/50 dark:text-white/50 overflow-hidden whitespace-nowrap text-ellipsis">
-                              {source.metadata.url.replace(
-                                /.+\/\/|www.|\..+/g,
-                                '',
-                              )}
+                              {source.metadata.source ||
+                                (isOfflineSourceUrl(source.metadata.url)
+                                  ? 'Offline Library'
+                                  : source.metadata.url.replace(
+                                      /.+\/\/|www.|\..+/g,
+                                      '',
+                                    ))}
                             </p>
                           </div>
-                          <div className="flex flex-row items-center space-x-1 text-black/50 dark:text-white/50 text-xs">
+                          <div className="flex flex-row items-center space-x-1 text-black/50 dark:text-white/50 text-xs shrink-0">
                             <div className="bg-black/50 dark:bg-white/50 h-[4px] w-[4px] rounded-full" />
                             <span>{i + 1}</span>
                           </div>

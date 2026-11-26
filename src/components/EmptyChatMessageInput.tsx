@@ -8,6 +8,7 @@ import { useChat } from '@/lib/hooks/useChat';
 import ModelSelector from './MessageInputActions/ChatModelSelector';
 import WebSearchToggle from './MessageInputActions/WebSearchToggle';
 import VoiceInput from './MessageInputActions/VoiceInput';
+import SurvivalControlsBar from './Survival/SurvivalControlsBar';
 import { uploadDroppedFiles } from '@/lib/services/uploadService';
 import { toast } from 'sonner';
 import { soundService } from '@/lib/sound/soundService';
@@ -105,24 +106,29 @@ const EmptyChatMessageInput = () => {
           className="px-2 bg-transparent placeholder:text-[15px] placeholder:text-black/50 dark:placeholder:text-white/50 text-sm text-black dark:text-white resize-none focus:outline-none w-full max-h-24 lg:max-h-36 xl:max-h-48"
           placeholder="Ask anything..."
         />
-        <div className="flex flex-row items-center justify-between mt-4">
-          <div className="flex flex-row items-center space-x-1.5">
-            <WebSearchToggle />
-            <Optimization />
-          </div>
-          <div className="flex flex-row items-center space-x-2">
-            <div className="flex flex-row items-center space-x-1">
-              <Sources />
-              <ModelSelector />
-              <Attach />
-              <VoiceInput onTranscript={(text) => setMessage((prev) => prev + text)} />
+        <div className="flex flex-col gap-2 mt-4">
+          <div className="flex flex-row items-center justify-between">
+            <div className="flex flex-row items-center space-x-1.5">
+              <WebSearchToggle />
+              <Optimization />
             </div>
-            <button
-              disabled={message.trim().length === 0}
-              className="bg-sky-500 text-white disabled:text-black/50 dark:disabled:text-white/50 disabled:bg-[#e0e0dc] dark:disabled:bg-[#ececec21] hover:bg-opacity-85 transition duration-100 rounded-full p-2"
-            >
-              <ArrowRight className="bg-background" size={17} />
-            </button>
+            <div className="flex flex-row items-center space-x-2">
+              <div className="flex flex-row items-center space-x-1">
+                <Sources />
+                <ModelSelector />
+                <Attach />
+                <VoiceInput onTranscript={(text) => setMessage((prev) => prev + text)} />
+              </div>
+              <button
+                disabled={message.trim().length === 0}
+                className="bg-sky-500 text-white disabled:text-black/50 dark:disabled:text-white/50 disabled:bg-[#e0e0dc] dark:disabled:bg-[#ececec21] hover:bg-opacity-85 transition duration-100 rounded-full p-2"
+              >
+                <ArrowRight className="bg-background" size={17} />
+              </button>
+            </div>
+          </div>
+          <div className="pt-2 border-t border-light-200/60 dark:border-dark-200/60">
+            <SurvivalControlsBar />
           </div>
         </div>
       </div>

@@ -1,6 +1,6 @@
 'use client';
 
-import { Cpu, Loader2, Search } from 'lucide-react';
+import { Cloud, Cpu, Loader2, Search, Settings2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Popover, PopoverButton, PopoverPanel } from '@headlessui/react';
 import { useEffect, useMemo, useState } from 'react';
@@ -18,7 +18,7 @@ const ModelSelector = ({ placement = 'bottom' }: ModelSelectorProps) => {
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
 
-  const { setChatModelProvider, chatModelProvider } = useChat();
+  const { setChatModelProvider, chatModelProvider, modelMode, setModelMode } = useChat();
 
   useEffect(() => {
     const loadProviders = async () => {
@@ -71,15 +71,29 @@ const ModelSelector = ({ placement = 'bottom' }: ModelSelectorProps) => {
   const handleModelSelect = (
     providerId: string,
     modelKey: string,
+    providerMode?: 'offline' | 'online',
     close?: () => void,
   ) => {
     setChatModelProvider({ providerId, key: modelKey });
     localStorage.setItem('chatModelProviderId', providerId);
     localStorage.setItem('chatModelKey', modelKey);
+    if (providerMode) {
+      setModelMode(providerMode);
+    }
     close?.();
   };
 
   const filteredProviders = orderedProviders
+    .filter((provider) => {
+      const mode =
+        provider.mode ??
+        (provider.id === 'local-gguf' ||
+        provider.type === 'ollama' ||
+        provider.type === 'lmstudio'
+          ? 'offline'
+          : 'online');
+      return mode === modelMode;
+    })
     .map((provider) => ({
       ...provider,
       chatModels: provider.chatModels.filter(
@@ -130,7 +144,33 @@ const ModelSelector = ({ placement = 'bottom' }: ModelSelectorProps) => {
                     placement === 'top' ? 'origin-bottom-right' : 'origin-top-right',
                   )}
                 >
-                  <div className="p-2 border-b border-light-200 dark:border-dark-200">
+                  <div className="p-2 border-b border-light-200 dark:border-dark-200 space-y-2">
+                    <div className="grid grid-cols-2 gap-1 p-0.5 rounded-lg bg-light-secondary dark:bg-dark-secondary border border-light-200/70 dark:border-white/10">
+                      <button
+                        type="button"
+                        onClick={() => setModelMode('offline')}
+                        className={cn(
+                          'flex items-center justify-center gap-1.5 py-1 rounded-md text-xs font-medium transition',
+                          modelMode === 'offline'
+                            ? 'bg-emerald-600 text-white shadow-sm'
+                            : 'text-slate-700 dark:text-white/70 hover:text-slate-950 dark:hover:text-white',
+                        )}
+                      >
+                        <Cpu size={13} /> Offline
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setModelMode('online')}
+                        className={cn(
+                          'flex items-center justify-center gap-1.5 py-1 rounded-md text-xs font-medium transition',
+                          modelMode === 'online'
+                            ? 'bg-sky-600 text-white shadow-sm'
+                            : 'text-slate-700 dark:text-white/70 hover:text-slate-950 dark:hover:text-white',
+                        )}
+                      >
+                        <Cloud size={13} /> Online
+                      </button>
+                    </div>
                     <div className="relative">
                       <Search
                         size={16}
@@ -138,7 +178,7 @@ const ModelSelector = ({ placement = 'bottom' }: ModelSelectorProps) => {
                       />
                       <input
                         type="text"
-                        placeholder="Search models..."
+                        placeholder={`Search ${modelMode} models...`}
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         className="w-full pl-8 pr-3 py-2 bg-light-secondary dark:bg-dark-secondary rounded-lg placeholder:text-xs placeholder:-translate-y-[1.5px] text-xs text-black dark:text-white placeholder:text-black/40 dark:placeholder:text-white/40 focus:outline-none border border-transparent transition duration-200"
@@ -146,29 +186,40 @@ const ModelSelector = ({ placement = 'bottom' }: ModelSelectorProps) => {
                     </div>
                   </div>
 
-                  <div className="max-h-[320px] overflow-y-auto">
+                  <div className="max-h-[260px] overflow-y-auto">
                     {isLoading ? (
-                      <div className="flex items-center justify-center py-16">
+                      <div className="flex items-center justify-center py-12">
                         <Loader2
                           className="animate-spin text-black/40 dark:text-white/40"
                           size={24}
                         />
                       </div>
                     ) : filteredProviders.length === 0 ? (
-                      <div className="text-center py-16 px-4 text-black/60 dark:text-white/60 text-sm">
-                        {searchQuery
-                          ? 'No models found'
-                          : 'No chat models configured'}
+                      <div className="text-center py-10 px-4 text-black/60 dark:text-white/60 text-xs space-y-2">
+                        <p>
+                          {searchQuery
+                            ? 'No models match your search.'
+                            : modelMode === 'offline'
+                            ? 'No offline GGUF, Ollama, or LM Studio models installed yet.'
+                            : 'No online AI providers configured yet.'}
+                        </p>
                       </div>
                     ) : (
                       <div className="flex flex-col">
                         {filteredProviders.map((provider, providerIndex) => (
                           <div key={provider.id}>
-                            <div className="px-3.5 py-2 sticky top-0 bg-light-primary/95 dark:bg-dark-primary/95 backdrop-blur-md border-b border-light-200/50 dark:border-dark-200/50 flex items-center gap-2">
-                              <ModelProviderIcon provider={provider.id || provider.name} size={13} showBackground />
-                              <p className="text-xs font-semibold text-black/70 dark:text-white/70 tracking-wide">
-                                {provider.name}
-                              </p>
+                            <div className="px-3.5 py-2 sticky top-0 bg-light-primary/95 dark:bg-dark-primary/95 backdrop-blur-md border-b border-light-200/50 dark:border-dark-200/50 flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <ModelProviderIcon provider={provider.id || provider.name} size={13} showBackground />
+                                <p className="text-xs font-semibold text-black/70 dark:text-white/70 tracking-wide truncate">
+                                  {provider.name}
+                                </p>
+                              </div>
+                              {provider.serverStatus?.running && (
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
+                                  Running
+                                </span>
+                              )}
                             </div>
 
                             <div className="flex flex-col px-2 py-2 space-y-0.5">
@@ -179,6 +230,7 @@ const ModelSelector = ({ placement = 'bottom' }: ModelSelectorProps) => {
                                     handleModelSelect(
                                       provider.id,
                                       model.key,
+                                      provider.mode ?? modelMode,
                                       close,
                                     )
                                   }
@@ -223,6 +275,23 @@ const ModelSelector = ({ placement = 'bottom' }: ModelSelectorProps) => {
                         ))}
                       </div>
                     )}
+                  </div>
+
+                  <div className="p-2 border-t border-light-200 dark:border-dark-200 bg-light-secondary/40 dark:bg-dark-secondary/40">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        close();
+                        window.dispatchEvent(
+                          new CustomEvent('open-settings', {
+                            detail: { section: 'models' },
+                          }),
+                        );
+                      }}
+                      className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-medium text-slate-700 dark:text-white/80 hover:bg-light-200 dark:hover:bg-white/10 transition"
+                    >
+                      <Settings2 size={13} /> Manage All Models in Settings
+                    </button>
                   </div>
                 </motion.div>
               </PopoverPanel>

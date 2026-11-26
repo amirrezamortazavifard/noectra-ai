@@ -60,6 +60,15 @@ pub fn get_9router_api_key() -> Option<String> {
     None
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct StreamChatParams {
+    pub max_tokens: Option<u32>,
+    pub temperature: Option<f32>,
+    pub top_p: Option<f32>,
+    pub top_k: Option<i32>,
+    pub reasoning_budget_tokens: Option<usize>,
+}
+
 pub struct ModelService;
 
 impl ModelService {
@@ -263,6 +272,40 @@ impl ModelService {
         messages: Vec<ChatMessage>,
         tx: mpsc::Sender<String>,
     ) -> Result<(), String> {
+        Self::stream_chat_with_params(
+            client,
+            provider_type,
+            base_url,
+            api_key,
+            model,
+            messages,
+            StreamChatParams::default(),
+            tx,
+        )
+        .await
+    }
+
+    /// Streaming LLM call supporting reasoning budgets, token limits, sampling controls,
+    /// and OpenAI `delta.reasoning_content` -> `<think>...</think>` normalization.
+    pub async fn stream_chat_with_params(
+        client: &Client,
+        provider_type: &str,
+        base_url: Option<&str>,
+        api_key: Option<&str>,
+        model: &str,
+        mut messages: Vec<ChatMessage>,
+        params: StreamChatParams,
+        tx: mpsc::Sender<String>,
+    ) -> Result<(), String> {
+        // When reasoning is turned off, disable thinking tokens via prompt directive cleanly
+        if params.reasoning_budget_tokens == Some(0) {
+            if let Some(sys) = messages.iter_mut().find(|m| m.role == "system") {
+                if !sys.content.contains("Do not output <think>") {
+                    sys.content.push_str("\n\nDo not output <think> blocks or internal chain-of-thought; respond directly with the final answer.");
+                }
+            }
+        }
+
         match provider_type {
             "gemini" => {
                 Self::stream_gemini(client, base_url, api_key.unwrap_or(""), model, messages, tx).await
@@ -299,14 +342,30 @@ impl ModelService {
 
                 let url = format!("{}/chat/completions", effective_base);
 
-                let req_body = json!({
-                    "model": model.trim(),
-                    "messages": messages,
-                    "stream": true,
-                    "temperature": 0.5
-                });
+                let mut req_obj = serde_json::Map::new();
+                req_obj.insert("model".to_string(), json!(model.trim()));
+                req_obj.insert("messages".to_string(), json!(messages));
+                req_obj.insert("stream".to_string(), json!(true));
+                req_obj.insert(
+                    "temperature".to_string(),
+                    json!(params.temperature.unwrap_or(0.5)),
+                );
+                if let Some(max_tok) = params.max_tokens {
+                    req_obj.insert("max_tokens".to_string(), json!(max_tok));
+                }
+                if let Some(top_p) = params.top_p {
+                    req_obj.insert("top_p".to_string(), json!(top_p));
+                }
+                if let Some(top_k) = params.top_k {
+                    req_obj.insert("top_k".to_string(), json!(top_k));
+                }
+                if params.reasoning_budget_tokens == Some(0) {
+                    req_obj.insert("reasoning_format".to_string(), json!("none"));
+                    req_obj.insert("enable_thinking".to_string(), json!(false));
+                }
+                let req_body = Value::Object(req_obj);
 
-                let mut req = client.post(&url).json(&req_body).timeout(Duration::from_secs(120));
+                let mut req = client.post(&url).json(&req_body).timeout(Duration::from_secs(300));
                 if provider_type == "openrouter" {
                     req = req.header("HTTP-Referer", "https://noectra.ai").header("X-Title", "Noectra AI");
                 }
@@ -365,6 +424,9 @@ impl ModelService {
 
                 let mut stream = res.bytes_stream();
                 let mut buffer = String::new();
+                let mut thinking_open = false;
+                let mut reasoning_chars = 0usize;
+                let reasoning_char_cap = params.reasoning_budget_tokens.map(|t| t.saturating_mul(4));
 
                 while let Some(item) = stream.next().await {
                     let bytes = match item {
@@ -388,14 +450,51 @@ impl ModelService {
                                 break;
                             }
                             if let Ok(parsed) = serde_json::from_str::<Value>(data_str) {
-                                if let Some(content) = parsed["choices"][0]["delta"]["content"].as_str() {
+                                let delta = &parsed["choices"][0]["delta"];
+                                let r_chunk = delta["reasoning_content"]
+                                    .as_str()
+                                    .or_else(|| delta["reasoning"].as_str());
+                                if let Some(r) = r_chunk {
+                                    if !r.is_empty() && reasoning_char_cap != Some(0) {
+                                        if let Some(cap) = reasoning_char_cap {
+                                            if reasoning_chars < cap {
+                                                if !thinking_open {
+                                                    let _ = tx.send("<think>".to_string()).await;
+                                                    thinking_open = true;
+                                                }
+                                                let take = cap.saturating_sub(reasoning_chars);
+                                                let clipped: String = r.chars().take(take).collect();
+                                                reasoning_chars += clipped.len();
+                                                if !clipped.is_empty() {
+                                                    let _ = tx.send(clipped).await;
+                                                }
+                                            }
+                                        } else {
+                                            if !thinking_open {
+                                                let _ = tx.send("<think>".to_string()).await;
+                                                thinking_open = true;
+                                            }
+                                            reasoning_chars += r.len();
+                                            let _ = tx.send(r.to_string()).await;
+                                        }
+                                    }
+                                }
+                                if let Some(content) = delta["content"].as_str() {
                                     if !content.is_empty() {
+                                        if thinking_open {
+                                            let _ = tx.send("</think>\n\n".to_string()).await;
+                                            thinking_open = false;
+                                        }
                                         let _ = tx.send(content.to_string()).await;
                                     }
                                 }
                             }
                         }
                     }
+                }
+
+                if thinking_open {
+                    let _ = tx.send("</think>\n\n".to_string()).await;
                 }
 
                 Ok(())

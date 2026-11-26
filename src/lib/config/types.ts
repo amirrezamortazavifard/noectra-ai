@@ -54,10 +54,16 @@ type ConfigModelProvider = {
   id: string;
   name: string;
   type: string;
+  mode?: 'offline' | 'online';
   chatModels: Model[];
   embeddingModels: Model[];
   config: { [key: string]: any };
   hash: string;
+  serverStatus?: {
+    running: boolean;
+    model?: string | null;
+    port: number;
+  };
 };
 
 type Config = {
