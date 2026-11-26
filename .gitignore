@@ -21,8 +21,15 @@ data/config.json
 data/*.db
 data/*.db-shm
 data/*.db-wal
+data/*.sqlite
+data/*.sqlite-*
 data/zim/
 data/external_archives.json
+data/local_llm/
+data/survival_files/
+data/survival-memory.txt
+data/survival-settings.json
+*.gguf
 .env
 .env.*
 !.env.example
