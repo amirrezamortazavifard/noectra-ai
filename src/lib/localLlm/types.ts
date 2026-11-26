@@ -83,8 +83,18 @@ export interface CustomRuntime {
 
 export type ActiveRuntime =
   | { type: 'managed'; build?: number; backend_id?: string }
-  | { type: 'custom'; binary_path?: string }
+  | { type: 'custom'; index?: number; binary_path?: string }
   | { type: 'none' };
+
+export interface CustomBuild {
+  binary_path: string;
+  label: string;
+}
+
+export interface ScanResult {
+  builds: CustomBuild[];
+  is_source_distribution: boolean;
+}
 
 export interface LocalLlmConfig {
   base_dir: string;
@@ -110,6 +120,7 @@ export interface RuntimeInfo {
 
 export interface RuntimeOverview {
   info: RuntimeInfo;
+  active_runtime: ActiveRuntime;
   managed_runtimes: ManagedRuntime[];
   custom_runtimes: CustomRuntime[];
   auto_delete_old_runtimes: boolean;

@@ -36,11 +36,15 @@ pub struct LocalLlmState {
 
 impl LocalLlmState {
     pub fn new(app_data_dir: &Path, http_client: Client) -> Self {
-        let cfg = LocalLlmConfig::load(app_data_dir).unwrap_or_else(|_| {
+        let mut cfg = LocalLlmConfig::load(app_data_dir).unwrap_or_else(|_| {
             let mut c = LocalLlmConfig::default();
             c.base_dir = app_data_dir.join("local_llm");
             c
         });
+
+        if runtime::auto_discover_runtime(&mut cfg) {
+            let _ = cfg.save();
+        }
 
         Self {
             config: Arc::new(Mutex::new(cfg)),
@@ -127,9 +131,17 @@ impl LocalLlmState {
             let _ = server::stop_server(&self.server).await;
         }
 
-        let rt_info = runtime::get_runtime_info(&cfg).map_err(|e| e.to_string())?;
+        let mut cfg = self.get_config();
+        let mut rt_info = runtime::get_runtime_info(&cfg).map_err(|e| e.to_string())?;
+        if rt_info.server_binary.is_none() {
+            if runtime::auto_discover_runtime(&mut cfg) {
+                let _ = cfg.save();
+                *self.config.lock().unwrap() = cfg.clone();
+                rt_info = runtime::get_runtime_info(&cfg).map_err(|e| e.to_string())?;
+            }
+        }
         let server_binary = rt_info.server_binary.ok_or_else(|| {
-            "No llama.cpp runtime (llama-server) is installed yet. Open Settings -> Models -> Offline GGUF Engine to install or select llama-server.".to_string()
+            "No llama.cpp runtime (llama-server) is installed yet. Open Settings -> Models -> Offline Engine & GGUF to download llama.cpp or select your llama-server folder/executable.".to_string()
         })?;
 
         let mut server_cfg = cfg.server_config.clone();
@@ -177,7 +189,12 @@ pub fn create_local_llm_router(state: LocalLlmState) -> Router {
         .route("/api/local-llm/runtime/download", post(download_runtime_handler))
         .route("/api/local-llm/runtime/scan", post(scan_runtime_handler))
         .route("/api/local-llm/runtime/browse", post(browse_runtime_handler))
+        .route("/api/local-llm/runtime/browse-dir", post(browse_runtime_dir_handler))
+        .route("/api/local-llm/runtime/auto-discover", post(auto_discover_runtime_handler))
         .route("/api/local-llm/runtime/select", post(select_runtime_handler))
+        .route("/api/local-llm/runtime/custom", delete(delete_custom_runtime_handler))
+        .route("/api/local-llm/runtime/custom/add-all", post(add_all_custom_builds_handler))
+        .route("/api/local-llm/runtime/auto-delete", post(set_auto_delete_handler))
         .route("/api/local-llm/runtime/managed", delete(delete_runtime_handler))
         .route("/api/local-llm/models", get(list_models_handler).delete(delete_model_handler))
         .route("/api/local-llm/models/browse-file", post(browse_gguf_file_handler))
@@ -246,22 +263,40 @@ async fn save_config_handler(
 #[derive(Deserialize)]
 struct SuggestConfigPayload {
     model_path: String,
-    model_size_mb: u64,
+    model_size_mb: Option<u64>,
 }
 
 async fn suggest_config_handler(
     State(state): State<LocalLlmState>,
     Json(payload): Json<SuggestConfigPayload>,
-) -> Json<ServerConfig> {
+) -> Json<Value> {
     let sys = state.get_system_info_cached();
-    let suggested = server::suggest_server_config(&payload.model_path, payload.model_size_mb, &sys);
-    Json(suggested)
+    let size_mb = payload.model_size_mb.unwrap_or_else(|| {
+        std::fs::metadata(&payload.model_path)
+            .map(|m| (m.len() / (1024 * 1024)).max(512))
+            .unwrap_or(4096)
+    });
+    let hw_sug = hardware::suggest_config(size_mb, &sys);
+    let suggested = server::suggest_server_config(&payload.model_path, size_mb, &sys);
+    Json(json!({
+        "n_gpu_layers": suggested.n_gpu_layers,
+        "n_ctx": suggested.n_ctx,
+        "parallel": suggested.parallel,
+        "notes": hw_sug.notes,
+        "server_config": suggested,
+    }))
 }
 
 async fn get_runtime_handler(
     State(state): State<LocalLlmState>,
 ) -> Result<Json<Value>, (StatusCode, String)> {
-    let cfg = state.get_config();
+    let cfg = {
+        let mut guard = state.config.lock().unwrap();
+        if runtime::auto_discover_runtime(&mut guard) {
+            let _ = guard.save();
+        }
+        guard.clone()
+    };
     let info: RuntimeInfo =
         runtime::get_runtime_info(&cfg).map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     Ok(Json(json!({
@@ -373,6 +408,134 @@ async fn browse_runtime_handler(
     }
 
     Ok(Json(json!({ "cancelled": true })))
+}
+
+async fn browse_runtime_dir_handler(
+    State(state): State<LocalLlmState>,
+) -> Result<Json<Value>, (StatusCode, String)> {
+    let chosen = tokio::task::spawn_blocking(|| {
+        rfd::FileDialog::new()
+            .set_title("Select llama.cpp Directory")
+            .pick_folder()
+    })
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    if let Some(dir) = chosen {
+        let scan = runtime::scan_for_builds(&dir)
+            .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+        if scan.is_source_distribution && !scan.builds.is_empty() {
+            let mut cfg = state.config.lock().unwrap();
+            let mut first_new = None;
+            for b in &scan.builds {
+                if cfg.custom_runtimes.iter().any(|c| c.binary_path == b.binary_path) {
+                    continue;
+                }
+                let idx = cfg.custom_runtimes.len();
+                if first_new.is_none() {
+                    first_new = Some(idx);
+                }
+                cfg.custom_runtimes.push(config::CustomRuntime {
+                    label: b.label.clone(),
+                    binary_path: b.binary_path.clone(),
+                });
+            }
+            if let Some(idx) = first_new {
+                cfg.active_runtime = ActiveRuntime::Custom { index: idx };
+            }
+            let _ = cfg.save();
+        } else if scan.builds.len() == 1 {
+            let mut cfg = state.config.lock().unwrap();
+            runtime::set_custom_runtime(&scan.builds[0].binary_path, &mut cfg)
+                .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+            cfg.save().map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+        }
+        return Ok(Json(json!({
+            "cancelled": false,
+            "dir": dir,
+            "result": scan,
+        })));
+    }
+
+    Ok(Json(json!({ "cancelled": true })))
+}
+
+async fn auto_discover_runtime_handler(
+    State(state): State<LocalLlmState>,
+) -> Result<Json<Value>, (StatusCode, String)> {
+    let (discovered, info) = {
+        let mut cfg = state.config.lock().unwrap();
+        let changed = runtime::auto_discover_runtime(&mut cfg);
+        if changed {
+            let _ = cfg.save();
+        }
+        let info = runtime::get_runtime_info(&cfg)
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+        (changed, info)
+    };
+    Ok(Json(json!({ "discovered": discovered, "info": info })))
+}
+
+#[derive(Deserialize)]
+struct DeleteCustomRuntimeQuery {
+    index: usize,
+}
+
+async fn delete_custom_runtime_handler(
+    State(state): State<LocalLlmState>,
+    Query(query): Query<DeleteCustomRuntimeQuery>,
+) -> Result<Json<Value>, (StatusCode, String)> {
+    let mut cfg = state.config.lock().unwrap();
+    runtime::remove_custom_runtime(query.index, &mut cfg)
+        .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+    cfg.save().map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    Ok(Json(json!({ "success": true })))
+}
+
+#[derive(Deserialize)]
+struct AddAllCustomBuildsPayload {
+    builds: Vec<runtime::CustomBuild>,
+}
+
+async fn add_all_custom_builds_handler(
+    State(state): State<LocalLlmState>,
+    Json(payload): Json<AddAllCustomBuildsPayload>,
+) -> Result<Json<Value>, (StatusCode, String)> {
+    let mut cfg = state.config.lock().unwrap();
+    let mut first_new = None;
+    for b in payload.builds {
+        if cfg.custom_runtimes.iter().any(|c| c.binary_path == b.binary_path) {
+            continue;
+        }
+        let idx = cfg.custom_runtimes.len();
+        if first_new.is_none() {
+            first_new = Some(idx);
+        }
+        cfg.custom_runtimes.push(config::CustomRuntime {
+            label: b.label,
+            binary_path: b.binary_path,
+        });
+    }
+    if let Some(idx) = first_new {
+        cfg.active_runtime = ActiveRuntime::Custom { index: idx };
+    }
+    cfg.save().map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    Ok(Json(json!({ "success": true })))
+}
+
+#[derive(Deserialize)]
+struct SetAutoDeletePayload {
+    enabled: bool,
+}
+
+async fn set_auto_delete_handler(
+    State(state): State<LocalLlmState>,
+    Json(payload): Json<SetAutoDeletePayload>,
+) -> Result<Json<Value>, (StatusCode, String)> {
+    let mut cfg = state.config.lock().unwrap();
+    cfg.auto_delete_old_runtimes = payload.enabled;
+    cfg.save().map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    Ok(Json(json!({ "success": true })))
 }
 
 #[derive(Deserialize)]

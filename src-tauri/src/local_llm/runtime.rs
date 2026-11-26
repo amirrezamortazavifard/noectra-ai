@@ -65,7 +65,7 @@ pub fn get_runtime_info(config: &LocalLlmConfig) -> Result<RuntimeInfo> {
         ActiveRuntime::None => "none",
     };
 
-    let (build, backend) = match &config.active_runtime {
+    let (build, backend, direct_custom_bin) = match &config.active_runtime {
         ActiveRuntime::Managed { build, backend_id } => {
             let mr = if backend_id.is_empty() {
                 config.managed_runtimes.iter().find(|r| r.build == *build)
@@ -75,14 +75,28 @@ pub fn get_runtime_info(config: &LocalLlmConfig) -> Result<RuntimeInfo> {
                     .iter()
                     .find(|r| r.build == *build && r.backend_id == *backend_id)
             };
-            (Some(*build), mr.map(|r| r.backend_label.clone()))
+            (Some(*build), mr.map(|r| r.backend_label.clone()), None)
         }
         ActiveRuntime::Custom { index } => {
-            let label = config.custom_runtimes.get(*index).map(|c| c.label.clone());
-            (None, label)
+            let cr = config.custom_runtimes.get(*index);
+            let label = cr.map(|c| c.label.clone());
+            let direct = cr.map(|c| c.binary_path.clone()).filter(|p| p.is_file());
+            (None, label, direct)
         }
-        ActiveRuntime::None => (None, None),
+        ActiveRuntime::None => (None, None, None),
     };
+
+    if let Some(bin) = direct_custom_bin {
+        let dir = bin.parent().map(|p| p.to_path_buf());
+        return Ok(RuntimeInfo {
+            installed: true,
+            build,
+            backend,
+            path: dir,
+            server_binary: Some(bin),
+            runtime_type: runtime_type.to_string(),
+        });
+    }
 
     let runtime_dir = match config.runtime_dir() {
         Ok(d) => d,
@@ -98,37 +112,30 @@ pub fn get_runtime_info(config: &LocalLlmConfig) -> Result<RuntimeInfo> {
         }
     };
 
-    if !runtime_dir.exists() {
-        // Also check PATH for llama-server if none configured
-        if matches!(config.active_runtime, ActiveRuntime::None) {
-            if let Some(in_path) = find_server_in_path() {
-                return Ok(RuntimeInfo {
-                    installed: true,
-                    build: None,
-                    backend: Some("System PATH".to_string()),
-                    path: in_path.parent().map(|p| p.to_path_buf()),
-                    server_binary: Some(in_path),
-                    runtime_type: "system".to_string(),
-                });
-            }
-        }
-        return Ok(RuntimeInfo {
-            installed: false,
-            build,
-            backend,
-            path: None,
-            server_binary: None,
-            runtime_type: runtime_type.to_string(),
-        });
-    }
+    let server_binary = if runtime_dir.exists() {
+        find_server_binary(&runtime_dir)
+    } else {
+        None
+    };
 
-    let server_binary = find_server_binary(&runtime_dir);
+    if server_binary.is_none() && matches!(config.active_runtime, ActiveRuntime::None) {
+        if let Some(in_path) = find_server_in_path() {
+            return Ok(RuntimeInfo {
+                installed: true,
+                build: None,
+                backend: Some("System PATH".to_string()),
+                path: in_path.parent().map(|p| p.to_path_buf()),
+                server_binary: Some(in_path),
+                runtime_type: "system".to_string(),
+            });
+        }
+    }
 
     Ok(RuntimeInfo {
         installed: server_binary.is_some(),
         build,
         backend,
-        path: Some(runtime_dir),
+        path: if runtime_dir.exists() { Some(runtime_dir) } else { None },
         server_binary,
         runtime_type: runtime_type.to_string(),
     })
@@ -671,7 +678,7 @@ fn find_all_binaries_recursive(
                 binary_path: path,
                 label,
             });
-        } else if path.is_dir() {
+    } else if path.is_dir() {
             if let Some(dir_name) = path.file_name().and_then(|n| n.to_str()) {
                 if dir_name.starts_with('.') || dir_name == "node_modules" || dir_name == "__pycache__" {
                     continue;
@@ -680,4 +687,263 @@ fn find_all_binaries_recursive(
             find_all_binaries_recursive(&path, name, max_depth - 1, root, results);
         }
     }
+}
+
+pub fn remove_custom_runtime(index: usize, config: &mut LocalLlmConfig) -> Result<()> {
+    if index >= config.custom_runtimes.len() {
+        anyhow::bail!("Invalid custom runtime index");
+    }
+    if config.active_runtime == (ActiveRuntime::Custom { index }) {
+        anyhow::bail!("Cannot remove the active runtime. Activate another runtime first.");
+    }
+    config.custom_runtimes.remove(index);
+    if let ActiveRuntime::Custom {
+        index: ref mut active_idx,
+    } = config.active_runtime
+    {
+        if *active_idx > index {
+            *active_idx -= 1;
+        }
+    }
+    Ok(())
+}
+
+/// Automatically discovers and activates existing `llama-server` binaries on disk:
+/// 1) Existing valid `managed_runtimes` / `custom_runtimes` already recorded in config or `local_llm/runtimes`
+/// 2) Shared config/runtimes from the companion `LLM` launcher (`%APPDATA%\llm`, `~/.local/share/llm`)
+/// 3) System `PATH` and common local installation directories (LM Studio, winget, scoop, user folders)
+/// Returns `true` if `config` was modified.
+pub fn auto_discover_runtime(config: &mut LocalLlmConfig) -> bool {
+    if let Ok(info) = get_runtime_info(config) {
+        if info.installed && info.server_binary.is_some() && !matches!(config.active_runtime, ActiveRuntime::None) {
+            return false;
+        }
+    }
+
+    let mut changed = false;
+
+    // 1. Check already-registered custom or managed runtimes in this config
+    if let Some((idx, _)) = config
+        .custom_runtimes
+        .iter()
+        .enumerate()
+        .find(|(_, c)| c.binary_path.is_file())
+    {
+        config.active_runtime = ActiveRuntime::Custom { index: idx };
+        return true;
+    }
+
+    if let Some(mr) = config.managed_runtimes.last().cloned() {
+        let dir = LocalLlmConfig::runtimes_base_dir(&config.base_dir).join(&mr.dir_name);
+        if find_server_binary(&dir).is_some() {
+            config.active_runtime = ActiveRuntime::Managed {
+                build: mr.build,
+                backend_id: mr.backend_id,
+            };
+            return true;
+        }
+    }
+
+    // 2. Scan Noectra's own `local_llm/runtimes` subdirectories on disk in case config wasn't updated
+    let local_rt_base = LocalLlmConfig::runtimes_base_dir(&config.base_dir);
+    if local_rt_base.is_dir() {
+        if let Ok(scan) = scan_for_builds(&local_rt_base) {
+            for build in scan.builds {
+                if !config
+                    .custom_runtimes
+                    .iter()
+                    .any(|c| c.binary_path == build.binary_path)
+                {
+                    config
+                        .custom_runtimes
+                        .push(crate::local_llm::config::CustomRuntime {
+                            label: build.label,
+                            binary_path: build.binary_path,
+                        });
+                    changed = true;
+                }
+            }
+            if !config.custom_runtimes.is_empty()
+                && matches!(config.active_runtime, ActiveRuntime::None)
+            {
+                config.active_runtime = ActiveRuntime::Custom { index: 0 };
+                return true;
+            }
+        }
+    }
+
+    // 3. Import runtimes from companion `LLM` launcher data directory (`%APPDATA%\llm`, etc.)
+    let mut llm_roots: Vec<PathBuf> = Vec::new();
+    for env_key in ["APPDATA", "LOCALAPPDATA", "XDG_DATA_HOME", "HOME"] {
+        if let Ok(val) = std::env::var(env_key) {
+            let p = PathBuf::from(&val);
+            if env_key == "HOME" {
+                #[cfg(target_os = "macos")]
+                llm_roots.push(p.join("Library").join("Application Support").join("llm"));
+                #[cfg(not(target_os = "macos"))]
+                llm_roots.push(p.join(".local").join("share").join("llm"));
+            } else {
+                llm_roots.push(p.join("llm"));
+            }
+        }
+    }
+
+    #[derive(Deserialize, Default)]
+    struct ExternalLlmConfig {
+        #[serde(default)]
+        managed_runtimes: Vec<ManagedRuntime>,
+        #[serde(default)]
+        custom_runtimes: Vec<crate::local_llm::config::CustomRuntime>,
+        #[serde(default)]
+        model_dirs: Vec<PathBuf>,
+    }
+
+    for llm_root in &llm_roots {
+        let ext_cfg_path = llm_root.join("config.json");
+        if ext_cfg_path.is_file() {
+            if let Ok(raw) = std::fs::read_to_string(&ext_cfg_path) {
+                if let Ok(ext) = serde_json::from_str::<ExternalLlmConfig>(&raw) {
+                    // Import any extra model_dirs too so models stay unified
+                    for dir in ext.model_dirs {
+                        if dir.is_dir() && !config.model_dirs.contains(&dir) {
+                            config.model_dirs.push(dir);
+                            changed = true;
+                        }
+                    }
+                    for cr in ext.custom_runtimes {
+                        if cr.binary_path.is_file()
+                            && !config
+                                .custom_runtimes
+                                .iter()
+                                .any(|c| c.binary_path == cr.binary_path)
+                        {
+                            config.custom_runtimes.push(cr);
+                            changed = true;
+                        }
+                    }
+                    for mr in ext.managed_runtimes {
+                        let mr_dir = llm_root.join("runtimes").join(&mr.dir_name);
+                        let fallback_dir = llm_root.join("runtime");
+                        let bin_opt = find_server_binary(&mr_dir)
+                            .or_else(|| find_server_binary(&fallback_dir));
+                        if let Some(bin) = bin_opt {
+                            if !config
+                                .custom_runtimes
+                                .iter()
+                                .any(|c| c.binary_path == bin)
+                            {
+                                config
+                                    .custom_runtimes
+                                    .push(crate::local_llm::config::CustomRuntime {
+                                        label: format!("llama.cpp b{} ({})", mr.build, mr.backend_label),
+                                        binary_path: bin,
+                                    });
+                                changed = true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        // Also direct scan of `%APPDATA%\llm\runtimes` and `%APPDATA%\llm\runtime`
+        for sub in ["runtimes", "runtime"] {
+            let sub_dir = llm_root.join(sub);
+            if sub_dir.is_dir() {
+                if let Ok(scan) = scan_for_builds(&sub_dir) {
+                    for build in scan.builds {
+                        if !config
+                            .custom_runtimes
+                            .iter()
+                            .any(|c| c.binary_path == build.binary_path)
+                        {
+                            config
+                                .custom_runtimes
+                                .push(crate::local_llm::config::CustomRuntime {
+                                    label: build.label,
+                                    binary_path: build.binary_path,
+                                });
+                            changed = true;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // 4. Scan system PATH & common llama.cpp / LM Studio installation folders
+    if let Some(in_path) = find_server_in_path() {
+        if !config
+            .custom_runtimes
+            .iter()
+            .any(|c| c.binary_path == in_path)
+        {
+            config
+                .custom_runtimes
+                .push(crate::local_llm::config::CustomRuntime {
+                    label: "System PATH".to_string(),
+                    binary_path: in_path,
+                });
+            changed = true;
+        }
+    }
+
+    let mut common_dirs: Vec<PathBuf> = Vec::new();
+    if let Ok(local) = std::env::var("LOCALAPPDATA") {
+        let lp = PathBuf::from(local);
+        common_dirs.push(lp.join("Programs").join("llama.cpp"));
+        common_dirs.push(lp.join("llama.cpp"));
+        common_dirs.push(lp.join("LM-Studio"));
+    }
+    if let Ok(home) = std::env::var("USERPROFILE").or_else(|_| std::env::var("HOME")) {
+        let hp = PathBuf::from(home);
+        common_dirs.push(hp.join(".lmstudio").join("extensions").join("backends"));
+        common_dirs.push(hp.join("llama.cpp"));
+        common_dirs.push(hp.join("scoop").join("apps").join("llama.cpp").join("current"));
+    }
+    #[cfg(target_os = "windows")]
+    {
+        common_dirs.push(PathBuf::from(r"C:\llama.cpp"));
+        common_dirs.push(PathBuf::from(r"C:\llama"));
+        common_dirs.push(PathBuf::from(r"D:\llama.cpp"));
+        common_dirs.push(PathBuf::from(r"D:\llama"));
+    }
+
+    for dir in common_dirs {
+        if dir.is_dir() {
+            if let Ok(scan) = scan_for_builds(&dir) {
+                for build in scan.builds {
+                    if !config
+                        .custom_runtimes
+                        .iter()
+                        .any(|c| c.binary_path == build.binary_path)
+                    {
+                        config
+                            .custom_runtimes
+                            .push(crate::local_llm::config::CustomRuntime {
+                                label: build.label,
+                                binary_path: build.binary_path,
+                            });
+                        changed = true;
+                    }
+                }
+            }
+        }
+    }
+
+    if matches!(config.active_runtime, ActiveRuntime::None) && !config.custom_runtimes.is_empty() {
+        // Prefer GPU build over CPU if multiple were discovered
+        let preferred_idx = config
+            .custom_runtimes
+            .iter()
+            .position(|c| {
+                let l = c.label.to_lowercase();
+                let p = c.binary_path.to_string_lossy().to_lowercase();
+                l.contains("cuda") || l.contains("vulkan") || p.contains("cuda") || p.contains("vulkan")
+            })
+            .unwrap_or(0);
+        config.active_runtime = ActiveRuntime::Custom { index: preferred_idx };
+        changed = true;
+    }
+
+    changed
 }

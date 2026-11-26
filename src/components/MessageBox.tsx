@@ -255,6 +255,24 @@ const MessageBox = ({
                   </div>
                 )}
 
+                {parsedMessage.includes('llama-server') && parsedMessage.includes('Settings -> Models') && (
+                  <div className="pt-2">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        window.dispatchEvent(
+                          new CustomEvent('open-settings', {
+                            detail: { section: 'models', tab: 'offline' },
+                          }),
+                        )
+                      }
+                      className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition"
+                    >
+                      Open Settings → Offline Engine & GGUF
+                    </button>
+                  </div>
+                )}
+
                 {msgMemoryEvents.length > 0 && (
                   <div className="flex flex-wrap gap-2 pt-2">
                     {msgMemoryEvents.map((ev, idx) => (

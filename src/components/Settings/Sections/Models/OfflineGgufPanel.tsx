@@ -7,6 +7,7 @@ import {
   FolderOpen,
   HardDrive,
   Loader2,
+  Package,
   Play,
   RefreshCw,
   Search,
@@ -19,6 +20,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
+  CustomBuild,
   DownloadProgress,
   HfFile,
   HfModel,
@@ -27,6 +29,7 @@ import {
   RecommendedModel,
   ReleaseInfo,
   RuntimeOverview,
+  ScanResult,
   ServerConfig,
   ServerStateSnapshot,
   SystemInfo,
@@ -69,6 +72,9 @@ const OfflineGgufPanel = ({
   const [startingServer, setStartingServer] = useState(false);
   const [savingConfig, setSavingConfig] = useState(false);
   const [showLogs, setShowLogs] = useState(false);
+  const [customBuilds, setCustomBuilds] = useState<CustomBuild[] | null>(null);
+  const [showAllAssets, setShowAllAssets] = useState(false);
+  const [scanningRuntime, setScanningRuntime] = useState(false);
 
   const loadAll = useCallback(async () => {
     try {
@@ -100,7 +106,19 @@ const OfflineGgufPanel = ({
   }, []);
 
   useEffect(() => {
-    loadAll();
+    loadAll().then(() => {
+      fetch('/api/local-llm/runtime/latest')
+        .then((r) => (r.ok ? r.json() : null))
+        .then((rel: ReleaseInfo | null) => {
+          if (rel) {
+            setReleaseInfo(rel);
+            if (rel.available_assets?.length > 0) {
+              setSelectedAssetName(rel.available_assets[0].name);
+            }
+          }
+        })
+        .catch(() => {});
+    });
   }, [loadAll]);
 
   // Poll downloads and server status while active
@@ -168,11 +186,161 @@ const OfflineGgufPanel = ({
       const res = await fetch('/api/local-llm/runtime/browse', { method: 'POST' });
       const data = await res.json();
       if (!data.cancelled) {
-        toast.success('Custom llama-server binary added.');
+        toast.success('Custom llama-server binary added & activated.');
         await loadAll();
+        window.dispatchEvent(new CustomEvent('providers-updated'));
       }
     } catch (e: any) {
       toast.error(`Failed to browse runtime: ${e.message}`);
+    }
+  };
+
+  const handleBrowseRuntimeFolder = async () => {
+    setScanningRuntime(true);
+    try {
+      const res = await fetch('/api/local-llm/runtime/browse-dir', { method: 'POST' });
+      const data: { cancelled: boolean; result?: ScanResult } = await res.json();
+      if (data.cancelled) return;
+      const result = data.result;
+      if (!result || result.builds.length === 0) {
+        setCustomBuilds(null);
+        toast.error('No llama-server binary found inside the selected directory.');
+      } else if (result.is_source_distribution || result.builds.length === 1) {
+        setCustomBuilds(null);
+        toast.success('llama.cpp build added & activated.');
+        await loadAll();
+        window.dispatchEvent(new CustomEvent('providers-updated'));
+      } else {
+        setCustomBuilds(result.builds);
+        toast.info(`Found ${result.builds.length} builds — choose which build to activate.`);
+      }
+    } catch (e: any) {
+      toast.error(`Folder scan failed: ${e.message}`);
+    } finally {
+      setScanningRuntime(false);
+    }
+  };
+
+  const handleAutoDiscoverRuntime = async () => {
+    setScanningRuntime(true);
+    try {
+      const res = await fetch('/api/local-llm/runtime/auto-discover', { method: 'POST' });
+      const data = await res.json();
+      await loadAll();
+      window.dispatchEvent(new CustomEvent('providers-updated'));
+      if (data.info?.installed) {
+        toast.success(`Detected & activated llama-server (${data.info.backend || 'Custom'}).`);
+      } else {
+        toast.info('No pre-installed llama-server found on disk. Click Check / Download llama.cpp below.');
+      }
+    } catch (e: any) {
+      toast.error(`Auto-detect failed: ${e.message}`);
+    } finally {
+      setScanningRuntime(false);
+    }
+  };
+
+  const handleSelectCustomBuild = async (build: CustomBuild) => {
+    try {
+      const res = await fetch('/api/local-llm/runtime/select', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ runtime_type: 'custom', custom_path: build.binary_path }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      setCustomBuilds(null);
+      toast.success(`Activated ${build.label}.`);
+      await loadAll();
+    } catch (e: any) {
+      toast.error(`Failed activating build: ${e.message}`);
+    }
+  };
+
+  const handleAddAllCustomBuilds = async () => {
+    if (!customBuilds || customBuilds.length === 0) return;
+    try {
+      const res = await fetch('/api/local-llm/runtime/custom/add-all', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ builds: customBuilds }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      setCustomBuilds(null);
+      toast.success('All discovered builds added.');
+      await loadAll();
+    } catch (e: any) {
+      toast.error(`Failed adding builds: ${e.message}`);
+    }
+  };
+
+  const handleActivateManaged = async (build: number, backend_id: string) => {
+    try {
+      const res = await fetch('/api/local-llm/runtime/select', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ runtime_type: 'managed', build, backend_id }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      toast.success(`Activated llama.cpp b${build}.`);
+      await loadAll();
+    } catch (e: any) {
+      toast.error(`Activate failed: ${e.message}`);
+    }
+  };
+
+  const handleActivateCustomIndex = async (index: number) => {
+    try {
+      const res = await fetch('/api/local-llm/runtime/select', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ runtime_type: 'custom', custom_index: index }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      toast.success('Custom runtime activated.');
+      await loadAll();
+    } catch (e: any) {
+      toast.error(`Activate failed: ${e.message}`);
+    }
+  };
+
+  const handleDeleteManaged = async (build: number, backend_id: string) => {
+    try {
+      const res = await fetch(
+        `/api/local-llm/runtime/managed?build=${build}&backend_id=${encodeURIComponent(backend_id)}`,
+        { method: 'DELETE' },
+      );
+      if (!res.ok) throw new Error(await res.text());
+      toast.success(`Deleted build b${build}.`);
+      await loadAll();
+    } catch (e: any) {
+      toast.error(`Delete failed: ${e.message}`);
+    }
+  };
+
+  const handleDeleteCustom = async (index: number) => {
+    try {
+      const res = await fetch(`/api/local-llm/runtime/custom?index=${index}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) throw new Error(await res.text());
+      toast.success('Removed custom runtime.');
+      await loadAll();
+    } catch (e: any) {
+      toast.error(`Remove failed: ${e.message}`);
+    }
+  };
+
+  const handleToggleAutoDelete = async (enabled: boolean) => {
+    try {
+      const res = await fetch('/api/local-llm/runtime/auto-delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      await loadAll();
+    } catch (e: any) {
+      toast.error(`Update failed: ${e.message}`);
     }
   };
 
@@ -456,7 +624,9 @@ const OfflineGgufPanel = ({
             </div>
             {runtime?.info.installed ? (
               <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 font-medium">
-                <CheckCircle2 size={12} /> Ready ({runtime.info.backend || runtime.info.runtime_type})
+                <CheckCircle2 size={12} />{' '}
+                {runtime.info.build ? `b${runtime.info.build}` : 'Ready'} (
+                {runtime.info.backend || runtime.info.runtime_type})
               </span>
             ) : (
               <span className="text-[11px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20 font-medium">
@@ -465,50 +635,239 @@ const OfflineGgufPanel = ({
             )}
           </div>
 
-          <p className="text-[11px] text-slate-600 dark:text-white/60 truncate">
-            {runtime?.info.server_binary || 'Download llama.cpp or select a local llama-server executable.'}
+          <p className="text-[11px] font-mono text-slate-600 dark:text-white/60 truncate" title={runtime?.info.server_binary || ''}>
+            {runtime?.info.server_binary || 'Download llama.cpp, Auto-Detect, or scan a local folder containing llama-server.'}
           </p>
 
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-1.5">
             <button
               type="button"
               onClick={handleFetchLatestRelease}
               disabled={loadingRelease}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-sky-600 hover:bg-sky-700 text-white transition"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-sky-600 hover:bg-sky-700 text-white transition"
             >
-              {loadingRelease ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
-              {releaseInfo ? `Update Available (${releaseInfo.tag_name})` : 'Check / Install llama.cpp'}
+              {loadingRelease ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
+              {releaseInfo ? `Latest: ${releaseInfo.tag_name}` : 'Download llama.cpp'}
+            </button>
+            <button
+              type="button"
+              onClick={handleAutoDiscoverRuntime}
+              disabled={scanningRuntime}
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/20 transition"
+              title="Scan system PATH, LLM launcher folder, LM Studio, and common directories"
+            >
+              {scanningRuntime ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+              Auto-Detect
+            </button>
+            <button
+              type="button"
+              onClick={handleBrowseRuntimeFolder}
+              disabled={scanningRuntime}
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-light-200 dark:border-white/15 bg-light-secondary dark:bg-dark-secondary text-slate-900 dark:text-white hover:bg-light-200 dark:hover:bg-white/10 transition"
+            >
+              <FolderOpen size={12} />
+              Scan Folder
             </button>
             <button
               type="button"
               onClick={handleBrowseRuntime}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-light-200 dark:border-white/15 bg-light-secondary dark:bg-dark-secondary text-slate-900 dark:text-white hover:bg-light-200 dark:hover:bg-white/10 transition"
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-light-200 dark:border-white/15 bg-light-secondary dark:bg-dark-secondary text-slate-900 dark:text-white hover:bg-light-200 dark:hover:bg-white/10 transition"
             >
-              <FolderOpen size={13} />
-              Pick Custom Binary
+              Pick .exe
             </button>
           </div>
 
-          {releaseInfo && releaseInfo.available_assets.length > 0 && (
-            <div className="pt-2 border-t border-light-200 dark:border-white/10 flex flex-col sm:flex-row gap-2">
-              <select
-                value={selectedAssetName}
-                onChange={(e) => setSelectedAssetName(e.target.value)}
-                className="flex-1 text-xs font-medium rounded-lg px-2.5 py-1.5 border border-light-200 dark:border-white/15 bg-white dark:bg-dark-secondary text-slate-900 dark:text-white"
-              >
-                {releaseInfo.available_assets.map((a) => (
-                  <option key={a.name} value={a.name}>
-                    {a.backend_label} — {a.name} ({a.size_mb} MB)
-                  </option>
+          {customBuilds && customBuilds.length > 1 && (
+            <div className="pt-2 border-t border-light-200 dark:border-white/10 space-y-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-semibold text-amber-600 dark:text-amber-400">
+                  Multiple Builds Found ({customBuilds.length})
+                </span>
+                <div className="flex gap-1.5">
+                  <button
+                    type="button"
+                    onClick={handleAddAllCustomBuilds}
+                    className="px-2 py-0.5 rounded bg-sky-600 text-white text-[11px] font-medium"
+                  >
+                    Add All
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCustomBuilds(null)}
+                    className="px-2 py-0.5 rounded border border-light-200 dark:border-white/15 text-[11px]"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+              <div className="space-y-1 max-h-36 overflow-y-auto">
+                {customBuilds.map((b) => (
+                  <button
+                    key={b.binary_path}
+                    type="button"
+                    onClick={() => handleSelectCustomBuild(b)}
+                    className="w-full text-left flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg border border-light-200 dark:border-white/10 hover:bg-sky-500/10 text-xs"
+                  >
+                    <span className="font-medium text-slate-900 dark:text-white truncate">{b.label}</span>
+                    <span className="text-[10px] font-mono text-slate-500 truncate max-w-[180px]">{b.binary_path}</span>
+                  </button>
                 ))}
-              </select>
-              <button
-                type="button"
-                onClick={handleDownloadRuntime}
-                className="px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-600 hover:bg-emerald-700 text-white transition"
-              >
-                Download
-              </button>
+              </div>
+            </div>
+          )}
+
+          {releaseInfo && releaseInfo.available_assets.length > 0 && (
+            <div className="pt-2 border-t border-light-200 dark:border-white/10 space-y-2">
+              <div className="space-y-1 max-h-40 overflow-y-auto pr-1">
+                {(showAllAssets ? releaseInfo.available_assets : releaseInfo.available_assets.slice(0, 5)).map((a) => (
+                  <button
+                    key={a.name}
+                    type="button"
+                    onClick={() => setSelectedAssetName(a.name)}
+                    className={`w-full text-left flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg border text-xs transition ${
+                      selectedAssetName === a.name
+                        ? 'border-sky-500 bg-sky-500/10 text-slate-900 dark:text-white'
+                        : 'border-light-200 dark:border-white/10 bg-light-secondary/40 dark:bg-white/[0.02] text-slate-700 dark:text-white/80 hover:bg-light-200/60 dark:hover:bg-white/10'
+                    }`}
+                  >
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-medium truncate">{a.backend_label}</span>
+                        {a.score >= 90 && (
+                          <span className="text-[10px] px-1.5 py-0.2 rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-medium">
+                            Recommended
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[10px] font-mono text-slate-500 dark:text-white/50 truncate">{a.name}</p>
+                    </div>
+                    <span className="text-[11px] font-mono shrink-0">{a.size_mb} MB</span>
+                  </button>
+                ))}
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                {releaseInfo.available_assets.length > 5 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowAllAssets((v) => !v)}
+                    className="text-[11px] text-sky-600 dark:text-sky-400 hover:underline"
+                  >
+                    {showAllAssets ? 'Show fewer' : `Show all ${releaseInfo.available_assets.length} builds`}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={handleDownloadRuntime}
+                  className="ml-auto inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-600 hover:bg-emerald-700 text-white transition"
+                >
+                  <Download size={12} /> Download & Install
+                </button>
+              </div>
+            </div>
+          )}
+
+          {runtime && (runtime.managed_runtimes.length > 0 || runtime.custom_runtimes.length > 0) && (
+            <div className="pt-2 border-t border-light-200 dark:border-white/10 space-y-1.5">
+              <div className="flex items-center justify-between text-[11px] text-slate-600 dark:text-white/60">
+                <span className="font-medium inline-flex items-center gap-1">
+                  <Package size={12} /> Installed Runtimes
+                </span>
+                {runtime.managed_runtimes.length > 0 && (
+                  <label className="inline-flex items-center gap-1 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={runtime.auto_delete_old_runtimes}
+                      onChange={(e) => handleToggleAutoDelete(e.target.checked)}
+                    />
+                    <span>Auto-delete old</span>
+                  </label>
+                )}
+              </div>
+              <div className="space-y-1 max-h-28 overflow-y-auto">
+                {runtime.managed_runtimes.map((mr) => {
+                  const isActive =
+                    runtime.active_runtime?.type === 'managed' &&
+                    runtime.active_runtime.build === mr.build &&
+                    runtime.active_runtime.backend_id === mr.backend_id;
+                  return (
+                    <div
+                      key={`${mr.build}-${mr.backend_id}`}
+                      className="flex items-center justify-between gap-2 px-2 py-1 rounded-lg border border-light-200 dark:border-white/10 text-[11px]"
+                    >
+                      <span className="font-mono text-slate-900 dark:text-white truncate">
+                        b{mr.build} · {mr.backend_label}
+                      </span>
+                      <div className="flex items-center gap-1 shrink-0">
+                        {isActive ? (
+                          <span className="px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-medium">
+                            Active
+                          </span>
+                        ) : (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => handleActivateManaged(mr.build, mr.backend_id)}
+                              className="p-1 rounded hover:bg-sky-500/15 text-sky-600 dark:text-sky-400"
+                              title="Activate"
+                            >
+                              <Play size={11} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteManaged(mr.build, mr.backend_id)}
+                              className="p-1 rounded hover:bg-rose-500/15 text-rose-600 dark:text-rose-400"
+                              title="Delete"
+                            >
+                              <Trash2 size={11} />
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+                {runtime.custom_runtimes.map((cr, idx) => {
+                  const isActive =
+                    runtime.active_runtime?.type === 'custom' &&
+                    runtime.active_runtime.index === idx;
+                  return (
+                    <div
+                      key={`${cr.binary_path}-${idx}`}
+                      className="flex items-center justify-between gap-2 px-2 py-1 rounded-lg border border-light-200 dark:border-white/10 text-[11px]"
+                    >
+                      <span className="truncate text-slate-900 dark:text-white" title={cr.binary_path}>
+                        {cr.label} — <span className="font-mono text-slate-500">{cr.binary_path}</span>
+                      </span>
+                      <div className="flex items-center gap-1 shrink-0">
+                        {isActive ? (
+                          <span className="px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-medium">
+                            Active
+                          </span>
+                        ) : (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => handleActivateCustomIndex(idx)}
+                              className="p-1 rounded hover:bg-sky-500/15 text-sky-600 dark:text-sky-400"
+                              title="Activate"
+                            >
+                              <Play size={11} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteCustom(idx)}
+                              className="p-1 rounded hover:bg-rose-500/15 text-rose-600 dark:text-rose-400"
+                              title="Remove"
+                            >
+                              <Trash2 size={11} />
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
 
