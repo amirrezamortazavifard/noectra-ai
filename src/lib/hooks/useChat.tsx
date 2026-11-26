@@ -771,6 +771,12 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
         return;
       }
 
+      if (data.type === 'modelReady' && data.model) {
+        toast.success(`Model loaded and ready to use: ${data.model}`);
+        window.dispatchEvent(new CustomEvent('local-llm-status-changed'));
+        return;
+      }
+
       if (data.type === 'memoryUpdate' && data.event) {
         setMemoryEvents((prev) => ({
           ...prev,

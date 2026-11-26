@@ -37,16 +37,32 @@ const ModelSelector = ({ placement = 'bottom' }: ModelSelectorProps) => {
   const [providers, setProviders] = useState<MinimalProvider[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [localServerStatus, setLocalServerStatus] = useState<{
+    type: string;
+    port?: number;
+    loadedModelPath?: string | null;
+  }>({ type: 'stopped' });
 
   const { setChatModelProvider, chatModelProvider, modelMode, setModelMode } = useChat();
 
   const loadProviders = useCallback(async (silent = false) => {
     try {
       if (!silent) setIsLoading(true);
-      const res = await fetch('/api/providers');
+      const [res, srvRes] = await Promise.all([
+        fetch('/api/providers'),
+        fetch('/api/local-llm/server/status').catch(() => null),
+      ]);
       if (!res.ok) throw new Error('Failed to fetch providers');
       const data: { providers: MinimalProvider[] } = await res.json();
       setProviders(data.providers);
+      if (srvRes && srvRes.ok) {
+        const snap = await srvRes.json();
+        setLocalServerStatus({
+          type: snap?.status?.type || 'stopped',
+          port: snap?.status?.port,
+          loadedModelPath: snap?.loaded_model_path ?? null,
+        });
+      }
     } catch (error) {
       console.error('Error loading providers:', error);
     } finally {
@@ -58,7 +74,11 @@ const ModelSelector = ({ placement = 'bottom' }: ModelSelectorProps) => {
     loadProviders();
     const onUpdated = () => loadProviders(true);
     window.addEventListener('providers-updated', onUpdated);
-    return () => window.removeEventListener('providers-updated', onUpdated);
+    window.addEventListener('local-llm-status-changed', onUpdated);
+    return () => {
+      window.removeEventListener('providers-updated', onUpdated);
+      window.removeEventListener('local-llm-status-changed', onUpdated);
+    };
   }, [loadProviders]);
 
   const currentModelName = useMemo(() => {
@@ -248,10 +268,26 @@ const ModelSelector = ({ placement = 'bottom' }: ModelSelectorProps) => {
                                   {provider.name}
                                 </p>
                               </div>
-                              {provider.serverStatus?.running && (
-                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
-                                  Running
-                                </span>
+                              {provider.id === 'local-gguf' ? (
+                                localServerStatus.type === 'running' ? (
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-medium">
+                                    Ready · :{localServerStatus.port}
+                                  </span>
+                                ) : localServerStatus.type === 'starting' ? (
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-700 dark:text-amber-300 font-medium">
+                                    Loading...
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-200/80 dark:bg-white/10 text-slate-600 dark:text-white/65">
+                                    Auto-load
+                                  </span>
+                                )
+                              ) : (
+                                provider.serverStatus?.running && (
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
+                                    Running
+                                  </span>
+                                )
                               )}
                             </div>
 
@@ -260,6 +296,10 @@ const ModelSelector = ({ placement = 'bottom' }: ModelSelectorProps) => {
                                 const isSelected =
                                   chatModelProvider?.providerId === provider.id &&
                                   chatModelProvider?.key === model.key;
+                                const isLoadedModel =
+                                  provider.id === 'local-gguf' &&
+                                  localServerStatus.type === 'running' &&
+                                  localServerStatus.loadedModelPath === model.key;
                                 return (
                                   <button
                                     key={model.key}
@@ -297,9 +337,16 @@ const ModelSelector = ({ placement = 'bottom' }: ModelSelectorProps) => {
                                         {model.name}
                                       </p>
                                     </div>
-                                    {isSelected && (
-                                      <Check size={13} className="text-sky-600 dark:text-sky-400 shrink-0 ml-1" />
-                                    )}
+                                    <div className="flex items-center gap-1.5 shrink-0 ml-1">
+                                      {isLoadedModel && (
+                                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-medium">
+                                          Ready
+                                        </span>
+                                      )}
+                                      {isSelected && (
+                                        <Check size={13} className="text-sky-600 dark:text-sky-400" />
+                                      )}
+                                    </div>
                                   </button>
                                 );
                               })}
@@ -314,7 +361,12 @@ const ModelSelector = ({ placement = 'bottom' }: ModelSelectorProps) => {
                     )}
                   </div>
 
-                  <div className="p-2 border-t border-light-200 dark:border-dark-200 bg-light-secondary/40 dark:bg-dark-secondary/40">
+                  <div className="p-2 border-t border-light-200 dark:border-dark-200 bg-light-secondary/40 dark:bg-dark-secondary/40 space-y-1.5">
+                    {modelMode === 'offline' && (
+                      <p className="text-[10px] text-center text-slate-500 dark:text-white/55 px-1">
+                        Just pick a model and send — engine starts automatically.
+                      </p>
+                    )}
                     <button
                       type="button"
                       onClick={() => openModelSettings(close)}

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Cloud, Cpu, Layers } from 'lucide-react';
+import { Cloud, Cpu, Download, HardDrive, Layers, Sliders } from 'lucide-react';
 import AddProvider from './AddProviderDialog';
 import {
   ConfigModelProvider,
@@ -11,7 +11,16 @@ import ModelSelect from './ModelSelect';
 import OfflineGgufPanel from './OfflineGgufPanel';
 import { useChat } from '@/lib/hooks/useChat';
 
-type ModelSettingsTab = 'overview' | 'offline' | 'online';
+export type ModelSettingsTab = 'overview' | 'models' | 'download' | 'engine' | 'online';
+
+function normalizeModelsTab(tab: string | null | undefined): ModelSettingsTab {
+  if (!tab) return 'overview';
+  if (tab === 'offline') return 'models';
+  if (['overview', 'models', 'download', 'engine', 'online'].includes(tab)) {
+    return tab as ModelSettingsTab;
+  }
+  return 'overview';
+}
 
 const Models = ({
   fields,
@@ -23,16 +32,16 @@ const Models = ({
   const [providers, setProviders] = useState<ConfigModelProvider[]>(values);
   const [liveProviders, setLiveProviders] = useState<ConfigModelProvider[]>(values);
   const [activeTab, setActiveTab] = useState<ModelSettingsTab>(() => {
-    const saved = sessionStorage.getItem('settingsModelsTab') as ModelSettingsTab | null;
+    const saved = sessionStorage.getItem('settingsModelsTab');
     if (saved) sessionStorage.removeItem('settingsModelsTab');
-    return saved || 'overview';
+    return normalizeModelsTab(saved);
   });
   const { modelMode, setModelMode } = useChat();
 
   useEffect(() => {
     const handler = (e: any) => {
-      if (e.detail && ['overview', 'offline', 'online'].includes(e.detail)) {
-        setActiveTab(e.detail);
+      if (e.detail) {
+        setActiveTab(normalizeModelsTab(e.detail));
       }
     };
     window.addEventListener('models-tab-change', handler);
@@ -57,47 +66,34 @@ const Models = ({
     refreshLiveProviders();
   }, [refreshLiveProviders, providers]);
 
+  const tabs: { id: ModelSettingsTab; label: string; icon: React.ReactNode }[] = [
+    { id: 'overview', label: 'Overview', icon: <Layers size={14} /> },
+    { id: 'models', label: 'My GGUF Models', icon: <HardDrive size={14} /> },
+    { id: 'download', label: 'Download Models', icon: <Download size={14} /> },
+    { id: 'engine', label: 'Engine & Hardware', icon: <Sliders size={14} /> },
+    { id: 'online', label: 'Online APIs', icon: <Cloud size={14} /> },
+  ];
+
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
-      {/* Unified Sub-navigation: Active Models | Offline GGUF Engine | Online Providers */}
+      {/* Structured 5-tab navigation + Default Chat Mode switch */}
       <div className="px-6 pt-4 pb-3 border-b border-light-200 dark:border-dark-200 flex flex-wrap items-center justify-between gap-3">
-        <div className="inline-flex rounded-xl p-1 bg-light-secondary dark:bg-dark-secondary border border-light-200 dark:border-white/10">
-          <button
-            type="button"
-            onClick={() => setActiveTab('overview')}
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition ${
-              activeTab === 'overview'
-                ? 'bg-white dark:bg-[#0c1017] text-slate-900 dark:text-white shadow-sm'
-                : 'text-slate-600 dark:text-white/65 hover:text-slate-900 dark:hover:text-white'
-            }`}
-          >
-            <Layers size={14} />
-            Active Models & Mode
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('offline')}
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition ${
-              activeTab === 'offline'
-                ? 'bg-white dark:bg-[#0c1017] text-slate-900 dark:text-white shadow-sm'
-                : 'text-slate-600 dark:text-white/65 hover:text-slate-900 dark:hover:text-white'
-            }`}
-          >
-            <Cpu size={14} />
-            Offline Engine & GGUF
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('online')}
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition ${
-              activeTab === 'online'
-                ? 'bg-white dark:bg-[#0c1017] text-slate-900 dark:text-white shadow-sm'
-                : 'text-slate-600 dark:text-white/65 hover:text-slate-900 dark:hover:text-white'
-            }`}
-          >
-            <Cloud size={14} />
-            Online & API Providers
-          </button>
+        <div className="flex flex-wrap items-center gap-1 rounded-xl p-1 bg-light-secondary dark:bg-dark-secondary border border-light-200 dark:border-white/10">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveTab(tab.id)}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition ${
+                activeTab === tab.id
+                  ? 'bg-white dark:bg-[#0c1017] text-slate-900 dark:text-white shadow-sm'
+                  : 'text-slate-600 dark:text-white/65 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              {tab.icon}
+              {tab.label}
+            </button>
+          ))}
         </div>
 
         <div className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 border border-light-200 dark:border-white/10 bg-white dark:bg-[#0c1017]">
@@ -132,13 +128,19 @@ const Models = ({
       <div className="flex-1 overflow-y-auto py-5 space-y-6">
         {activeTab === 'overview' && (
           <>
+            <OfflineGgufPanel
+              view="overview-status"
+              onModelsUpdated={refreshLiveProviders}
+              onNavigateTab={setActiveTab}
+            />
+
             <div className="flex flex-col px-6 gap-y-4">
               <div>
                 <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
                   Active Models
                 </h3>
                 <p className="text-xs text-slate-600 dark:text-white/65 mt-0.5">
-                  Choose any installed offline GGUF model, local server (Ollama / LM Studio), or online cloud API provider.
+                  Choose your default Offline GGUF model, local server (Ollama / LM Studio), or Online API provider. In Chat, Offline models load automatically when you send a prompt.
                 </p>
               </div>
               <ModelSelect
@@ -157,39 +159,85 @@ const Models = ({
 
             <div className="border-t border-light-200 dark:border-dark-200" />
 
-            <div className="px-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="px-6 grid grid-cols-1 sm:grid-cols-2 gap-3 pb-4">
               <button
                 type="button"
-                onClick={() => setActiveTab('offline')}
+                onClick={() => setActiveTab('models')}
                 className="text-left p-4 rounded-xl border border-light-200 dark:border-white/10 bg-white dark:bg-[#0c1017] hover:border-emerald-500/50 transition"
               >
                 <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white">
-                  <Cpu size={16} className="text-emerald-500" />
-                  Manage Offline GGUF Engine & Models
+                  <HardDrive size={16} className="text-emerald-500" />
+                  My GGUF Models
                 </div>
                 <p className="text-xs text-slate-600 dark:text-white/60 mt-1">
-                  Install llama.cpp, add or download HuggingFace GGUF models, configure GPU layers & context length.
+                  Browse scanned local folders, add `.gguf` files, select models for chat, or warm-start the engine.
+                </p>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('download')}
+                className="text-left p-4 rounded-xl border border-light-200 dark:border-white/10 bg-white dark:bg-[#0c1017] hover:border-sky-500/50 transition"
+              >
+                <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white">
+                  <Download size={16} className="text-sky-500" />
+                  Download Offline Models
+                </div>
+                <p className="text-xs text-slate-600 dark:text-white/60 mt-1">
+                  Search HuggingFace GGUF repositories or install recommended offline models with one click.
+                </p>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('engine')}
+                className="text-left p-4 rounded-xl border border-light-200 dark:border-white/10 bg-white dark:bg-[#0c1017] hover:border-amber-500/50 transition"
+              >
+                <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white">
+                  <Cpu size={16} className="text-amber-500" />
+                  Engine & Hardware
+                </div>
+                <p className="text-xs text-slate-600 dark:text-white/60 mt-1">
+                  Manage llama.cpp CUDA / Vulkan runtimes, GPU layer offload, context size, and server logs.
                 </p>
               </button>
               <button
                 type="button"
                 onClick={() => setActiveTab('online')}
-                className="text-left p-4 rounded-xl border border-light-200 dark:border-white/10 bg-white dark:bg-[#0c1017] hover:border-sky-500/50 transition"
+                className="text-left p-4 rounded-xl border border-light-200 dark:border-white/10 bg-white dark:bg-[#0c1017] hover:border-indigo-500/50 transition"
               >
                 <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white">
-                  <Cloud size={16} className="text-sky-500" />
-                  Manage Online & External Providers
+                  <Cloud size={16} className="text-indigo-500" />
+                  Online & External Providers
                 </div>
                 <p className="text-xs text-slate-600 dark:text-white/60 mt-1">
-                  Configure OpenAI, Anthropic, Gemini, Groq, OpenRouter, Ollama, or custom OpenAI endpoints.
+                  Configure OpenAI, Anthropic, Gemini, Groq, OpenRouter, Ollama, or custom endpoints.
                 </p>
               </button>
             </div>
           </>
         )}
 
-        {activeTab === 'offline' && (
-          <OfflineGgufPanel onModelsUpdated={refreshLiveProviders} />
+        {activeTab === 'models' && (
+          <OfflineGgufPanel
+            view="models"
+            onModelsUpdated={refreshLiveProviders}
+            onNavigateTab={setActiveTab}
+          />
+        )}
+
+        {activeTab === 'download' && (
+          <OfflineGgufPanel
+            view="download"
+            onModelsUpdated={refreshLiveProviders}
+            onNavigateTab={setActiveTab}
+          />
+        )}
+
+        {activeTab === 'engine' && (
+          <OfflineGgufPanel
+            view="engine"
+            onModelsUpdated={refreshLiveProviders}
+            onNavigateTab={setActiveTab}
+          />
         )}
 
         {activeTab === 'online' && (

@@ -36,6 +36,10 @@ import {
 } from '@/lib/localLlm/types';
 import { useChat } from '@/lib/hooks/useChat';
 
+import type { ModelSettingsTab } from './Section';
+
+export type OfflineGgufView = 'overview-status' | 'models' | 'download' | 'engine' | 'all';
+
 function formatBytes(bytes: number): string {
   if (!bytes || bytes <= 0) return '0 B';
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];
@@ -45,10 +49,14 @@ function formatBytes(bytes: number): string {
 
 const OfflineGgufPanel = ({
   onModelsUpdated,
+  view = 'all',
+  onNavigateTab,
 }: {
   onModelsUpdated?: () => void;
+  view?: OfflineGgufView;
+  onNavigateTab?: (tab: ModelSettingsTab) => void;
 }) => {
-  const { setChatModelProvider, setModelMode } = useChat();
+  const { chatModelProvider, setChatModelProvider, setModelMode } = useChat();
 
   const [hardware, setHardware] = useState<SystemInfo | null>(null);
   const [config, setConfig] = useState<LocalLlmConfig | null>(null);
@@ -147,10 +155,16 @@ const OfflineGgufPanel = ({
             setStartingServer(false);
           }
           if (snap.status.type === 'running' && prevStatusRef.current === 'starting') {
-            toast.success(`Model loaded and ready on port ${snap.status.port}!`);
+            const rawPath = snap.loaded_model_path || '';
+            const loadedLabel = rawPath.split(/[\\/]/).pop()?.replace(/\.gguf$/i, '') || 'Local GGUF Model';
+            toast.success(`Model loaded and ready to use (${loadedLabel}) on port ${snap.status.port}!`);
+            window.dispatchEvent(new CustomEvent('local-llm-status-changed'));
           } else if (snap.status.type === 'error' && prevStatusRef.current === 'starting') {
             toast.error(`Server failed: ${snap.status.message}`);
             setShowLogs(true);
+            window.dispatchEvent(new CustomEvent('local-llm-status-changed'));
+          } else if (snap.status.type !== prevStatusRef.current) {
+            window.dispatchEvent(new CustomEvent('local-llm-status-changed'));
           }
           prevStatusRef.current = snap.status.type;
         }
@@ -596,10 +610,145 @@ const OfflineGgufPanel = ({
   const activeDownloads = downloads.filter((d) => d.id !== 'runtime' && d.status !== 'completed');
   const serverStatus = serverSnapshot?.status ?? { type: 'stopped' };
   const isRunning = serverStatus.type === 'running';
+  const loadedModelObj = installedModels.find((m) => m.path === serverSnapshot?.loaded_model_path);
+  const loadedModelName =
+    loadedModelObj?.name ||
+    serverSnapshot?.loaded_model_path?.split(/[\\/]/).pop()?.replace(/\.gguf$/i, '') ||
+    'Local GGUF Model';
+  const selectedLocalModel =
+    installedModels.find((m) => m.path === chatModelProvider?.key) ||
+    installedModels.find((m) => m.path === serverConfig?.model_path) ||
+    installedModels[0];
+
+  const closeSettingsToChat = () => {
+    window.dispatchEvent(new CustomEvent('close-settings'));
+  };
+
+  const statusBanners = (
+    <>
+      {serverStatus.type === 'starting' && (
+        <div className="p-3 rounded-xl border border-sky-500/30 bg-sky-500/10 text-xs flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0 text-sky-800 dark:text-sky-200">
+            <Loader2 size={15} className="animate-spin shrink-0" />
+            <span className="truncate font-medium">
+              {serverSnapshot?.logs?.slice(-1)[0] || 'Starting llama-server and loading model...'}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={handleStopServer}
+            className="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-[11px] font-medium shrink-0"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+
+      {serverStatus.type === 'running' && (
+        <div className="p-3 rounded-xl border border-emerald-500/35 bg-emerald-500/10 text-xs flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0 text-emerald-800 dark:text-emerald-200">
+            <CheckCircle2 size={16} className="text-emerald-600 dark:text-emerald-400 shrink-0" />
+            <div className="min-w-0">
+              <p className="font-semibold truncate">
+                Model loaded and ready to use: {loadedModelName}
+              </p>
+              <p className="text-[11px] opacity-80">
+                Active on 127.0.0.1:{serverStatus.port} · Ready for offline chat
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              type="button"
+              onClick={closeSettingsToChat}
+              className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-medium transition"
+            >
+              Go to Chat
+            </button>
+            <button
+              type="button"
+              onClick={handleStopServer}
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-[11px] font-medium transition"
+            >
+              <Square size={10} /> Stop
+            </button>
+          </div>
+        </div>
+      )}
+
+      {serverStatus.type === 'error' && (
+        <div className="p-3 rounded-xl border border-rose-500/30 bg-rose-500/10 text-xs text-rose-700 dark:text-rose-300 flex items-center justify-between gap-2">
+          <span className="truncate font-medium">{serverStatus.message}</span>
+          <button
+            type="button"
+            onClick={() => {
+              setShowLogs(true);
+              if (view !== 'engine' && view !== 'all') {
+                onNavigateTab?.('engine');
+              }
+            }}
+            className="px-2.5 py-1 rounded-lg border border-rose-500/30 text-[11px] font-medium shrink-0 hover:bg-rose-500/10"
+          >
+            View Logs
+          </button>
+        </div>
+      )}
+    </>
+  );
+
+  if (view === 'overview-status') {
+    return (
+      <div className="px-6 space-y-3">
+        {statusBanners}
+        <div className="rounded-xl border border-light-200 dark:border-white/10 bg-white dark:bg-[#0c1017] p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="space-y-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <Cpu size={15} className="text-emerald-500 shrink-0" />
+              <span className="text-sm font-semibold text-slate-900 dark:text-white">
+                Offline GGUF Workflow
+              </span>
+              {runtime?.info.installed ? (
+                <span className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20 font-medium">
+                  Engine Ready ({runtime.info.backend || runtime.info.runtime_type})
+                </span>
+              ) : (
+                <span className="text-[11px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20 font-medium">
+                  Runtime Not Detected
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-slate-600 dark:text-white/65">
+              Zero-setup chat: pick any Offline GGUF model in Chat and send your prompt — Noectra AI automatically finds an open port, tunes hardware settings, and loads the model.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            {selectedLocalModel && !isRunning && serverStatus.type !== 'starting' && (
+              <button
+                type="button"
+                onClick={() => handleStartServer(selectedLocalModel.path)}
+                disabled={startingServer}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-600 hover:bg-emerald-700 text-white transition"
+              >
+                <Play size={12} /> Warm-Load {selectedLocalModel.name}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={closeSettingsToChat}
+              className="px-3 py-1.5 rounded-lg text-xs font-medium border border-light-200 dark:border-white/15 bg-light-secondary dark:bg-dark-secondary text-slate-900 dark:text-white hover:bg-light-200 dark:hover:bg-white/10 transition"
+            >
+              Return to Chat
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 px-6 pb-8">
       {/* 1. Hardware Summary + Runtime Engine */}
+      {(view === 'engine' || view === 'all') && (
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="rounded-xl border border-light-200 dark:border-white/10 bg-white dark:bg-[#0c1017] p-4 space-y-2.5">
           <div className="flex items-center justify-between">
@@ -902,197 +1051,237 @@ const OfflineGgufPanel = ({
           )}
         </div>
       </div>
+      )}
 
       {/* 2. Installed Offline GGUF Models */}
-      <div className="rounded-xl border border-light-200 dark:border-white/10 bg-white dark:bg-[#0c1017] p-4 space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2 text-slate-900 dark:text-white font-semibold text-sm">
-            <HardDrive size={16} className="text-violet-500" />
-            Installed GGUF Models ({installedModels.length})
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={handleBrowseGgufFile}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-light-200 dark:border-white/15 bg-light-secondary dark:bg-dark-secondary text-slate-900 dark:text-white hover:bg-light-200 dark:hover:bg-white/10 transition"
-            >
-              <FilePlus2 size={13} />
-              Add .gguf File
-            </button>
-            <button
-              type="button"
-              onClick={handleBrowseModelsDir}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-light-200 dark:border-white/15 bg-light-secondary dark:bg-dark-secondary text-slate-900 dark:text-white hover:bg-light-200 dark:hover:bg-white/10 transition"
-            >
-              <FolderOpen size={13} />
-              Add Scan Folder
-            </button>
-            <button
-              type="button"
-              onClick={loadAll}
-              className="p-1.5 rounded-lg border border-light-200 dark:border-white/15 text-slate-700 dark:text-white/75 hover:bg-light-200 dark:hover:bg-white/10"
-              title="Refresh models list"
-            >
-              <RefreshCw size={13} />
-            </button>
-          </div>
-        </div>
-
-        {config && config.model_dirs.length > 0 && (
-          <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
-            <span className="text-slate-500 dark:text-white/50 font-medium">Scan Folders:</span>
-            {config.model_dirs.map((dir) => (
-              <span
-                key={dir}
-                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md border border-light-200 dark:border-white/10 bg-light-secondary/70 dark:bg-white/[0.04] text-slate-700 dark:text-white/80 font-mono max-w-[280px]"
-                title={dir}
-              >
-                <span className="truncate">{dir}</span>
+      {(view === 'models' || view === 'all') && (
+      <div className="space-y-4">
+        {view === 'models' && (
+          <div className="rounded-xl border border-light-200 dark:border-white/10 bg-white dark:bg-[#0c1017] px-4 py-3 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2 text-xs">
+              <Server size={14} className={runtime?.info.installed ? 'text-emerald-500' : 'text-amber-500'} />
+              {runtime?.info.installed ? (
+                <span className="text-slate-700 dark:text-white/80">
+                  Engine Ready:{' '}
+                  <strong className="text-slate-900 dark:text-white">
+                    {runtime.info.build ? `llama.cpp b${runtime.info.build}` : 'llama-server'} ({runtime.info.backend || runtime.info.runtime_type})
+                  </strong>
+                </span>
+              ) : (
+                <span className="text-amber-700 dark:text-amber-300 font-medium">
+                  No llama.cpp runtime active yet — auto-detect or install one in Engine & Hardware.
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              {!runtime?.info.installed && (
                 <button
                   type="button"
-                  onClick={() => handleRemoveModelsDir(dir)}
-                  className="text-slate-400 hover:text-rose-500 ml-0.5"
-                  title="Remove folder"
+                  onClick={handleAutoDiscoverRuntime}
+                  disabled={scanningRuntime}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium bg-emerald-600 hover:bg-emerald-700 text-white transition"
                 >
-                  ×
+                  {scanningRuntime ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+                  Auto-Detect Engine
                 </button>
-              </span>
-            ))}
-          </div>
-        )}
-
-        {serverStatus.type === 'starting' && (
-          <div className="p-2.5 rounded-lg border border-sky-500/30 bg-sky-500/10 text-xs flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2 min-w-0 text-sky-800 dark:text-sky-200">
-              <Loader2 size={14} className="animate-spin shrink-0" />
-              <span className="truncate font-medium">
-                {serverSnapshot?.logs?.slice(-1)[0] || 'Starting llama-server and loading model...'}
-              </span>
+              )}
+              <button
+                type="button"
+                onClick={() => onNavigateTab?.('engine')}
+                className="px-2.5 py-1 rounded-lg text-xs font-medium border border-light-200 dark:border-white/15 bg-light-secondary dark:bg-dark-secondary text-slate-900 dark:text-white hover:bg-light-200 dark:hover:bg-white/10 transition"
+              >
+                Engine & Hardware
+              </button>
+              <button
+                type="button"
+                onClick={() => onNavigateTab?.('download')}
+                className="px-2.5 py-1 rounded-lg text-xs font-medium bg-sky-600 hover:bg-sky-700 text-white transition"
+              >
+                Download Models
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={handleStopServer}
-              className="px-2 py-0.5 rounded bg-rose-600 hover:bg-rose-700 text-white text-[11px] font-medium shrink-0"
-            >
-              Cancel
-            </button>
           </div>
         )}
 
-        {serverStatus.type === 'error' && (
-          <div className="p-2.5 rounded-lg border border-rose-500/30 bg-rose-500/10 text-xs text-rose-700 dark:text-rose-300 flex items-center justify-between gap-2">
-            <span className="truncate">{serverStatus.message}</span>
-            <button
-              type="button"
-              onClick={() => setShowLogs(true)}
-              className="px-2 py-0.5 rounded border border-rose-500/30 text-[11px] font-medium shrink-0"
-            >
-              View Logs
-            </button>
+        <div className="rounded-xl border border-light-200 dark:border-white/10 bg-white dark:bg-[#0c1017] p-4 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2 text-slate-900 dark:text-white font-semibold text-sm">
+              <HardDrive size={16} className="text-violet-500" />
+              Installed GGUF Models ({installedModels.length})
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={handleBrowseGgufFile}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-light-200 dark:border-white/15 bg-light-secondary dark:bg-dark-secondary text-slate-900 dark:text-white hover:bg-light-200 dark:hover:bg-white/10 transition"
+              >
+                <FilePlus2 size={13} />
+                Add .gguf File
+              </button>
+              <button
+                type="button"
+                onClick={handleBrowseModelsDir}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-light-200 dark:border-white/15 bg-light-secondary dark:bg-dark-secondary text-slate-900 dark:text-white hover:bg-light-200 dark:hover:bg-white/10 transition"
+              >
+                <FolderOpen size={13} />
+                Add Scan Folder
+              </button>
+              <button
+                type="button"
+                onClick={loadAll}
+                className="p-1.5 rounded-lg border border-light-200 dark:border-white/15 text-slate-700 dark:text-white/75 hover:bg-light-200 dark:hover:bg-white/10"
+                title="Refresh models list"
+              >
+                <RefreshCw size={13} />
+              </button>
+            </div>
           </div>
-        )}
 
-        {installedModels.length === 0 ? (
-          <div className="text-center py-6 text-xs text-slate-600 dark:text-white/60 border border-dashed border-light-200 dark:border-white/10 rounded-lg">
-            No `.gguf` models found yet. Add an existing `.gguf` file or download one below.
-          </div>
-        ) : (
-          <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
-            {installedModels.map((m) => {
-              const isLoaded = isRunning && serverSnapshot?.loaded_model_path === m.path;
-              const isThisStarting =
-                (serverStatus.type === 'starting' && serverSnapshot?.loaded_model_path === m.path) ||
-                (startingServer && startingModelPath === m.path);
-              return (
-                <div
-                  key={m.id}
-                  className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 rounded-lg border border-light-200 dark:border-white/10 bg-light-secondary/50 dark:bg-white/[0.03]"
+          {config && config.model_dirs.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+              <span className="text-slate-500 dark:text-white/50 font-medium">Scan Folders:</span>
+              {config.model_dirs.map((dir) => (
+                <span
+                  key={dir}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md border border-light-200 dark:border-white/10 bg-light-secondary/70 dark:bg-white/[0.04] text-slate-700 dark:text-white/80 font-mono max-w-[280px]"
+                  title={dir}
                 >
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-xs font-semibold text-slate-900 dark:text-white truncate">
-                        {m.name}
-                      </span>
-                      {m.quant && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-200 dark:bg-white/10 text-slate-800 dark:text-white/80 font-mono">
-                          {m.quant}
-                        </span>
-                      )}
-                      {m.params_b && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-700 dark:text-sky-300">
-                          {m.params_b}
-                        </span>
-                      )}
-                      {m.is_vision && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-700 dark:text-purple-300">
-                          Vision
-                        </span>
-                      )}
-                      {isLoaded && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-medium">
-                          Loaded
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-[11px] text-slate-600 dark:text-white/55 truncate mt-0.5">
-                      {formatBytes(m.size_bytes)}
-                      {m.context_length ? ` · ${m.context_length.toLocaleString()} ctx` : ''} · {m.path}
-                    </p>
-                  </div>
+                  <span className="truncate">{dir}</span>
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveModelsDir(dir)}
+                    className="text-slate-400 hover:text-rose-500 ml-0.5"
+                    title="Remove folder"
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
 
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => handleSelectModelForChat(m)}
-                      className="px-2.5 py-1 rounded-md text-xs font-medium bg-sky-600 hover:bg-sky-700 text-white transition"
-                    >
-                      Use in Chat
-                    </button>
-                    {isLoaded ? (
+          {statusBanners}
+
+          {installedModels.length === 0 ? (
+            <div className="text-center py-6 text-xs text-slate-600 dark:text-white/60 border border-dashed border-light-200 dark:border-white/10 rounded-lg space-y-2">
+              <p>No `.gguf` models found yet. Add an existing `.gguf` file, add a folder, or download one.</p>
+              <button
+                type="button"
+                onClick={() => onNavigateTab?.('download')}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-700 text-white font-medium text-xs transition"
+              >
+                <Download size={12} /> Browse Downloadable Models
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-2 max-h-[420px] overflow-y-auto pr-1">
+              {installedModels.map((m) => {
+                const isLoaded = isRunning && serverSnapshot?.loaded_model_path === m.path;
+                const isThisStarting =
+                  (serverStatus.type === 'starting' && serverSnapshot?.loaded_model_path === m.path) ||
+                  (startingServer && startingModelPath === m.path);
+                const isSelectedInChat = chatModelProvider?.key === m.path;
+                return (
+                  <div
+                    key={m.id}
+                    className={`flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 rounded-lg border transition ${
+                      isLoaded
+                        ? 'border-emerald-500/40 bg-emerald-500/5'
+                        : 'border-light-200 dark:border-white/10 bg-light-secondary/50 dark:bg-white/[0.03]'
+                    }`}
+                  >
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs font-semibold text-slate-900 dark:text-white truncate">
+                          {m.name}
+                        </span>
+                        {m.quant && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-200 dark:bg-white/10 text-slate-800 dark:text-white/80 font-mono">
+                            {m.quant}
+                          </span>
+                        )}
+                        {m.params_b && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-700 dark:text-sky-300">
+                            {m.params_b}
+                          </span>
+                        )}
+                        {m.is_vision && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-700 dark:text-purple-300">
+                            Vision
+                          </span>
+                        )}
+                        {isLoaded && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-medium">
+                            Loaded & Ready
+                          </span>
+                        )}
+                        {isSelectedInChat && !isLoaded && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-sky-500/15 text-sky-700 dark:text-sky-300 font-medium">
+                            Default for Chat
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-slate-600 dark:text-white/55 truncate mt-0.5">
+                        {formatBytes(m.size_bytes)}
+                        {m.context_length ? ` · ${m.context_length.toLocaleString()} ctx` : ''} · {m.path}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0">
                       <button
                         type="button"
-                        onClick={handleStopServer}
-                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-rose-600 hover:bg-rose-700 text-white transition"
+                        onClick={() => handleSelectModelForChat(m)}
+                        className="px-2.5 py-1 rounded-md text-xs font-medium bg-sky-600 hover:bg-sky-700 text-white transition"
                       >
-                        <Square size={11} /> Stop
+                        Use in Chat
                       </button>
-                    ) : isThisStarting ? (
+                      {isLoaded ? (
+                        <button
+                          type="button"
+                          onClick={handleStopServer}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-rose-600 hover:bg-rose-700 text-white transition"
+                        >
+                          <Square size={11} /> Stop
+                        </button>
+                      ) : isThisStarting ? (
+                        <button
+                          type="button"
+                          onClick={handleStopServer}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-amber-600 hover:bg-amber-700 text-white transition"
+                          title="Loading model — click to cancel"
+                        >
+                          <Loader2 size={11} className="animate-spin" /> Loading...
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => handleStartServer(m.path)}
+                          disabled={startingServer || serverStatus.type === 'starting'}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white transition"
+                        >
+                          <Play size={11} /> Start
+                        </button>
+                      )}
                       <button
                         type="button"
-                        onClick={handleStopServer}
-                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-amber-600 hover:bg-amber-700 text-white transition"
-                        title="Loading model — click to cancel"
+                        onClick={() => handleDeleteModel(m.path)}
+                        className="p-1.5 rounded-md text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 transition"
+                        title="Delete model"
                       >
-                        <Loader2 size={11} className="animate-spin" /> Loading...
+                        <Trash2 size={13} />
                       </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => handleStartServer(m.path)}
-                        disabled={startingServer || serverStatus.type === 'starting'}
-                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white transition"
-                      >
-                        <Play size={11} /> Start
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteModel(m.path)}
-                      className="p-1.5 rounded-md text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 transition"
-                      title="Delete model"
-                    >
-                      <Trash2 size={13} />
-                    </button>
+                    </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
+      )}
 
       {/* 3. Engine Inference & Performance Settings */}
-      {serverConfig && (
+      {(view === 'engine' || view === 'all') && serverConfig && (
         <div className="rounded-xl border border-light-200 dark:border-white/10 bg-white dark:bg-[#0c1017] p-4 space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2 text-slate-900 dark:text-white font-semibold text-sm">
@@ -1141,7 +1330,9 @@ const OfflineGgufPanel = ({
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
             <label className="space-y-1">
-              <span className="text-slate-700 dark:text-white/75 font-medium block">Port</span>
+              <span className="text-slate-700 dark:text-white/75 font-medium block">
+                Preferred Port <span className="text-[10px] font-normal text-slate-500 dark:text-white/50">(auto-fallbacks if busy)</span>
+              </span>
               <input
                 type="number"
                 value={serverConfig.port}
@@ -1255,6 +1446,8 @@ const OfflineGgufPanel = ({
             </label>
           </div>
 
+          {view === 'engine' && statusBanners}
+
           {showLogs && serverSnapshot?.logs && (
             <pre className="mt-2 p-2.5 rounded-lg bg-slate-950 text-emerald-300 text-[11px] font-mono max-h-40 overflow-y-auto whitespace-pre-wrap">
               {serverSnapshot.logs.length > 0 ? serverSnapshot.logs.join('\n') : 'No llama-server logs yet.'}
@@ -1264,6 +1457,7 @@ const OfflineGgufPanel = ({
       )}
 
       {/* 4. HuggingFace GGUF Browser & Recommended Models */}
+      {(view === 'download' || view === 'all') && (
       <div className="rounded-xl border border-light-200 dark:border-white/10 bg-white dark:bg-[#0c1017] p-4 space-y-3">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 text-slate-900 dark:text-white font-semibold text-sm">
@@ -1389,6 +1583,7 @@ const OfflineGgufPanel = ({
           </div>
         )}
       </div>
+      )}
     </div>
   );
 };

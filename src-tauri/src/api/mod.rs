@@ -1184,11 +1184,17 @@ async fn run_chat_agent(
                         "value": [{
                             "id": status_step_id,
                             "type": "searching",
-                            "searching": [format!("Offline GGUF engine ready ({})", effective_model_key)]
+                            "searching": [format!("Model loaded and ready to use ({})", effective_model_key)]
                         }]
                     }]
                 });
                 let _ = tx.send(Ok(format!("{}\n", done_patch))).await;
+                let _ = tx
+                    .send(Ok(format!(
+                        "{}\n",
+                        json!({ "type": "modelReady", "model": effective_model_key })
+                    )))
+                    .await;
                 Some(ConfigModelProvider {
                     id: "local-gguf".to_string(),
                     name: "Local GGUF Engine".to_string(),

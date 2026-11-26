@@ -170,8 +170,16 @@ impl LocalLlmState {
             .await
             .map_err(|e| e.to_string())?;
 
+        let (actual_host, actual_port) = {
+            let s = self.server.lock().unwrap();
+            match s.status {
+                server::ServerStatus::Running { port, ref host, .. } => (host.clone(), port),
+                _ => (server_cfg.host.clone(), server_cfg.port),
+            }
+        };
+
         Ok((
-            format!("http://{}:{}/v1", server_cfg.host, server_cfg.port),
+            format!("http://{}:{}/v1", actual_host, actual_port),
             target.filename,
         ))
     }

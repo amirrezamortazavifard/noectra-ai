@@ -203,6 +203,31 @@ async fn check_http_health(port: u16) -> bool {
     }
 }
 
+async fn find_available_port(preferred: u16) -> u16 {
+    let mut candidates: Vec<u16> = Vec::with_capacity(56);
+    if preferred > 0 {
+        candidates.push(preferred);
+        for p in preferred.saturating_add(1)..=preferred.saturating_add(25) {
+            candidates.push(p);
+        }
+    }
+    for p in 18081..=18110 {
+        if !candidates.contains(&p) {
+            candidates.push(p);
+        }
+    }
+    for port in candidates {
+        if !check_tcp_open(port).await && std::net::TcpListener::bind(("127.0.0.1", port)).is_ok() {
+            return port;
+        }
+    }
+    std::net::TcpListener::bind("127.0.0.1:0")
+        .ok()
+        .and_then(|l| l.local_addr().ok())
+        .map(|a| a.port())
+        .unwrap_or(preferred)
+}
+
 async fn wait_for_port_free(port: u16) -> bool {
     for _ in 0..20 {
         if !check_tcp_open(port).await {
@@ -225,7 +250,8 @@ pub async fn start_server(
         }
     }
 
-    let fallback_configs = get_fallback_configs(config);
+    let preferred_port = config.port;
+    let host = config.host.clone();
     let cancel_token = {
         let mut s = state.lock().unwrap();
         s.cancel_token
@@ -244,18 +270,22 @@ pub async fn start_server(
         }
     };
 
-    let port = config.port;
-    let host = config.host.clone();
-    force_free_port(port).await;
-    if !wait_for_port_free(port).await {
-        let msg = format!("Port {} is occupied and could not be freed", port);
-        push_log(&state, format!("[error] {}", msg));
-        let mut s = state.lock().unwrap();
-        s.status = ServerStatus::Error {
-            message: msg.clone(),
-        };
-        anyhow::bail!(msg);
+    // Never fail just because preferred_port (e.g. 8081) is used by another app on the machine;
+    // pick the first free local port automatically so offline inference always works out of the box.
+    let port = find_available_port(preferred_port).await;
+    if port != preferred_port {
+        push_log(
+            &state,
+            format!(
+                "[startup] Port {} is currently in use — automatically using free port {}",
+                preferred_port, port
+            ),
+        );
     }
+
+    let mut effective_base_cfg = config.clone();
+    effective_base_cfg.port = port;
+    let fallback_configs = get_fallback_configs(&effective_base_cfg);
 
     for (level, cfg) in fallback_configs.iter().enumerate() {
         {

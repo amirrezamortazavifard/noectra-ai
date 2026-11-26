@@ -93,8 +93,15 @@ const SettingsDialogue = ({
         window.dispatchEvent(new CustomEvent('models-tab-change', { detail: e.detail.tab }));
       }
     };
+    const handleCloseSettings = () => {
+      setIsOpen(false);
+    };
     window.addEventListener('open-settings', handleOpenSettings);
-    return () => window.removeEventListener('open-settings', handleOpenSettings);
+    window.addEventListener('close-settings', handleCloseSettings);
+    return () => {
+      window.removeEventListener('open-settings', handleOpenSettings);
+      window.removeEventListener('close-settings', handleCloseSettings);
+    };
   }, [setIsOpen]);
 
   useEffect(() => {
