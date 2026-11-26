@@ -274,7 +274,8 @@ async fn get_provider_models(
         if p.provider_type == "ollama" {
             let base = p.base_url.as_deref().unwrap_or("http://localhost:11434");
             let url = format!("{}/api/tags", base.trim_end_matches('/'));
-            if let Ok(res) = state.http_client.get(&url).send().await {
+            let probe_client = Client::builder().no_proxy().build().unwrap_or_else(|_| state.http_client.clone());
+            if let Ok(res) = probe_client.get(&url).send().await {
                 if let Ok(val) = res.json::<Value>().await {
                     if let Some(models) = val["models"].as_array() {
                         let list: Vec<Value> = models
@@ -300,7 +301,8 @@ async fn get_provider_models(
             } else {
                 format!("{}/v1/models", clean_base)
             };
-            if let Ok(res) = state.http_client.get(&url).timeout(std::time::Duration::from_millis(1500)).send().await {
+            let probe_client = Client::builder().no_proxy().build().unwrap_or_else(|_| state.http_client.clone());
+            if let Ok(res) = probe_client.get(&url).timeout(std::time::Duration::from_millis(1500)).send().await {
                 if let Ok(val) = res.json::<Value>().await {
                     let models_opt = val["data"].as_array().or_else(|| val["models"].as_array()).or_else(|| val.as_array());
                     if let Some(models) = models_opt {

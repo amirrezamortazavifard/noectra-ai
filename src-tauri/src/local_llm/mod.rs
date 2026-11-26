@@ -29,6 +29,7 @@ use tower_http::cors::{Any, CorsLayer};
 pub struct LocalLlmState {
     pub config: Arc<Mutex<LocalLlmConfig>>,
     pub server: SharedServerState,
+    pub start_lock: Arc<tokio::sync::Mutex<()>>,
     pub downloads: Arc<Mutex<HashMap<String, DownloadProgress>>>,
     pub http_client: Client,
     pub cached_system_info: Arc<Mutex<Option<SystemInfo>>>,
@@ -49,6 +50,7 @@ impl LocalLlmState {
         Self {
             config: Arc::new(Mutex::new(cfg)),
             server: server::new_server_state(),
+            start_lock: Arc::new(tokio::sync::Mutex::new(())),
             downloads: Arc::new(Mutex::new(HashMap::new())),
             http_client,
             cached_system_info: Arc::new(Mutex::new(None)),
@@ -91,6 +93,8 @@ impl LocalLlmState {
     /// Ensures llama-server is running with the specified GGUF model (by model ID, filename, or path).
     /// Returns `(base_url, model_name)` on success.
     pub async fn ensure_model_running(&self, model_key: &str) -> Result<(String, String), String> {
+        let _start_guard = self.start_lock.lock().await;
+
         let cfg = self.get_config();
         let installed = models::list_installed_models(&cfg).map_err(|e| e.to_string())?;
 
@@ -141,12 +145,12 @@ impl LocalLlmState {
             }
         }
         let server_binary = rt_info.server_binary.ok_or_else(|| {
-            "No llama.cpp runtime (llama-server) is installed yet. Open Settings -> Models -> Offline Engine & GGUF to download llama.cpp or select your llama-server folder/executable.".to_string()
+            "No llama.cpp runtime (llama-server) is installed yet. Open Settings -> Models -> Engine & Hardware to download llama.cpp or select your llama-server folder/executable.".to_string()
         })?;
 
         let mut server_cfg = cfg.server_config.clone();
-        // When switching to a new model or n_ctx == 0 (auto), apply hardware-aware defaults so low-VRAM GPUs don't OOM
-        if server_cfg.model_path != target_path || server_cfg.n_ctx == 0 {
+        // When switching to a different model, apply hardware-aware defaults so low-VRAM GPUs don't OOM
+        if server_cfg.model_path != target_path {
             let sys = self.get_system_info_cached();
             let size_mb = (target.size_bytes / (1024 * 1024)).max(512);
             let suggested = server::suggest_server_config(&target_path, size_mb, &sys);
@@ -857,17 +861,27 @@ async fn server_start_handler(
         return Err((StatusCode::BAD_REQUEST, "No GGUF model selected".to_string()));
     }
 
+    // Avoid duplicate concurrent starts for the exact same model
+    {
+        let s = state.server.lock().unwrap();
+        if matches!(s.status, server::ServerStatus::Starting)
+            && s.loaded_model_path.as_deref() == Some(cfg.server_config.model_path.as_str())
+        {
+            return Ok(Json(json!({ "started": false, "already_starting": true })));
+        }
+    }
+
     let rt_info = runtime::get_runtime_info(&cfg).map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
     let server_binary = rt_info.server_binary.ok_or((
         StatusCode::BAD_REQUEST,
-        "llama-server binary not found. Please install or select a runtime in Settings -> Models -> Offline Engine & GGUF.".to_string(),
+        "llama-server binary not found. Please install or select a runtime in Settings -> Models -> Engine & Hardware.".to_string(),
     ))?;
 
     let installed = models::list_installed_models(&cfg).unwrap_or_default();
     if let Some(m) = installed.iter().find(|m| m.path.to_string_lossy() == cfg.server_config.model_path) {
         cfg.server_config.mmproj_path = m.mmproj_path.as_ref().map(|p| p.to_string_lossy().to_string());
         cfg.selected_model_id = Some(m.id.clone());
-        if cfg.server_config.n_ctx == 0 || prev_model_path != cfg.server_config.model_path {
+        if prev_model_path != cfg.server_config.model_path {
             let sys = state.get_system_info_cached();
             let size_mb = (m.size_bytes / (1024 * 1024)).max(512);
             let suggested = server::suggest_server_config(&cfg.server_config.model_path, size_mb, &sys);
@@ -876,8 +890,6 @@ async fn server_start_handler(
             cfg.server_config.cache_type_k = suggested.cache_type_k;
             cfg.server_config.cache_type_v = suggested.cache_type_v;
         }
-    } else if cfg.server_config.n_ctx == 0 {
-        cfg.server_config.n_ctx = 4096;
     }
 
     {
@@ -886,36 +898,22 @@ async fn server_start_handler(
         let _ = guard.save();
     }
 
-    let needs_stop = {
-        let s = state.server.lock().unwrap();
-        s.is_running()
-    };
-    if needs_stop {
-        let _ = server::stop_server(&state.server).await;
-    }
-
-    {
-        let mut s = state.server.lock().unwrap();
-        s.status = server::ServerStatus::Starting;
-        s.loaded_model_path = Some(cfg.server_config.model_path.clone());
-        s.log_lines.clear();
-        s.log_lines.push(format!(
-            "[init] Starting {} with {}...",
-            server_binary.display(),
-            cfg.server_config.model_path
-        ));
-    }
-
-    let server_state = state.server.clone();
+    // Spawn serialized startup protected by `start_lock` so two spawns never race on `s.process`.
+    let state_clone = state.clone();
     let server_cfg = cfg.server_config.clone();
     tokio::spawn(async move {
-        // Clear Starting lock cleanly before calling start_server
-        {
-            let mut s = server_state.lock().unwrap();
-            s.status = server::ServerStatus::Stopped;
+        let _start_guard = state_clone.start_lock.lock().await;
+
+        let needs_stop = {
+            let s = state_clone.server.lock().unwrap();
+            s.is_running()
+        };
+        if needs_stop {
+            let _ = server::stop_server(&state_clone.server).await;
         }
-        if let Err(e) = server::start_server(&server_binary, &server_cfg, server_state.clone()).await {
-            let mut s = server_state.lock().unwrap();
+
+        if let Err(e) = server::start_server(&server_binary, &server_cfg, state_clone.server.clone()).await {
+            let mut s = state_clone.server.lock().unwrap();
             s.log_lines.push(format!("[error] {}", e));
             if !matches!(s.status, server::ServerStatus::Error { .. }) {
                 s.status = server::ServerStatus::Error { message: e.to_string() };

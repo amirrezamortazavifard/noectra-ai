@@ -2,8 +2,27 @@ use futures::StreamExt;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use std::borrow::Cow;
 use std::time::Duration;
 use tokio::sync::mpsc;
+
+fn is_loopback_url(url: &str) -> bool {
+    let lower = url.to_lowercase();
+    lower.contains("://127.0.0.1") || lower.contains("://localhost") || lower.contains("://[::1]")
+}
+
+fn client_for_url<'a>(shared: &'a Client, url: &str) -> Cow<'a, Client> {
+    if is_loopback_url(url) {
+        if let Ok(local) = Client::builder()
+            .no_proxy()
+            .timeout(Duration::from_secs(300))
+            .build()
+        {
+            return Cow::Owned(local);
+        }
+    }
+    Cow::Borrowed(shared)
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChatMessage {
@@ -119,7 +138,8 @@ impl ModelService {
                     "temperature": 0.3
                 });
 
-                let mut req = client.post(&url).json(&req_body).timeout(Duration::from_secs(60));
+                let effective_client = client_for_url(client, &url);
+                let mut req = effective_client.post(&url).json(&req_body).timeout(Duration::from_secs(60));
                 if provider_type == "openrouter" {
                     req = req.header("HTTP-Referer", "https://noectra.ai").header("X-Title", "Noectra AI");
                 }
@@ -228,7 +248,8 @@ impl ModelService {
             "tools": tools
         });
 
-        let mut req = client.post(&url).json(&req_body).timeout(Duration::from_secs(60));
+        let effective_client = client_for_url(client, &url);
+        let mut req = effective_client.post(&url).json(&req_body).timeout(Duration::from_secs(60));
         if provider_type == "openrouter" {
             req = req.header("HTTP-Referer", "https://noectra.ai").header("X-Title", "Noectra AI");
         }
@@ -385,9 +406,10 @@ impl ModelService {
                     && !effective_base.contains("20128")
                     && provider_type != "9router";
 
+                let effective_client = client_for_url(client, &url);
                 let mut res_opt = None;
                 for attempt in 0..25 {
-                    let mut req = client.post(&url).json(&req_body).timeout(Duration::from_secs(300));
+                    let mut req = effective_client.post(&url).json(&req_body).timeout(Duration::from_secs(300));
                     if provider_type == "openrouter" {
                         req = req.header("HTTP-Referer", "https://noectra.ai").header("X-Title", "Noectra AI");
                     }

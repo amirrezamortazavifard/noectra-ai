@@ -174,6 +174,7 @@ async fn force_free_port(port: u16) {
     }
 }
 
+/// Returns true if a TCP socket is listening on `127.0.0.1:<port>`.
 async fn check_tcp_open(port: u16) -> bool {
     use tokio::net::TcpStream;
     let addr = format!("127.0.0.1:{}", port);
@@ -187,15 +188,21 @@ async fn check_tcp_open(port: u16) -> bool {
     )
 }
 
-/// Actually query `GET http://127.0.0.1:<port>/health` and return `true` ONLY when HTTP status is 200 OK.
-/// While llama-server is still loading weights into RAM/VRAM it returns 503 Service Unavailable.
+/// Build an HTTP client that ALWAYS bypasses OS/env HTTP proxies for local `127.0.0.1` probes.
+fn build_local_http_client(timeout_ms: u64) -> Option<reqwest::Client> {
+    reqwest::Client::builder()
+        .no_proxy()
+        .timeout(std::time::Duration::from_millis(timeout_ms))
+        .build()
+        .ok()
+}
+
+/// Query `GET http://127.0.0.1:<port>/health` (bypassing any system proxy) and return `true`
+/// when status is 200 OK. While llama-server is still loading weights it returns 503.
 async fn check_http_health(port: u16) -> bool {
     let url = format!("http://127.0.0.1:{}/health", port);
-    let Ok(client) = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_millis(900))
-        .build()
-    else {
-        return false;
+    let Some(client) = build_local_http_client(900) else {
+        return check_tcp_open(port).await;
     };
     match client.get(&url).send().await {
         Ok(resp) => resp.status().is_success(),
@@ -228,16 +235,6 @@ async fn find_available_port(preferred: u16) -> u16 {
         .unwrap_or(preferred)
 }
 
-async fn wait_for_port_free(port: u16) -> bool {
-    for _ in 0..20 {
-        if !check_tcp_open(port).await {
-            return true;
-        }
-        tokio::time::sleep(std::time::Duration::from_millis(300)).await;
-    }
-    false
-}
-
 pub async fn start_server(
     server_binary: &PathBuf,
     config: &ServerConfig,
@@ -265,7 +262,7 @@ pub async fn start_server(
     let push_log = |state_ref: &SharedServerState, line: String| {
         let mut s = state_ref.lock().unwrap();
         s.log_lines.push(line);
-        if s.log_lines.len() > 400 {
+        if s.log_lines.len() > 500 {
             s.log_lines.drain(0..100);
         }
     };
@@ -277,7 +274,7 @@ pub async fn start_server(
         push_log(
             &state,
             format!(
-                "[startup] Port {} is currently in use — automatically using free port {}",
+                "[startup] Port {} is occupied — automatically using free port {}",
                 preferred_port, port
             ),
         );
@@ -291,15 +288,21 @@ pub async fn start_server(
         {
             let s = state.lock().unwrap();
             if matches!(s.status, ServerStatus::Stopped) {
+                push_log(&state, "[fallback] Server stopped by user".to_string());
                 anyhow::bail!("Server stopped by user");
             }
         }
 
-        let desc = describe_config_level(cfg, config);
+        let desc = describe_config_level(cfg, &effective_base_cfg);
         let total = fallback_configs.len();
         push_log(
             &state,
-            format!("[startup] Attempt {}/{}: {}", level + 1, total, desc),
+            format!(
+                "[fallback] Attempt {}/{} — {}",
+                level + 1,
+                total,
+                desc
+            ),
         );
 
         let args = build_args(cfg);
@@ -319,12 +322,13 @@ pub async fn start_server(
         let mut child = match cmd.spawn() {
             Ok(c) => c,
             Err(e) => {
-                push_log(&state, format!("[error] Spawn failed: {}", e));
+                push_log(&state, format!("[fallback] Spawn failed: {}", e));
                 continue;
             }
         };
 
         let pid = child.id().unwrap_or(0);
+        push_log(&state, format!("[fallback] Process spawned — PID: {}", pid));
         let stdout = child.stdout.take().expect("stdout not piped");
         let stderr = child.stderr.take().expect("stderr not piped");
 
@@ -369,7 +373,7 @@ pub async fn start_server(
                             } else {
                                 format!("{} {}", prefix, line)
                             });
-                            if s.log_lines.len() > 400 {
+                            if s.log_lines.len() > 500 {
                                 s.log_lines.drain(0..100);
                             }
                         }
@@ -395,33 +399,63 @@ pub async fn start_server(
             state.clone(),
         );
 
+        // Exactly like D:\My Fucking Projects\LLM: wait up to 60s per fallback level for
+        // stdout/stderr "listening on" OR no-proxy HTTP 200 /health.
         let mut success = false;
         let mut cancelled = false;
         let attempt_start = std::time::Instant::now();
-        let max_attempt_secs: u64 = 180;
+        let max_attempt_secs: u64 = 60;
 
         loop {
             tokio::time::sleep(std::time::Duration::from_millis(500)).await;
             let elapsed = attempt_start.elapsed().as_secs();
 
             if elapsed >= max_attempt_secs {
-                push_log(&state, format!("[timeout] Attempt {} timed out", level + 1));
+                push_log(
+                    &state,
+                    format!(
+                        "[fallback] Attempt {}/{} timed out after {}s — moving on",
+                        level + 1,
+                        total,
+                        max_attempt_secs
+                    ),
+                );
                 break;
             }
             if cancel_token.load(std::sync::atomic::Ordering::Relaxed) {
                 cancelled = true;
+                let mut s = state.lock().unwrap();
+                if let Some(mut c) = s.process.take() {
+                    let _ = c.start_kill();
+                }
                 break;
             }
-            // Wait until llama-server logs it is ready AND /health returns HTTP 200 OK (not 503 Loading model)
-            if check_http_health(port).await {
+            if started.load(std::sync::atomic::Ordering::Relaxed)
+                || check_http_health(port).await
+            {
+                // Brief settle check so `/health` finishes transitioning from 503 if needed
+                for _ in 0..8 {
+                    if check_http_health(port).await {
+                        break;
+                    }
+                    tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+                }
                 success = true;
+                push_log(
+                    &state,
+                    format!("[fallback] Server listening detected at {}s", elapsed),
+                );
                 break;
             }
+
             let exited_code = {
                 let mut s = state.lock().unwrap();
                 match s.process.as_mut() {
                     Some(c) => match c.try_wait() {
-                        Ok(Some(st)) => Some(format!("{:?}", st.code())),
+                        Ok(Some(st)) => {
+                            s.process = None;
+                            Some(format!("{:?}", st.code()))
+                        }
                         Ok(None) => None,
                         Err(e) => Some(format!("wait error: {}", e)),
                     },
@@ -432,8 +466,9 @@ pub async fn start_server(
                 push_log(
                     &state,
                     format!(
-                        "[error] Process exited early on attempt {} (exit code: {})",
+                        "[error] Process exited early on attempt {} at {}s (exit code: {})",
                         level + 1,
+                        elapsed,
                         code_str
                     ),
                 );
@@ -444,7 +479,10 @@ pub async fn start_server(
         if success {
             push_log(
                 &state,
-                format!("[ready] llama-server listening on http://{}:{} ({})", host, port, desc),
+                format!(
+                    "[ready] llama-server listening on http://{}:{} ({})",
+                    host, port, desc
+                ),
             );
             {
                 let mut s = state.lock().unwrap();
@@ -476,9 +514,20 @@ pub async fn start_server(
                                 s.status = ServerStatus::Stopped;
                             } else {
                                 let code = status.code().unwrap_or(-1);
-                                let msg = format!("llama-server exited with code {}", code);
+                                let hex = format!("0x{:08X}", code as u32);
+                                let msg = format!("Server crashed with exit code {} ({})", code, hex);
                                 s.log_lines.push(format!("[error] {}", msg));
-                                s.status = ServerStatus::Error { message: msg };
+                                let has_device_lost =
+                                    s.log_lines.iter().any(|l| l.contains("ErrorDeviceLost"));
+                                if has_device_lost {
+                                    let hint = "[hint] Vulkan GPU device lost. Try CPU-only or disable mmproj GPU offload.";
+                                    s.log_lines.push(hint.to_string());
+                                    s.status = ServerStatus::Error {
+                                        message: format!("{} — Vulkan GPU device lost.", msg),
+                                    };
+                                } else {
+                                    s.status = ServerStatus::Error { message: msg };
+                                }
                             }
                             break;
                         }
@@ -487,7 +536,7 @@ pub async fn start_server(
                             let mut s = state_monitor.lock().unwrap();
                             s.process = None;
                             s.status = ServerStatus::Error {
-                                message: format!("Process monitor error: {}", e),
+                                message: format!("Server process error: {}", e),
                             };
                             break;
                         }
@@ -497,6 +546,7 @@ pub async fn start_server(
             return Ok(());
         }
 
+        // Stop readers, wait child exit cleanly, and run fallback health/port check (just like LLM)
         stop.store(true, std::sync::atomic::Ordering::Relaxed);
         let killed_child = {
             let mut s = state.lock().unwrap();
@@ -504,9 +554,34 @@ pub async fn start_server(
         };
         if let Some(mut child) = killed_child {
             let _ = child.start_kill();
-            let _ = tokio::time::timeout(std::time::Duration::from_secs(3), child.wait()).await;
+            let _ = tokio::time::timeout(std::time::Duration::from_secs(5), child.wait()).await;
         }
         let _ = tokio::join!(h_out, h_err);
+
+        if !cancelled && check_http_health(port).await {
+            push_log(
+                &state,
+                format!("[ready] Server detected via health check (attempt {})", level + 1),
+            );
+            {
+                let mut s = state.lock().unwrap();
+                s.status = ServerStatus::Running {
+                    port,
+                    pid,
+                    host: host.clone(),
+                };
+            }
+            return Ok(());
+        }
+
+        #[cfg(target_os = "windows")]
+        if pid > 0 {
+            let _ = tokio::process::Command::new("taskkill")
+                .args(["/F", "/PID", &pid.to_string()])
+                .creation_flags(0x08000000)
+                .output()
+                .await;
+        }
         force_free_port(port).await;
 
         if cancelled {
@@ -517,7 +592,7 @@ pub async fn start_server(
         }
     }
 
-    let msg = "All GPU/CPU fallback configurations failed to start llama-server".to_string();
+    let msg = "All fallback configurations exhausted — could not start llama-server".to_string();
     {
         let mut s = state.lock().unwrap();
         s.status = ServerStatus::Error {
@@ -655,6 +730,26 @@ pub fn build_args(config: &ServerConfig) -> Vec<String> {
         args.push(seed.to_string());
     }
 
+    if let Some(scale) = config.rope_freq_scale {
+        args.push("--rope-freq-scale".to_string());
+        args.push(format!("{:.6}", scale));
+    }
+
+    if let Some(base) = config.rope_freq_base {
+        args.push("--rope-freq-base".to_string());
+        args.push(format!("{:.1}", base));
+    }
+
+    if let Some(n) = config.grp_attn_n {
+        args.push("--grp-attn-n".to_string());
+        args.push(n.to_string());
+    }
+
+    if let Some(w) = config.grp_attn_w {
+        args.push("--grp-attn-w".to_string());
+        args.push(w.to_string());
+    }
+
     args.push("--parallel".to_string());
     args.push(config.parallel.to_string());
 
@@ -702,5 +797,28 @@ pub fn suggest_server_config(
         cache_type_k,
         cache_type_v: "f16".to_string(),
         ..ServerConfig::default()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_build_args_includes_llm_flags() {
+        let mut cfg = ServerConfig::default();
+        cfg.model_path = "model.gguf".to_string();
+        cfg.mmproj_path = Some("mmproj.gguf".to_string());
+        cfg.no_mmproj_offload = true;
+        cfg.rope_freq_scale = Some(0.5);
+        let args = build_args(&cfg);
+        assert!(args.contains(&"--no-mmproj-offload".to_string()));
+        assert!(args.contains(&"--rope-freq-scale".to_string()));
+        assert!(args.contains(&"8192".to_string()));
+    }
+
+    #[test]
+    fn test_local_http_client_builds_with_no_proxy() {
+        assert!(build_local_http_client(900).is_some());
     }
 }
