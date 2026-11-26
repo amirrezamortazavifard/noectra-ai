@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   CheckCircle2,
   Cpu,
@@ -70,11 +70,13 @@ const OfflineGgufPanel = ({
   const [loadingInit, setLoadingInit] = useState(true);
   const [loadingRelease, setLoadingRelease] = useState(false);
   const [startingServer, setStartingServer] = useState(false);
+  const [startingModelPath, setStartingModelPath] = useState<string | null>(null);
   const [savingConfig, setSavingConfig] = useState(false);
   const [showLogs, setShowLogs] = useState(false);
   const [customBuilds, setCustomBuilds] = useState<CustomBuild[] | null>(null);
   const [showAllAssets, setShowAllAssets] = useState(false);
   const [scanningRuntime, setScanningRuntime] = useState(false);
+  const prevStatusRef = useRef<string>('stopped');
 
   const loadAll = useCallback(async () => {
     try {
@@ -138,12 +140,24 @@ const OfflineGgufPanel = ({
           }
         }
         if (srvRes.ok) {
-          setServerSnapshot(await srvRes.json());
+          const snap: ServerStateSnapshot = await srvRes.json();
+          setServerSnapshot(snap);
+          if (snap.status.type !== 'starting') {
+            setStartingModelPath(null);
+            setStartingServer(false);
+          }
+          if (snap.status.type === 'running' && prevStatusRef.current === 'starting') {
+            toast.success(`Model loaded and ready on port ${snap.status.port}!`);
+          } else if (snap.status.type === 'error' && prevStatusRef.current === 'starting') {
+            toast.error(`Server failed: ${snap.status.message}`);
+            setShowLogs(true);
+          }
+          prevStatusRef.current = snap.status.type;
         }
       } catch {
         // ignore transient poll failures
       }
-    }, 1500);
+    }, 900);
     return () => clearInterval(timer);
   }, [loadAll, onModelsUpdated]);
 
@@ -472,6 +486,9 @@ const OfflineGgufPanel = ({
       return;
     }
     setStartingServer(true);
+    setStartingModelPath(targetPath);
+    prevStatusRef.current = 'starting';
+    setServerConfig((prev) => (prev ? { ...prev, model_path: targetPath } : prev));
     try {
       const res = await fetch('/api/local-llm/server/start', {
         method: 'POST',
@@ -482,12 +499,13 @@ const OfflineGgufPanel = ({
         }),
       });
       if (!res.ok) throw new Error(await res.text());
-      toast.success('llama-server started cleanly!');
-      await loadAll();
+      toast.info('Starting llama-server and loading model weights...');
+      const srvRes = await fetch('/api/local-llm/server/status');
+      if (srvRes.ok) setServerSnapshot(await srvRes.json());
     } catch (e: any) {
       toast.error(`Failed to start server: ${e.message}`);
-    } finally {
       setStartingServer(false);
+      setStartingModelPath(null);
     }
   };
 
@@ -943,6 +961,37 @@ const OfflineGgufPanel = ({
           </div>
         )}
 
+        {serverStatus.type === 'starting' && (
+          <div className="p-2.5 rounded-lg border border-sky-500/30 bg-sky-500/10 text-xs flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0 text-sky-800 dark:text-sky-200">
+              <Loader2 size={14} className="animate-spin shrink-0" />
+              <span className="truncate font-medium">
+                {serverSnapshot?.logs?.slice(-1)[0] || 'Starting llama-server and loading model...'}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={handleStopServer}
+              className="px-2 py-0.5 rounded bg-rose-600 hover:bg-rose-700 text-white text-[11px] font-medium shrink-0"
+            >
+              Cancel
+            </button>
+          </div>
+        )}
+
+        {serverStatus.type === 'error' && (
+          <div className="p-2.5 rounded-lg border border-rose-500/30 bg-rose-500/10 text-xs text-rose-700 dark:text-rose-300 flex items-center justify-between gap-2">
+            <span className="truncate">{serverStatus.message}</span>
+            <button
+              type="button"
+              onClick={() => setShowLogs(true)}
+              className="px-2 py-0.5 rounded border border-rose-500/30 text-[11px] font-medium shrink-0"
+            >
+              View Logs
+            </button>
+          </div>
+        )}
+
         {installedModels.length === 0 ? (
           <div className="text-center py-6 text-xs text-slate-600 dark:text-white/60 border border-dashed border-light-200 dark:border-white/10 rounded-lg">
             No `.gguf` models found yet. Add an existing `.gguf` file or download one below.
@@ -951,6 +1000,9 @@ const OfflineGgufPanel = ({
           <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
             {installedModels.map((m) => {
               const isLoaded = isRunning && serverSnapshot?.loaded_model_path === m.path;
+              const isThisStarting =
+                (serverStatus.type === 'starting' && serverSnapshot?.loaded_model_path === m.path) ||
+                (startingServer && startingModelPath === m.path);
               return (
                 <div
                   key={m.id}
@@ -1004,12 +1056,21 @@ const OfflineGgufPanel = ({
                       >
                         <Square size={11} /> Stop
                       </button>
+                    ) : isThisStarting ? (
+                      <button
+                        type="button"
+                        onClick={handleStopServer}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-amber-600 hover:bg-amber-700 text-white transition"
+                        title="Loading model — click to cancel"
+                      >
+                        <Loader2 size={11} className="animate-spin" /> Loading...
+                      </button>
                     ) : (
                       <button
                         type="button"
                         onClick={() => handleStartServer(m.path)}
-                        disabled={startingServer}
-                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-emerald-600 hover:bg-emerald-700 text-white transition"
+                        disabled={startingServer || serverStatus.type === 'starting'}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white transition"
                       >
                         <Play size={11} /> Start
                       </button>

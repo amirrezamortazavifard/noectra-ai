@@ -274,6 +274,9 @@ pub async fn start_server(
 
         let args = build_args(cfg);
         let mut cmd = Command::new(server_binary);
+        if let Some(bin_dir) = server_binary.parent() {
+            cmd.current_dir(bin_dir);
+        }
         cmd.args(&args)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -384,15 +387,26 @@ pub async fn start_server(
                 success = true;
                 break;
             }
-            let exited_early = {
+            let exited_code = {
                 let mut s = state.lock().unwrap();
                 match s.process.as_mut() {
-                    Some(c) => matches!(c.try_wait(), Ok(Some(_))),
-                    None => true,
+                    Some(c) => match c.try_wait() {
+                        Ok(Some(st)) => Some(format!("{:?}", st.code())),
+                        Ok(None) => None,
+                        Err(e) => Some(format!("wait error: {}", e)),
+                    },
+                    None => Some("no process".to_string()),
                 }
             };
-            if exited_early {
-                push_log(&state, format!("[error] Process exited early on attempt {}", level + 1));
+            if let Some(code_str) = exited_code {
+                push_log(
+                    &state,
+                    format!(
+                        "[error] Process exited early on attempt {} (exit code: {})",
+                        level + 1,
+                        code_str
+                    ),
+                );
                 break;
             }
         }

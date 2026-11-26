@@ -245,8 +245,8 @@ export const AgentExecutionPanel: React.FC<AgentExecutionPanelProps> = ({
       outcome: isFinished
         ? 'Generated comprehensive response with cited evidence'
         : isSynthesizing
-        ? 'Synthesizing verified findings...'
-        : 'Pending source completion',
+          ? 'Synthesizing verified findings...'
+          : 'Pending source completion',
       state: isFinished ? 'completed' : isSynthesizing ? 'active' : 'pending',
       icon: <Sparkles className="w-4 h-4 text-fuchsia-500" />,
     });
@@ -426,35 +426,32 @@ export const AgentExecutionPanel: React.FC<AgentExecutionPanelProps> = ({
                       <React.Fragment key={stage.id}>
                         <div className="flex items-center gap-1.5 font-medium">
                           <div
-                            className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] transition-all ${
-                              isPassed && !isActive
-                                ? 'bg-emerald-500 text-white'
-                                : isActive
+                            className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] transition-all ${isPassed && !isActive
+                              ? 'bg-emerald-500 text-white'
+                              : isActive
                                 ? 'bg-cyan-500 text-white shadow-lg shadow-cyan-500/50 animate-pulse'
                                 : 'bg-slate-200 dark:bg-white/10 text-slate-500 dark:text-slate-400'
-                            }`}
+                              }`}
                           >
                             {isPassed && !isActive ? '✓' : idx + 1}
                           </div>
                           <span
-                            className={`${
-                              isActive
-                                ? 'text-cyan-600 dark:text-cyan-400 font-semibold'
-                                : isPassed
+                            className={`${isActive
+                              ? 'text-cyan-600 dark:text-cyan-400 font-semibold'
+                              : isPassed
                                 ? 'text-slate-800 dark:text-slate-200'
                                 : 'text-slate-400 dark:text-slate-600'
-                            }`}
+                              }`}
                           >
                             {stage.label}
                           </span>
                         </div>
                         {idx < arr.length - 1 && (
                           <div
-                            className={`flex-1 h-0.5 mx-2 rounded-full transition-colors ${
-                              isPassed
-                                ? 'bg-emerald-500/40 dark:bg-emerald-500/30'
-                                : 'bg-slate-200 dark:bg-white/10'
-                            }`}
+                            className={`flex-1 h-0.5 mx-2 rounded-full transition-colors ${isPassed
+                              ? 'bg-emerald-500/40 dark:bg-emerald-500/30'
+                              : 'bg-slate-200 dark:bg-white/10'
+                              }`}
                           />
                         )}
                       </React.Fragment>
@@ -474,11 +471,10 @@ export const AgentExecutionPanel: React.FC<AgentExecutionPanelProps> = ({
                       {/* Vertical line connector */}
                       {!isLastStep && (
                         <div
-                          className={`absolute left-[13px] top-[26px] bottom-[-14px] w-[2px] transition-colors ${
-                            step.state === 'completed'
-                              ? 'bg-emerald-500/30 dark:bg-emerald-500/20'
-                              : 'bg-slate-200 dark:bg-white/10'
-                          }`}
+                          className={`absolute left-[13px] top-[26px] bottom-[-14px] w-[2px] transition-colors ${step.state === 'completed'
+                            ? 'bg-emerald-500/30 dark:bg-emerald-500/20'
+                            : 'bg-slate-200 dark:bg-white/10'
+                            }`}
                         />
                       )}
 
@@ -508,11 +504,10 @@ export const AgentExecutionPanel: React.FC<AgentExecutionPanelProps> = ({
                               setExpandedStepId(isStepExpanded ? null : step.id);
                             }
                           }}
-                          className={`p-3 rounded-xl border transition-all ${
-                            step.state === 'active'
-                              ? 'bg-white dark:bg-white/[0.04] border-cyan-500/30 shadow-sm'
-                              : 'bg-white/70 dark:bg-white/[0.02] border-slate-200/80 dark:border-white/5 hover:border-slate-300 dark:hover:border-white/15'
-                          } ${step.details ? 'cursor-pointer' : ''}`}
+                          className={`p-3 rounded-xl border transition-all ${step.state === 'active'
+                            ? 'bg-white dark:bg-white/[0.04] border-cyan-500/30 shadow-sm'
+                            : 'bg-white/70 dark:bg-white/[0.02] border-slate-200/80 dark:border-white/5 hover:border-slate-300 dark:hover:border-white/15'
+                            } ${step.details ? 'cursor-pointer' : ''}`}
                         >
                           <div className="flex items-start justify-between gap-2">
                             <div>
@@ -539,9 +534,8 @@ export const AgentExecutionPanel: React.FC<AgentExecutionPanelProps> = ({
                                 </span>
                                 {step.details && (
                                   <ChevronDown
-                                    className={`w-3.5 h-3.5 text-slate-400 transition-transform ${
-                                      isStepExpanded ? 'rotate-180' : ''
-                                    }`}
+                                    className={`w-3.5 h-3.5 text-slate-400 transition-transform ${isStepExpanded ? 'rotate-180' : ''
+                                      }`}
                                   />
                                 )}
                               </div>
@@ -720,10 +714,10 @@ export const AgentExecutionPanel: React.FC<AgentExecutionPanelProps> = ({
                               {sub.type === 'searching'
                                 ? `queries: [${(sub.searching || []).join(', ')}]`
                                 : sub.type === 'search_results'
-                                ? `results: ${(sub.reading || []).length} items`
-                                : sub.type === 'reasoning'
-                                ? `intent: "${(sub.reasoning || '').slice(0, 60)}..."`
-                                : JSON.stringify(sub).slice(0, 80)}
+                                  ? `results: ${(sub.reading || []).length} items`
+                                  : sub.type === 'reasoning'
+                                    ? `intent: "${(sub.reasoning || '').slice(0, 60)}..."`
+                                    : JSON.stringify(sub).slice(0, 80)}
                             </span>
                           </div>
                         ))}

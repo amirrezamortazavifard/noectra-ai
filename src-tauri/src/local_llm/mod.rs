@@ -828,7 +828,15 @@ async fn server_start_handler(
     State(state): State<LocalLlmState>,
     Json(payload): Json<ServerStartPayload>,
 ) -> Result<Json<Value>, (StatusCode, String)> {
-    let mut cfg = state.get_config();
+    let mut cfg = {
+        let mut guard = state.config.lock().unwrap();
+        if runtime::auto_discover_runtime(&mut guard) {
+            let _ = guard.save();
+        }
+        guard.clone()
+    };
+
+    let prev_model_path = cfg.server_config.model_path.clone();
     if let Some(sc) = payload.server_config {
         cfg.server_config = sc;
     }
@@ -844,13 +852,24 @@ async fn server_start_handler(
     let rt_info = runtime::get_runtime_info(&cfg).map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
     let server_binary = rt_info.server_binary.ok_or((
         StatusCode::BAD_REQUEST,
-        "llama-server binary not found. Please install a runtime in Settings -> Models -> Offline GGUF Engine.".to_string(),
+        "llama-server binary not found. Please install or select a runtime in Settings -> Models -> Offline Engine & GGUF.".to_string(),
     ))?;
 
     let installed = models::list_installed_models(&cfg).unwrap_or_default();
     if let Some(m) = installed.iter().find(|m| m.path.to_string_lossy() == cfg.server_config.model_path) {
         cfg.server_config.mmproj_path = m.mmproj_path.as_ref().map(|p| p.to_string_lossy().to_string());
         cfg.selected_model_id = Some(m.id.clone());
+        if cfg.server_config.n_ctx == 0 || prev_model_path != cfg.server_config.model_path {
+            let sys = state.get_system_info_cached();
+            let size_mb = (m.size_bytes / (1024 * 1024)).max(512);
+            let suggested = server::suggest_server_config(&cfg.server_config.model_path, size_mb, &sys);
+            cfg.server_config.n_gpu_layers = suggested.n_gpu_layers;
+            cfg.server_config.n_ctx = suggested.n_ctx;
+            cfg.server_config.cache_type_k = suggested.cache_type_k;
+            cfg.server_config.cache_type_v = suggested.cache_type_v;
+        }
+    } else if cfg.server_config.n_ctx == 0 {
+        cfg.server_config.n_ctx = 4096;
     }
 
     {
@@ -867,15 +886,39 @@ async fn server_start_handler(
         let _ = server::stop_server(&state.server).await;
     }
 
-    server::start_server(&server_binary, &cfg.server_config, state.server.clone())
-        .await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    {
+        let mut s = state.server.lock().unwrap();
+        s.status = server::ServerStatus::Starting;
+        s.loaded_model_path = Some(cfg.server_config.model_path.clone());
+        s.log_lines.clear();
+        s.log_lines.push(format!(
+            "[init] Starting {} with {}...",
+            server_binary.display(),
+            cfg.server_config.model_path
+        ));
+    }
 
-    let s = state.server.lock().unwrap();
+    let server_state = state.server.clone();
+    let server_cfg = cfg.server_config.clone();
+    tokio::spawn(async move {
+        // Clear Starting lock cleanly before calling start_server
+        {
+            let mut s = server_state.lock().unwrap();
+            s.status = server::ServerStatus::Stopped;
+        }
+        if let Err(e) = server::start_server(&server_binary, &server_cfg, server_state.clone()).await {
+            let mut s = server_state.lock().unwrap();
+            s.log_lines.push(format!("[error] {}", e));
+            if !matches!(s.status, server::ServerStatus::Error { .. }) {
+                s.status = server::ServerStatus::Error { message: e.to_string() };
+            }
+        }
+    });
+
     Ok(Json(json!({
-        "success": true,
-        "status": s.status,
-        "loaded_model_path": s.loaded_model_path,
+        "started": true,
+        "status": { "type": "starting" },
+        "loaded_model_path": cfg.server_config.model_path,
     })))
 }
 
